@@ -140,7 +140,8 @@ SHELL = /bin/sh
 
   #-- UMFPACK:
   ifeq ($(D_WANT_UMFPACK4), D_WANT_UMFPACK4_YES)
-    INCL_UMFPACK4      = -I$(LIBDIR_UMFPACK)/UMFPACK/Include  -I/usr/local/include/UMFPACKv4.4
+    LIBDIR_UMFPACK     = /usr/local/UMFPACKv4.4
+    INCL_UMFPACK4      = -I$(LIBDIR_UMFPACK)/UMFPACK/Include 
     #LIBS_UMFPACK4      = -L$(LIBDIR_UMFPACK)/UMFPACK/Lib -L$(LIBDIR_UMFPACK)/AMD/Lib -lumfpack-intel -lamd-intel -lblas-intel
     LIBS_UMFPACK4      = -L$(LIBDIR_UMFPACK)/UMFPACK/Lib  -L$(LIBDIR_UMFPACK)/AMD/Lib -lumfpack-intel -lamd -lblas-intel
     # crashes with sigsegv in libumfpack4-intel...:
