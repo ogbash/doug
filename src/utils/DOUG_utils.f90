@@ -650,12 +650,12 @@ contains
 
     ! Include control parameters desciption file.
     ! Defined are: DCTL_*, ctl_words
-    include 'controls.F90'
+    include 'controls.f90'
 
     ! find out which argument it is and set appropriatly
     ! WARN if it is unknown or repeated
     ctl_num = -1
-    do i = 1,DCTL_NWORDS ! defined in 'controls.F90'
+    do i = 1,DCTL_NWORDS ! defined in 'controls.f90'
        if (trim(word1).eq.trim(ctl_words(i))) then
           ctl_num = i
        endif
@@ -976,7 +976,7 @@ contains
 
     ! Include control parameters desciption file.
     ! Defined are: DCTL_*, ctl_words
-    include 'controls.F90'
+    include 'controls.f90'
 
     lens = length(ctl_words(1))
     do j = 2,DCTL_NWORDS
@@ -1087,7 +1087,7 @@ contains
 
     ! Include control parameters desciption file.
     ! Defined are: DCTL_*, ctl_words
-    include 'controls.F90'
+    include 'controls.f90'
 
     lens = length(ctl_words(1))
     do j = 2,DCTL_NWORDS
