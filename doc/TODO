@@ -1,0 +1,6 @@
+# file for keeping TODO-list
+
+17.03.06: eero: Parallel aggregation-based coarse problem will need parallel
+sparse matrix multiplication...
+
+Creating new repository on kheiron!
