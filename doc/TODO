@@ -3,4 +3,5 @@
 17.03.06: eero: Parallel aggregation-based coarse problem will need parallel
 sparse matrix multiplication...
 
-Creating new repository on kheiron!
+Creating new repository on kheiron.at.mt.ut.ee
+Initial usege: svn co svn://kheiron.at.mt.ut.ee/doug
