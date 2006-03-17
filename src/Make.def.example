@@ -1,0 +1,217 @@
+# src/Make.def
+
+SHELL = /bin/sh
+
+#
+#---------------------------------------------------------------------
+#
+# DOUG executable name
+  DOUG_EXE = DOUG_main
+  AGGR_EXE = aggr_DOUG
+#
+#---------------------------------------------------------------------
+#
+# DOUG static and shared library name and version number of DOUG code
+  DOUG_LIB = libdoug
+  DVMAJOR = 0
+  DVMINOR = 1
+#
+#---------------------------------------------------------------------
+#  
+#  compiler (FORTRAN, C)
+# 
+
+  F95 = mpif77 -fPIC
+  CC  = mpicc -fPIC
+
+  # FORTRAN 95 compiler the MPI was compiled with (this is needed to 
+  # appropriately set the DOUG compilation parameters):
+  # "ifort" - Intel
+  FC = ifort
+  # "g95" - uses GCC backend
+  #FC = g95
+  # "gfortran" - part of GCC from >= v4.0.0
+  #FC = gfortran
+#
+#---------------------------------------------------------------------
+#
+#  linker
+#
+  LINKER = mpif77
+#
+#---------------------------------------------------------------------
+#
+#  shared library compiler
+#
+  DLL = gcc -shared
+#
+#---------------------------------------------------------------------
+#
+#  numerical type (D_REAL/D_COMPLEX)
+#
+  NUMTYPE = D_REAL
+#
+#---------------------------------------------------------------------
+#
+#  compiler flags
+#
+  #-- FORTRAN preprocessor flags
+  D_WANT_PLPLOT   = D_WANT_PLPLOT_NO
+  D_WANT_UMFPACK4 = D_WANT_UMFPACK4_YES
+  D_WANT_MUMPS    = D_WANT_MUMPS_NO
+  FPRECOMP  = -cpp -D$(NUMTYPE) \
+              -D$(D_WANT_PLPLOT) -D$(D_WANT_UMFPACK4) -D$(D_WANT_MUMPS)
+  #PRECOMP  = -cpp 
+  #PRECOMP  =
+  
+  #-- FORTRAN compiler dependent code generation flags:
+  FOPTFLAGS =
+  ifneq ($(strip $(FC)),)
+    # "ifort"
+    ifeq ($(FC), ifort)
+      #FOPTFLAGS = -g -CB -u -traceback
+      FOPTFLAGS = -g -u
+      #FOPTFLAGS = -u -O -mp1
+
+      # -module <dir>
+
+      # profile optimised code:
+      #FOPTFLAGS = $(FPRECOMP) -u -O3 -mp1 -pg
+    else
+      # "g95" (-i4 for UMFPACK)
+      ifeq ($(FC), g95)
+        FOPTFLAGS = -g -i4 -fbounds-check -ftrace=full -fshort-circuit
+                   #-fno-second-underscore
+		   #-fno-underscoring
+        #FOPTFLAGS = -O3 -ffast-math -fstatic 
+                   # -r8 -i4
+
+        # -fmod=directory
+        # -M make file dependency
+      else 
+        # "gfortran"
+        ifeq ($(FC), gfortran)
+          FOPTFLAGS_MSG = gfortran was not tested yet
+          FOPTFLAGS =
+        else 
+          FOPTFLAGS_MSG = "I don't have any compile-time flags definded for \
+                           $(FC). Specify them with: make FOPTFLAGS=[flags]"
+          FOPTFLAGS =
+        endif
+      endif
+    endif
+  else
+     FOPTFLAGS_MSG = No compiler was specified.
+  endif
+
+  #-- FORTRAN flags (preprocessor, compiler)
+  FCOMPFLAGS = $(FPRECOMP) $(FOPTFLAGS)
+
+  #-- C optimisation flags
+  COPTFLAGS = -g
+  #COPTFLAGS = -O3
+#
+#---------------------------------------------------------------------
+#
+#  include dirs
+#
+# INCL = -I. -I../ -I../../
+#
+#---------------------------------------------------------------------
+#
+#  libs
+#
+  #-- MPI
+  LIBS_MPI     =
+  #LIBS_MPI     = -lmpi
+  # LAM-MPI:
+  #LIBS_MPI     = -llammpio -llamf77mpi -lmpi -llam -lutil -ldl
+
+  #-- PLplot
+  ifeq ($(D_WANT_PLPLOT), D_WANT_PLPLOT_YES)
+    LIBS_PL      = -lplplotf77d
+  else
+    LIBS_PL      =
+  endif
+
+  #-- METIS:
+  LIBDIR_METIS = /usr/local/lib
+  LIBS_METIS = -L$(LIBDIR_METIS) -lmetis
+
+  #-- UMFPACK:
+  ifeq ($(D_WANT_UMFPACK4), D_WANT_UMFPACK4_YES)
+    INCL_UMFPACK4      = -I$(LIBDIR_UMFPACK)/UMFPACK/Include  -I/usr/local/include/UMFPACKv4.4
+    #LIBS_UMFPACK4      = -L$(LIBDIR_UMFPACK)/UMFPACK/Lib -L$(LIBDIR_UMFPACK)/AMD/Lib -lumfpack-intel -lamd-intel -lblas-intel
+    LIBS_UMFPACK4      = -L$(LIBDIR_UMFPACK)/UMFPACK/Lib  -L$(LIBDIR_UMFPACK)/AMD/Lib -lumfpack-intel -lamd -lblas-intel
+    # crashes with sigsegv in libumfpack4-intel...:
+    #LIBS_UMFPACK4      = -lblas -lumfpack4-intel -lamd-intel 
+  else
+    INCL_UMFPACK4      = -I$(LIBDIR_UMFPACK)/UMFPACK/Include  -I/usr/local/include/UMFPACKv4.4
+#    INCL_UMFPACK4      = 
+    LIBS_UMFPACK4      = -L$(LIBDIR_UMFPACK)/UMFPACK/Lib  -L$(LIBDIR_UMFPACK)/AMD/Lib -lumfpack-intel -lamd -lblas-intel
+#    LIBS_UMFPACK4      =
+  endif
+
+  #-- MUMPS:
+  LIBDIR_MUMPS = /usr/local/lib/MUMPS
+  LIBDIR_BLACS = /usr/local/lib/BLACS
+  LIBDIR_ATLAS = /usr/local/lib/ATLAS
+  ifeq ($(D_WANT_MUMPS), D_WANT_MUMPS_YES)
+    INCL_MUMPS      = -I$(LIBDIR_MUMPS)/include
+    LIBS_MUMPS0    = -L$(LIBDIR_MUMPS)/lib -lscalapack -ldmumps -lpord $(LIBDIR_BLACS)/blacs_MPI-LINUX-0.a  $(LIBDIR_BLACS)/blacsF77init_MPI-LINUX-0.a   $(LIBDIR_BLACS)/blacs_MPI-LINUX-0.a  $(LIBDIR_BLACS)/blacsF77init_MPI-LINUX-0.a -L$(LIBDIR_ATLAS) -lf77blas -lcblas -latlas
+    LIBS_MUMPS      = $(LIBS_MUMPS0) -L$(LIBDIR_MUMPS)/lib -lscalapack  -ldmumps -lpord  $(LIBDIR_BLACS)/blacs_MPI-LINUX-0.a  $(LIBDIR_BLACS)/blacsF77init_MPI-LINUX-0.a   $(LIBDIR_BLACS)/blacs_MPI-LINUX-0.a  $(LIBDIR_BLACS)/blacsF77init_MPI-LINUX-0.a -L$(LIBDIR_ATLAS) -lf77blas -lcblas -latlas
+  else
+    INCL_MUMPS      = 
+    LIBS_MUMPS      =
+  endif
+
+#
+#---------------------------------------------------------------------
+#
+#  set the purify environment (a memory monitoring tool)
+#
+  PURIFY = 
+#
+#---------------------------------------------------------------------
+#
+#  archive flags
+#
+  AR = ar
+  ARFLAGS = Srv
+#
+#---------------------------------------------------------------------
+#
+#  archive index generator
+#
+  RANLIB = ranlib
+#
+#---------------------------------------------------------------------
+#
+#  suffix rule *.f90 --> *.o
+#
+.f90.o : 
+	$(PURIFY) $(F90) $(FOPTFLAGS) -c $<
+#
+#---------------------------------------------------------------------
+#
+#  suffix rule *.f90 --> *.a
+#
+.f90.a :
+	$(PURIFY) $(F90) -c $(FOPTFLAGS) $<
+	$(AR) $(ARFLAGS) $@ $*.o
+	rm -f $*.o
+#
+#----------------------------------------------------------------------
+#
+# Object files to put into shared library
+#
+  MODDIRs = \
+	utils           \
+	datatypes       \
+	datatypes/SpMtx \
+	solvers
+  OBJSDIRs = $(addprefix src/,$(MODDIRs))
+  OBJSSKIP = 
+  DOUG_OBJS := $(foreach dir,$(OBJSDIRs),$(patsubst %.f90,%.o,$(wildcard $(dir)/$(OBJSSKIP)*.f90)) $(patsubst %.c,%.o,$(wildcard $(dir)/$(OBJSSKIP)*.c)))
+#
+#

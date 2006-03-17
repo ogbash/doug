@@ -1,0 +1,6 @@
+aggr.o: DOUG.o main_drivers.o
+DOUG.o:
+master_thread.o:
+main_drivers.o:
+main.o: DOUG.o main_drivers.o
+slave_thread.o:

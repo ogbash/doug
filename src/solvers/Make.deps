@@ -1,0 +1,6 @@
+cg.o: ConvInf.o
+ConvInf.o:
+subsolvers.o: Fact.o
+pcg.o: ConvInf.o subsolvers.o
+Fact.o:
+solvers.o: cg.o pcg.o ConvInf.o subsolvers.o

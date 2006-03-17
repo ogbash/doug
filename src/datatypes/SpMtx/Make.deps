@@ -1,0 +1,14 @@
+TransmitCoarse.o: CoarseGrid.o
+SpMtx_util.o: SpMtx_class.o
+CreateProlong.o: CoarseGrid.o SpMtx_class.o
+SpMtx_generator.o: SpMtx_class.o SpMtx_operation.o
+CoarseMtx.o: SpMtx_class.o SpMtx_op_AB.o SpMtx_op_Ax.o
+SpMtx_permutation.o: SpMtx_class.o
+SpMtx_op_AB.o: SpMtx_class.o SpMtx_arrangement.o SpMtx_util.o
+SpMtx_op_Ax.o: SpMtx_class.o SpMtx_arrangement.o
+SpMtx_operation.o: SpMtx_class.o SpMtx_permutation.o SpMtx_util.o SpMtx_op_Ax.o
+SpMtx_arrangement.o: SpMtx_class.o SpMtx_util.o
+SpMtx.o: SpMtx_class.o SpMtx_op_AB.o SpMtx_op_Ax.o SpMtx_operation.o SpMtx_arrangement.o SpMtx_permutation.o SpMtx_util.o
+CoarseGrid.o: SpMtx_class.o
+SpMtx_class.o:
+CreateCoarse.o: CoarseGrid.o

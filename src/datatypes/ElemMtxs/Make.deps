@@ -1,0 +1,4 @@
+ElemMtxs_distribute.o: ElemMtxs_base.o ElemMtxs_assemble.o
+ElemMtxs_assemble.o: ElemMtxs_base.o
+ElemMtxs_base.o:
+ElemMtxs.o: ElemMtxs_base.o ElemMtxs_assemble.o ElemMtxs_distribute.o
