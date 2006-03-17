@@ -54,7 +54,7 @@ contains
         real(kind=xyzk), pointer :: ccoords(:,:) ! coarse grid coordinates
 
         ! For MPI
-        integer :: req, ierr, sz, szs
+        integer :: req, ierr, stat(MPI_STATUS_SIZE), sz, szs
         character, pointer :: buffer(:)
 
         buffer=>NULL()
@@ -74,7 +74,7 @@ contains
         ! Divide up the data
         !************************************************************
         allocate(fcoords(M%nsd,M%nnode),ccoords(M%nsd,C%ncti))
-        do p=1, M%nparts
+        do p=0, M%nparts-1
             ! Pass up the sending to master
             if (p==myrank) cycle
             
@@ -165,43 +165,43 @@ contains
             
             ! Initial data
             call MPI_PACK_SIZE(8,MPI_INTEGER,&
-                                                sz,MPI_COMM_WORLD,ierr)
+                                                MPI_COMM_WORLD,sz,ierr)
             szs=szs+sz
 
             ! Coarse grid elements
             call MPI_PACK_SIZE((2+2**M%nsd)*elcnt,MPI_INTEGER,&
-                                                sz,MPI_COMM_WORLD,ierr)
+                                                MPI_COMM_WORLD,sz,ierr)
             szs=szs+sz
 
             ! Coarse refined elements
             call MPI_PACK_SIZE(2*refcnt,MPI_INTEGER,&
-                                                sz,MPI_COMM_WORLD,ierr)
+                                                MPI_COMM_WORLD,sz,ierr)
             szs=szs+sz
             
             ! Coordinates ( both fine and coarse )
             call MPI_PACK_SIZE(M%nsd*(lnnode+refcnt+ndcnt),MPI_xyzkind,&
-                                                sz,MPI_COMM_WORLD,ierr)
+                                                MPI_COMM_WORLD,sz,ierr)
             szs=szs+sz
             
             ! Elmap, lfreemap and fremap
             call MPI_PACK_SIZE(3*lnnode,MPI_xyzkind,&
-                                                sz,MPI_COMM_WORLD,ierr)
+                                                MPI_COMM_WORLD,sz,ierr)
             szs=szs+sz
 
             ! lg_cfreemap
             call MPI_PACK_SIZE(ndcnt+refcnt,MPI_INTEGER,&
-                                                sz,MPI_COMM_WORLD,ierr)
+                                                MPI_COMM_WORLD,sz,ierr)
             szs=szs+sz
 
             ! Cfreemap
             call MPI_PACK_SIZE(nlfc,MPI_xyzkind,&
-                                                sz,MPI_COMM_WORLD,ierr)
+                                                MPI_COMM_WORLD,sz,ierr)
             szs=szs+sz
 
 
             ! If we used the buffer before, empty it
             if (associated(buffer)) then
-                call MPI_WAIT(req,ierr)
+                call MPI_WAIT(req,stat,ierr)
                 deallocate(buffer)
             endif
             
@@ -283,7 +283,7 @@ contains
                 do j=C%els(el)%lbeg,C%els(el)%lbeg+C%els(el)%nfs
                     if (gl_nodemap(C%elmap(j))/=0) then
                         lnfss(el)=lnfss(el)+1
-                        call MPI_PACK(gl_nodemap(C%elmap(j)), MPI_INTEGER, &
+                        call MPI_PACK(gl_nodemap(C%elmap(j)), 1, MPI_INTEGER, &
                                 buffer, szs, pt, MPI_COMM_WORLD, ierr)
                     endif
                 enddo
@@ -293,7 +293,7 @@ contains
                     do j=C%refels(i)%lbeg,C%refels(i)%lend
                     if (gl_nodemap(C%elmap(j))/=0) then
                         lnfss(el)=lnfss(el)+1
-                        call MPI_PACK(gl_nodemap(C%elmap(j)), MPI_INTEGER, &
+                        call MPI_PACK(gl_nodemap(C%elmap(j)), 1, MPI_INTEGER, &
                                 buffer, szs, pt, MPI_COMM_WORLD, ierr)
                     endif
                     enddo
@@ -347,7 +347,7 @@ contains
         deallocate (fcoords,ccoords)
         
         if (associated(buffer)) then
-            call MPI_WAIT(req,ierr)
+            call MPI_WAIT(req,stat,ierr)
             deallocate(buffer)
         endif
  
@@ -762,7 +762,10 @@ contains
                 LC%els(f)%rbeg=ref
                 pstack(0)=-f; lvl=0; ndp=nd-1
                 do while (i/=-1)
-                    new=>LC%refels(ref); old=C%refels(i)
+                    new=>LC%refels(ref)
+                    
+                    old=>C%refels(i)
+
                     new%level=old%level
                     new%node=old%node
                     new%parent=pstack(new%level-1)

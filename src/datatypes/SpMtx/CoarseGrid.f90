@@ -92,7 +92,8 @@ module CoarseGrid_class
         type(CoarseGridElem), dimension(:), pointer :: els
         !! Refined elements : refels[refnum]
         type(RefinedElem), dimension(:), pointer :: refels 
-        !! Mapping of coarse grid elements to fine nodes : elmap[nnode]
+        !! Mapping of coarse grid elements to fine nodes: elmap[nnode]
+        !!      Used in conjuncition with lbeg and lend-s
         integer, dimension(:), pointer :: elmap
         
         !! Mapping of freedoms to nodes : cfreemap[nlfc] (or [ngfc] if global)
@@ -309,11 +310,11 @@ contains
                     ! Adjust mins and maxs as needed
                     do k=1,nsd
                         if (parct(k)>ct(k)) then
-                            maxs(lvl,k)=parct(k)
-                            mins(lvl,k)=mins(lvl-1,k)
+                            maxs(k,lvl)=parct(k)
+                            mins(k,lvl)=mins(k,lvl-1)
                         else
-                            maxs(lvl,k)=maxs(lvl-1,k)
-                            mins(lvl,k)=parct(k)
+                            maxs(k,lvl)=maxs(k,lvl-1)
+                            mins(k,lvl)=parct(k)
                         endif
                     enddo
 
@@ -356,9 +357,9 @@ contains
         rx=(coords-mins)/h
         
         ! And determine the element it belongs to
-        ind=aint(rx(1))-1
+        ind=aint(rx(1))
         do i=2,size(rx,dim=1)
-            ind=ind*nc(i-1) + (aint(rx(i))-1)
+            ind=ind*nc(i-1) + (aint(rx(i)))
         enddo
 
         ind=ind+1        

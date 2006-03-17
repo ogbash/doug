@@ -189,7 +189,7 @@ contains
                 call gendata(pts,tnsd,M%nsd,raux,iaux)
                 pinds(1:tnsd)=C%els(i)%n
 
-                do j=C%els(i)%lbeg,C%els(i)%lbeg+C%els(i)%nfs
+                do j=C%els(i)%lbeg,C%els(i)%lbeg+C%els(i)%nfs-1
                     pn=C%elmap(j) ! The index of the fine node
 
                     ! Evaluate the functions in the point
@@ -209,7 +209,7 @@ contains
                 pinds(tnsd+C%refels(j)%level)=C%refels(j)%node
 
                 ! Check if we actually need to do anything here
-                if (C%refels(j)%lbeg<C%refels(j)%lend) then
+                if (C%refels(j)%lbeg<=C%refels(j)%lend) then
                     call gendata(pts,tnsd+C%refels(j)%level,M%nsd,raux,iaux)
 
                     ! Go through all the fine nodes that are in this element
@@ -246,7 +246,7 @@ contains
 
         ! Create fbegs
         fbeg(1)=1;
-        do i=1,C%nlfc
+        do i=1,C%nct
             fbeg(i+1)=faux(i)+fbeg(i)
         enddo
         
@@ -264,8 +264,8 @@ contains
 
         ! Calculate the upper bound for nnz
         cnt=0
-        do i=1,M%lnnode
-            cnt=cnt+(NP%M_bound(i+1)-NP%M_bound(i))*(fbeg(i+1)-fbeg(i))
+        do i=1,NP%nnz
+            cnt=cnt+fbeg(NP%indj(i)+1)-fbeg(NP%indj(i))
         enddo
         
         ! Allocate the matrix

@@ -9,6 +9,7 @@ contains
 subroutine CreateCoarse(M,C,CGC)
         use RealKind
         use CoarseGrid_class
+        use globals, only: stream
         
         implicit none
 
@@ -234,7 +235,7 @@ subroutine CreateCoarseMesh(M, C, CGC, choosecenter)
                 
                 allocate(C%els(el)%n(4)) ! 2**2=4
                 ! indices of the nodes that bound this element
-                nb=((i-1)*C%nc(2)+(j-1))*C%nc(3)+k
+                nb=(i-1)*C%nc(2)+j
                 ! It is sensible to keep them sorted
                 C%els(el)%n(1)=nb
                 C%els(el)%n(2)=nb+1
@@ -312,7 +313,7 @@ subroutine CreateCoarseMesh(M, C, CGC, choosecenter)
             call BHeap_delmax(queue)
 
             ! If the largest imbalance is smaller than cutoff, stop refinement
-            if (pcnt<CGC%cutbal) exit
+            if (pcnt<=CGC%cutbal) exit
 
             ! Otherwise refine
             if (el<=C%elnum) then ! We need to refine an initial grid element
@@ -388,7 +389,9 @@ subroutine CreateCoarseMesh(M, C, CGC, choosecenter)
                     flags=1
                     if (pt2(1)<0) flags=flags+1
                     if (pt2(2)<0) flags=flags+2
-                    if (M%nsd==3 .and. pt2(3)<0) flags=flags+4
+                    if (M%nsd==3)  then
+                        if (pt2(3)<0) flags=flags+4
+                    endif
                     counts(flags)=counts(flags)+1
                 enddo
 
