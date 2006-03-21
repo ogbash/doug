@@ -68,24 +68,24 @@ program main
 !!$     n=sqrt(1.0_rk*A%nrows)
 !!$     call Mesh_BuildSquare(M,n)
 
-  case (DCTL_INPUT_TYPE_ASSEMBLED)
-
+  case (DCTL_INPUT_TYPE_ASSEMBLED) ! ASSEMBLED matrix 
      write(stream,'(a,a)') ' ##### Assembled input file: ##### ',mctls%assembled_mtx_file
-     ! ASSEMBLED
-     !call parallelDistributeAssembled()
-     call ReadInSparseAssembled(A,mctls%assembled_mtx_file)
-     n=sqrt(1.0_rk*A%nrows)
-     if (n*n /= A%nrows) then
-       if (numprocs>1) then
-         call DOUG_abort('mesh not done yet for //', -1)
-       else
+     if (ismaster()) then
+       call ReadInSparseAssembled(A,mctls%assembled_mtx_file)
+     endif
+     if (numprocs==1) then
+       n=sqrt(1.0_rk*A%nrows)
+       if (n*n /= A%nrows) then
          write (stream,*) 'Not a Cartesian Mesh!!!'
          M=Mesh_New()
          M%ngf=A%nrows
          M%nlf=A%nrows
+       else
+         call Mesh_BuildSquare(M,n)
        endif
-     else
-       call Mesh_BuildSquare(M,n)
+     else ! numprocs>1
+       M=Mesh_New()
+       call SpMtx_DistributeAssembled(A,M)
      endif
   case default
      call DOUG_abort('[DOUG main] : Unrecognised input type.', -1)

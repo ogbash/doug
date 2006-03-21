@@ -183,6 +183,192 @@ CONTAINS
     deallocate(el)
   end subroutine SpMtx_arrange
 
+!----------------------------------------------------------
+!  arrange for ROWs or COLUMNs into colour-ranked order
+!    Arguments:
+!           M - sparse matrix,
+!        ncol - #colors
+!         col - color for each matrix row
+!    output: colstarts(1:ncol+1)
+!    optional:
+!  arrange_type -- D_SpMtx_ARRNG_ROWS or D_SpMtx_ARRNG_COLS
+!----------------------------------------------------------
+  subroutine SpMtx_arrange_clrorder(M,nclr,clr,clrorder,clrstarts,arrange_type,sort)
+    Implicit None
+    Type(SpMtx), intent(in out)        :: M        !Initial matrix
+    integer,intent(in)                 :: nclr !#colors
+    integer,dimension(:),pointer,intent(in):: clr  !color for each matrix row
+    integer,dimension(:),pointer       :: clrorder  !allocated here
+     !order of matrix rows (columns) so that color i is found in rows (columns):
+                   !             clrorder(clrstarts(i):clrstarts(i+1)-1)
+    integer,dimension(:),pointer       :: clrstarts  !allocated here
+    integer, optional, intent(in)      :: arrange_type ! how to arrange?
+    logical, optional, intent(in)      :: sort ! wheather entries ascending?
+    logical                            :: columnwise,dosort
+    integer                            :: i,j,k,kk,ind_beg,ind,nnz,n
+    integer, dimension(:), allocatable :: el        !elements vector
+    integer, dimension(:), allocatable :: indi,indj !helper vectors
+    float(kind=rk),dimension(:),allocatable :: val
+    integer, dimension(:), allocatable :: sortref   !helper for sorting
+    integer :: at
+    integer, dimension(:), allocatable :: ccount !count colors
+    !- - - - - - - - - - - - - - - - - - - - - - - -
+    if (present(arrange_type)) then
+      at=arrange_type
+    else
+      at=D_SpMtx_ARRNG_ROWS
+    endif
+    if (at==D_SpMtx_ARRNG_ROWS) then
+      columnwise = .false.
+    elseif (at==D_SpMtx_ARRNG_COLS) then
+      columnwise = .true.
+    else
+      write(stream,*)'WARNING: SpMtx_arrange to ',at,' not done'
+      return
+    endif
+    dosort=.false.
+    if (present(sort)) then
+      if (sort) then
+        dosort=sort
+      endif
+    endif
+    M%arrange_type=at
+    !===== allocate memory and control arrange_type
+    if (columnwise) then !!!columns
+      allocate(el(M%ncols))
+      allocate(M%M_bound(M%ncols+1))
+      n=M%ncols
+    else !!!rows
+      allocate(el(M%nrows))
+      allocate(M%M_bound(M%nrows+1))
+      n=M%nrows
+    end if
+    !========= count color elements ============
+    allocate(ccount(nclr))
+    ccount=0
+    do i=1,n
+      ccount(clr(i))=ccount(clr(i))+1
+    enddo
+    allocate(clrstarts(nclr+1))
+    clrstarts(1)=1
+    do i=1,nclr
+      clrstarts(i+1)=clrstarts(i)+ccount(i)
+    end do
+    allocate(clrorder(n))
+    ccount(1:nclr)=clrstarts(1:nclr)
+    do i=1,n
+      clrorder(ccount(clr(i)))=i
+      ccount(clr(i))=ccount(clr(i))+1
+    enddo
+    !===== 1.find how many elements are every row/col 
+    nnz=M%nnz
+    el = 0
+    do i = 1, nnz
+      if (columnwise) then
+        k=M%indj(i)
+      else
+        k=M%indi(i)
+      end if
+      el(k)=el(k)+1
+    end do
+    !===== generate M_bound vector
+    M%M_bound(1) = 1
+    do i = 1, size(M%M_bound) - 1
+      M%M_bound(i+1) = M%M_bound(i) + el(i)
+    end do
+    allocate(indi(nnz),indj(nnz),val(nnz))    
+    if (dosort) then
+      ! 2.find the order:
+      allocate(sortref(nnz))
+      el = 0
+      if (columnwise) then
+        do i = 1,nnz
+          k=M%indj(i)
+          ind_beg = M%M_bound(k)
+          if (el(k)==0) then ! the first element
+            sortref(ind_beg)=i 
+            el(k)=1
+          else ! rank and insert into the sorted list:
+            ind = M%M_bound(k)+el(k)
+            j=ind_beg
+      whilc:do while (.true.)
+              if (j==ind) then ! adding to the end:
+                sortref(j)=i
+                el(k)=el(k)+1
+                exit whilc
+              elseif (M%indi(i)<M%indi(sortref(j))) then ! add betw.:
+                do kk=ind,j+1,-1 ! advance the rest of the sequence by 1 step:
+                  sortref(kk)=sortref(kk-1)
+                enddo
+                sortref(j)=i
+                el(k)=el(k)+1
+                exit whilc
+              else !advance to the next sorted element:
+                j=j+1
+              endif
+            enddo whilc
+          endif
+        enddo
+      else ! rowwise:
+        do i = 1,nnz
+          k=M%indi(i)
+          ind_beg = M%M_bound(k)
+          if (el(k)==0) then ! the first element
+            sortref(ind_beg)=i 
+            el(k)=1
+          else ! rank and insert into the sorted list:
+            ind = M%M_bound(k)+el(k)
+            j=ind_beg
+      whilr:do while (.true.)
+              if (j==ind) then ! adding to the end:
+                sortref(j)=i
+                el(k)=el(k)+1
+                exit whilr
+              elseif (M%indj(i)<M%indj(sortref(j))) then ! add betw.:
+                do kk=ind,j+1,-1 ! advance the rest of the sequence by 1 step:
+                  sortref(kk)=sortref(kk-1)
+                enddo
+                sortref(j)=i
+                el(k)=el(k)+1
+                exit whilr
+              else !advance to the next sorted element:
+                j=j+1
+              endif
+            enddo whilr
+          endif
+        enddo
+      endif
+      ! 3.rearrange arrays:
+      do i = 1,nnz
+        ind=sortref(i) ! where to get the values for this pos
+        indi(i) = M%indi(ind)
+        indj(i) = M%indj(ind)
+        val(i) = M%val(ind)
+      enddo
+      deallocate(sortref)
+    else
+      el = 0
+      do i = 1,nnz
+        if (columnwise) then
+          k=M%indj(i)
+        else
+          k=M%indi(i)
+        end if
+        ind = M%M_bound(k)+el(k)
+        el(k)=el(k)+1
+        indi(ind) = M%indi(i)
+        indj(ind) = M%indj(i)
+        val(ind) = M%val(i)
+      end do
+    endif
+    !===== finishing ...
+    M%indi = indi
+    M%indj = indj
+    M%val = val
+    deallocate(val,indj,indi)    
+    deallocate(el)
+  end subroutine SpMtx_arrange_clrorder
+
 !------------------------------------------------------
 ! Diagonal scaling of matrix:
 !   diagonal value is stored in diag
@@ -1863,6 +2049,123 @@ endif
     endif
   end subroutine SpMtx_aggregate
 
+  subroutine SpMtx_DistributeAssembled(A,M)
+    use Graph_class
+    use Mesh_class
+    implicit none
+
+    type(SpMtx),intent(inout) :: A
+    type(Mesh)                :: M
+    integer :: i,ierr
+    integer, dimension(:), pointer :: xadj
+    integer, dimension(:), pointer :: adjncy
+    integer                        :: nedges
+    type(Graph) :: G
+    integer, dimension(6) :: part_opts = (/0,0,0,0,0,0/)
+    integer,dimension(:),pointer       :: partorder,partstarts
+    integer,dimension(4)           :: buf
+    
+    if (ismaster()) then
+      call SpMtx_buildAdjncy(A,nedges,xadj,adjncy)
+      G=Graph_newInit(A%nrows,nedges,xadj,adjncy,D_GRAPH_NODAL)
+      ! Deallocate temporary arrays
+      if (associated(xadj))   deallocate(xadj)
+      if (associated(adjncy)) deallocate(adjncy)
+      call Graph_Partition(G,numprocs,D_PART_VKMETIS,part_opts)
+      call color_print_aggrs(A%nrows,G%part,overwrite=.false.)
+      call flush(stream)
+      buf(1)=A%nrows
+      buf(2)=A%ncols
+      buf(3)=A%nnz
+      buf(4)=numprocs
+      ! Save result in Mesh object
+      M=Mesh_newInit(nell=A%nrows,ngf=A%nrows,nsd=-2,mfrelt=-1,nnode=A%nrows)
+      call Mesh_allocate(M,eptnmap=.true.)
+      M%parted  = G%parted
+      M%nparts  = G%nparts
+      M%eptnmap = G%part
+      call Graph_Destroy(G)
+    endif
+    ! TODO TODO TODO -- something more efficient need to be devised
+    call MPI_BCAST(buf,4,MPI_INTEGER,D_MASTER,MPI_COMM_WORLD,ierr)
+    if (.not.ismaster()) then
+      A = SpMtx_newInit(nnz=buf(3),nblocks=sctls%number_of_blocks, &
+                         nrows=buf(1),                             &
+                         ncols=buf(2),                             &
+                    symmstruct=sctls%symmstruct,                   &
+                   symmnumeric=sctls%symmnumeric                   &
+                        )
+      M=Mesh_newInit(nell=A%nrows,ngf=A%nrows,nsd=-2,mfrelt=-1,nnode=A%nrows)
+      call Mesh_allocate(M,eptnmap=.true.)
+      M%parted  = .true.
+      M%nparts  = buf(4)
+    endif
+    call MPI_BCAST(M%eptnmap,A%nnz,MPI_INTEGER,D_MASTER,MPI_COMM_WORLD,ierr)
+    call MPI_BCAST(A%indi,A%nnz,MPI_INTEGER,D_MASTER,MPI_COMM_WORLD,ierr)
+    call MPI_BCAST(A%indj,A%nnz,MPI_INTEGER,D_MASTER,MPI_COMM_WORLD,ierr)
+    call MPI_BCAST(A%val,A%nnz,MPI_fkind,D_MASTER,MPI_COMM_WORLD,ierr)
+    call MPI_BCAST(A%val,A%nnz,MPI_DOUBLE_PRECISION,D_MASTER,MPI_COMM_WORLD,ierr)
+    call SpMtx_arrange_clrorder(A,numprocs,M%eptnmap,partorder, &
+                                partstarts,sort=.true.)
+    do i=1,numprocs
+      write(stream,*)'partition ',i,' is in:', &
+         partorder(partstarts(i):partstarts(i+1)-1)
+    enddo
+    !call SpMtx_printRaw(A)
+    call MPI_BARRIER(MPI_COMM_WORLD,ierr)
+    call DOUG_abort('testing nodal graph partitioning',0)
+  end subroutine SpMtx_DistributeAssembled
+
+  subroutine SpMtx_buildAdjncy(A,nedges,xadj,adjncy)
+    use globals, only : stream, D_MSGLVL
+    implicit none
+
+    type(SpMtx),intent(inout) :: A
+    integer,           intent(out) :: nedges
+    integer, dimension(:), pointer :: xadj
+    integer, dimension(:), pointer :: adjncy
+    
+    integer :: i,k,s,s1,sadjncy
+    integer, dimension(:), pointer :: counter
+
+    ! allocation for the adjacency data
+    allocate(xadj(A%nrows+1))
+    xadj = 0
+    ! count the lengths
+    !   (NB! We are expecting matrix symmetric structure!!!)
+    do k=1,A%nnz
+      if (A%indi(k)<A%indj(k)) then
+        xadj(A%indi(k))=xadj(A%indi(k))+1
+        xadj(A%indj(k))=xadj(A%indj(k))+1
+      endif
+    enddo
+    allocate(counter(A%nrows))
+    counter = 0
+    s = xadj(1)
+    xadj(1) = 1
+    counter(1) = 1
+    do i = 2,A%nrows
+       s1 = xadj(i)
+       xadj(i) = xadj(i-1)+s
+       counter(i) = xadj(i)
+       s = s1
+    enddo
+    xadj(A%nrows+1) = xadj(A%nrows) + s
+    sadjncy = xadj(A%nrows+1) - 1
+    allocate(adjncy(sadjncy))
+    ! pass 2 of the data
+    do k=1,A%nnz
+      if (A%indi(k)<A%indj(k)) then
+        adjncy(counter(A%indi(k)))=A%indj(k)
+        counter(A%indi(k))=counter(A%indi(k))+1
+        adjncy(counter(A%indj(k)))=A%indi(k)
+        counter(A%indj(k))=counter(A%indj(k))+1
+      endif
+    enddo
+    nedges = sadjncy/2
+    deallocate(counter)
+  end subroutine SpMtx_buildAdjncy
+  
   subroutine SpMtx_SymmTest(A,eps)
     type(SpMtx),intent(in) :: A
     real(kind=rk),optional :: eps
