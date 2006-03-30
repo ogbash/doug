@@ -2065,7 +2065,8 @@ endif
     integer,dimension(:),pointer       :: partorder,partstarts
     integer,dimension(4)           :: buf
     
-    if (ismaster()) then
+    if (ismaster()) then ! Here master simply splits the matrix into pieces
+                         !   using METIS
       call SpMtx_buildAdjncy(A,nedges,xadj,adjncy)
       G=Graph_newInit(A%nrows,nedges,xadj,adjncy,D_GRAPH_NODAL)
       ! Deallocate temporary arrays
@@ -2080,41 +2081,128 @@ endif
       buf(4)=numprocs
       ! Save result in Mesh object
       M=Mesh_newInit(nell=A%nrows,ngf=A%nrows,nsd=-2,mfrelt=-1,nnode=A%nrows)
-      call Mesh_allocate(M,eptnmap=.true.)
       M%parted  = G%parted
       M%nparts  = G%nparts
-      M%eptnmap = G%part
+      !call Mesh_allocate(M,eptnmap=.true.)
+      allocate(M%eptnmap(A%nrows))
+      M%eptnmap(1:A%nrows) = G%part(1:A%nrows)
       call Graph_Destroy(G)
     endif
-    ! TODO TODO TODO -- something more efficient need to be devised
-    call MPI_BCAST(buf,4,MPI_INTEGER,D_MASTER,MPI_COMM_WORLD,ierr)
-    if (.not.ismaster()) then
-      A = SpMtx_newInit(nnz=buf(3),nblocks=sctls%number_of_blocks, &
-                         nrows=buf(1),                             &
-                         ncols=buf(2),                             &
-                    symmstruct=sctls%symmstruct,                   &
-                   symmnumeric=sctls%symmnumeric                   &
-                        )
-      M=Mesh_newInit(nell=A%nrows,ngf=A%nrows,nsd=-2,mfrelt=-1,nnode=A%nrows)
-      call Mesh_allocate(M,eptnmap=.true.)
-      M%parted  = .true.
-      M%nparts  = buf(4)
-    endif
-    call MPI_BCAST(M%eptnmap,A%nnz,MPI_INTEGER,D_MASTER,MPI_COMM_WORLD,ierr)
-    call MPI_BCAST(A%indi,A%nnz,MPI_INTEGER,D_MASTER,MPI_COMM_WORLD,ierr)
-    call MPI_BCAST(A%indj,A%nnz,MPI_INTEGER,D_MASTER,MPI_COMM_WORLD,ierr)
-    call MPI_BCAST(A%val,A%nnz,MPI_fkind,D_MASTER,MPI_COMM_WORLD,ierr)
-    call MPI_BCAST(A%val,A%nnz,MPI_DOUBLE_PRECISION,D_MASTER,MPI_COMM_WORLD,ierr)
-    call SpMtx_arrange_clrorder(A,numprocs,M%eptnmap,partorder, &
-                                partstarts,sort=.true.)
-    do i=1,numprocs
-      write(stream,*)'partition ',i,' is in:', &
-         partorder(partstarts(i):partstarts(i+1)-1)
-    enddo
+    ! TODO TODO TODO -- something more efficient need to be devised ----+
+    call MPI_BCAST(buf,4,MPI_INTEGER,D_MASTER,MPI_COMM_WORLD,ierr)      !
+    if (.not.ismaster()) then                                           !
+      A = SpMtx_newInit(nnz=buf(3),nblocks=sctls%number_of_blocks, &    !
+                         nrows=buf(1),                             &    !
+                         ncols=buf(2),                             &    !
+                    symmstruct=sctls%symmstruct,                   &    !
+                   symmnumeric=sctls%symmnumeric                   &    !
+                        )                                               !
+      M=Mesh_newInit(nell=A%nrows,ngf=A%nrows,nsd=-2,mfrelt=-1,&        !
+                     nnode=A%nrows)                                     !
+      !call Mesh_allocate(M,eptnmap=.true.)                              !
+      allocate(M%eptnmap(A%nrows))
+      M%parted  = .true.                                                !
+      M%nparts  = buf(4)                                                !
+    endif                                                               !
+    call MPI_BCAST(M%eptnmap,A%nrows,MPI_INTEGER,D_MASTER,&               !
+                   MPI_COMM_WORLD,ierr)                                 !
+    call MPI_BCAST(A%indi,A%nnz,MPI_INTEGER,D_MASTER,&                  !
+                   MPI_COMM_WORLD,ierr)                                 !
+    call MPI_BCAST(A%indj,A%nnz,MPI_INTEGER,D_MASTER,&                  !
+                   MPI_COMM_WORLD,ierr)                                 !
+    call MPI_BCAST(A%val,A%nnz,MPI_fkind,D_MASTER,&                     !
+                   MPI_COMM_WORLD,ierr)                                 !
+    call SpMtx_arrange_clrorder(A,numprocs,M%eptnmap,partorder, &       !
+                                partstarts,sort=.true.)                 !
+    do i=1,numprocs                                                     !
+      write(stream,*)'partition ',i,' is in:', &                        !
+         partorder(partstarts(i):partstarts(i+1)-1)                     !
+    enddo                                                               !
+    !-------------------------------------------------------------------+
+    call SpMtx_keep_subd_wol(myrank+1,max(sctls%overlap,sctls%smoothers),&
+                             A,M,partorder,partstarts) 
     !call SpMtx_printRaw(A)
     call MPI_BARRIER(MPI_COMM_WORLD,ierr)
     call DOUG_abort('testing nodal graph partitioning',0)
-  end subroutine SpMtx_DistributeAssembled
+  end subroutine SpMtx_DistributeAssembled              
+
+  ! Take away from matrix unneeded elements...
+  ! (the matrix should be arranged into row format with SpMtx_arrange_clrorder)
+  subroutine SpMtx_keep_subd_wol(clr,ol,A,M,clrorder,clrstarts)
+    integer,intent(in)                 :: clr      !color #
+    integer,intent(in)                 :: ol       !overlap size
+    Type(SpMtx), intent(in out)        :: A        !Initial matrix
+    type(Mesh)                         :: M        !Mesh object
+    integer,dimension(:),pointer       :: clrorder
+     !order of matrix rows (columns) so that color i is found in rows (columns):
+                   !             clrorder(clrstarts(i):clrstarts(i+1)-1)
+    integer,dimension(:),pointer       :: clrstarts  !allocated here
+    !local:
+    integer :: i,j,clrnode,clrneigh,nfront
+    integer,dimension(:),pointer :: helper,front
+    integer,dimension(:),pointer :: onfront
+    
+    !write(stream,*)'BIT_SIZE(1)',BIT_SIZE(helper(2))
+    allocate(helper(numprocs))
+    helper=0
+    allocate(front(A%nrows)) ! for keeping track on the front
+    allocate(onfront(A%nrows)) ! for keeping track on the front
+    nfront=0
+    !first, count how many neighbours the clr has
+    if (A%arrange_type==D_SpMtx_ARRNG_ROWS) then
+      do i=clrstarts(clr),clrstarts(clr+1)-1
+        clrnode=clrorder(i)
+        do j=A%M_bound(clrnode),A%M_bound(clrnode+1)-1
+          clrneigh=M%eptnmap(A%indj(j))
+          if (clrneigh/=clr) then
+            helper(clrneigh)=1
+            if (onfront(A%indj(j))==0) then
+              nfront=nfront+1
+              front(nfront)=A%indj(j)
+              onfront(A%indj(j))=1
+            endif
+          endif
+        enddo
+      enddo
+    elseif (A%arrange_type==D_SpMtx_ARRNG_COLS) then
+      do i=clrstarts(clr),clrstarts(clr+1)-1
+        clrnode=clrorder(i)
+        do j=A%M_bound(clrnode),A%M_bound(clrnode+1)-1
+          clrneigh=M%eptnmap(A%indi(j))
+          if (clrneigh/=clr) then
+            helper(clrneigh)=1
+            if (onfront(A%indi(j))==0) then
+              nfront=nfront+1
+              front(nfront)=A%indi(j)
+              onfront(A%indi(j))=1
+            endif
+          endif
+        enddo
+      enddo
+    else
+      call DOUG_abort('SpMtx_keep_subd_wol: Matrix arrangment not done!',19)
+    endif
+    !write(stream,*)'I have ',sum(helper),' neighbours!'
+    M%nnghbrs=sum(helper)
+    allocate(M%nghbrs(M%nnghbrs))
+    j=0
+    do i=1,numprocs
+      if (helper(i)==1) then
+        j=j+1
+        M%nghbrs(j)=i
+        helper(i)=j !shows now, where the subdomain is in M%nghbrs
+      endif
+    enddo
+    !write(stream,*)'My neighbours are: ',(M%nghbrs(i),i=1,M%nnghbrs)
+
+    !I overlap is 0, then only nodes on the fron are used as
+    !  ghost values in Ax operation
+    !if ol>0, then the subdomain expands in ol layers (for solves)
+
+
+    deallocate(front)
+    deallocate(helper)
+  end subroutine SpMtx_keep_subd_wol
 
   subroutine SpMtx_buildAdjncy(A,nedges,xadj,adjncy)
     use globals, only : stream, D_MSGLVL
