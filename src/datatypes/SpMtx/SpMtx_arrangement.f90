@@ -197,7 +197,7 @@ CONTAINS
     Implicit None
     Type(SpMtx), intent(in out)        :: M        !Initial matrix
     integer,intent(in)                 :: nclr !#colors
-    integer,dimension(:),pointer,intent(in):: clr  !color for each matrix row
+    integer,dimension(:),pointer :: clr  !color for each matrix row
     integer,dimension(:),pointer       :: clrorder  !allocated here
      !order of matrix rows (columns) so that color i is found in rows (columns):
                    !             clrorder(clrstarts(i):clrstarts(i+1)-1)

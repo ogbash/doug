@@ -12,7 +12,7 @@ contains
         use RealKind
         use CoarseGrid_class
         use Mesh_class
-        use globals, only: myrank
+        use globals, only: myrank,stream
         
         implicit none
         
@@ -243,6 +243,8 @@ contains
                                 buffer, szs, pt, MPI_COMM_WORLD, ierr)
             
 
+            write(stream,*) pt, " - suurused saatmisel"
+
             ! Fine mesh data itself
             call MPI_PACK(fcoords,M%nsd*lnnode, MPI_xyzkind, &
                                 buffer, szs, pt, MPI_COMM_WORLD, ierr)
@@ -252,10 +254,13 @@ contains
 
             call MPI_PACK(fremap,nlf, MPI_INTEGER, &
                                 buffer, szs, pt, MPI_COMM_WORLD, ierr)
+            write(stream,*) pt, " - fine mesh saatmisel"
 
             ! Coarse grid coordinates
             call MPI_PACK(ccoords,M%nsd*ndcnt, MPI_xyzkind, &
                                 buffer, szs, pt, MPI_COMM_WORLD, ierr)
+
+            write(stream,*) pt, " - ccoords saatmisel"
 
             ! Coarse freemap
             do i=1,C%ngfc
@@ -361,6 +366,7 @@ contains
         use RealKind
         use CoarseGrid_class
         use Mesh_class
+        use globals, only: stream
         
         implicit none
         
@@ -388,6 +394,8 @@ contains
 
         ! Get the buffer size from the master
         call MPI_RECV(szs,1,MPI_INTEGER,D_MASTER,0,MPI_COMM_WORLD,stat,ierr)
+        
+        write(stream,*) szs
 
         ! Allocate memory for the buffer
         allocate(buffer(szs))
@@ -411,10 +419,6 @@ contains
                         MPI_COMM_WORLD, ierr)
 
         ! The others for coarse mesh
-        call MPI_UNPACK(buffer,szs, pt,&
-                        nlf,1, MPI_INTEGER,& 
-                        MPI_COMM_WORLD, ierr)
-
         call MPI_UNPACK(buffer,szs, pt,&
                         C%ncti,1, MPI_INTEGER,& 
                         MPI_COMM_WORLD, ierr)
@@ -442,6 +446,8 @@ contains
                         C%mlvl,1, MPI_INTEGER,& 
                         MPI_COMM_WORLD, ierr)
 
+        write(stream,*) pt, " - suurused vastuvotul"
+
         !*****************************************
         ! Unpack the fine mesh info
         !*****************************************
@@ -452,7 +458,7 @@ contains
 
         ! Unpack the coordinates directly
         call MPI_UNPACK(buffer,szs, pt,&
-                        M%lcoords,M%nsd*M%lnnode, MPI_INTEGER,& 
+                        M%lcoords,M%nsd*M%lnnode, MPI_xyzkind,& 
                         MPI_COMM_WORLD, ierr)
 
         ! Unpack lfreemap and fremap into temp. arrays
@@ -474,6 +480,9 @@ contains
         ! Deallocate aux. arrays
         deallocate(lfreemap, fremap)
 
+       write(stream,*) pt, " - fine mesh vastuvotul"
+
+
        !*****************************************
        ! Unpack the already remapped data
        !*****************************************
@@ -487,6 +496,8 @@ contains
        call MPI_UNPACK(buffer,szs, pt,&
                         C%coords(:,1:C%ncti),M%nsd*C%ncti, MPI_xyzkind,& 
                         MPI_COMM_WORLD, ierr)
+
+       write(stream,*) pt, " - ccoords vastuvotul"
 
        ! Coarse freemap
        call MPI_UNPACK(buffer,szs, pt,&
@@ -519,11 +530,11 @@ contains
 
        ! Unpack the refined element info
        call MPI_UNPACK(buffer,szs, pt,&
-                        lends,C%refels, MPI_INTEGER,& 
+                        lends,C%refnum, MPI_INTEGER,& 
                         MPI_COMM_WORLD, ierr)
        
        call MPI_UNPACK(buffer,szs, pt,&
-                        levels,C%refels, MPI_INTEGER,& 
+                        levels,C%refnum, MPI_INTEGER,& 
                         MPI_COMM_WORLD, ierr)
        
        ! One coarse element at a time
@@ -550,7 +561,7 @@ contains
                 ! Unpack the coarse nodes
                 call MPI_UNPACK(buffer,szs, pt,&
                         C%coords(:,cnd:cnd+C%els(i)%nfs-1),&
-                        M%nsd*C%els(i)%nfs, MPI_INTEGER,& 
+                        M%nsd*C%els(i)%nref, MPI_INTEGER,& 
                         MPI_COMM_WORLD, ierr)
 
                 C%els(i)%rbeg=ref
