@@ -88,10 +88,10 @@ contains
             ! Find what to send
             !********************************************************
             do i=1,M%nell
-            if (M%eptnmap(i)==p) then ! If this element belongs to this part
+            if (M%eptnmap(i)-1==p) then ! If this element belongs to this part
                 do j=1,M%nfrelt(i)
                     f=M%mhead(j, i)
- 
+                    
                     ! Mark this node as present
                     if (gl_nodemap(M%freemap(f))==0) then
                         lnnode=lnnode+1
@@ -211,72 +211,108 @@ contains
             !********************************************************
             ! Pack the buffer and send it (non-blocking)
             !********************************************************
-            pt=0;
 
             ! Send the buffer size ahead
             call MPI_ISEND(szs,1, MPI_INTEGER, p, 0, MPI_COMM_WORLD, req, ierr)
 
+            pt=0;
+
+!            !write (stream,*) "szs:" , szs
+
             ! Fine mesh sizes
             call MPI_PACK(lnnode,1, MPI_INTEGER, &
-                                buffer, szs, pt, MPI_COMM_WORLD, ierr)
+                                buffer(1), szs, pt, MPI_COMM_WORLD, ierr)
+
+!            !write (stream,*) "lnnode:" , lnnode
 
             call MPI_PACK(nlf,1, MPI_INTEGER, &
-                                buffer, szs, pt, MPI_COMM_WORLD, ierr)
-        
+                                buffer(1), szs, pt, MPI_COMM_WORLD, ierr)
+ 
+!            !write (stream,*) "nlf:" , nlf
+       
             ! Coarse mesh sizes
             call MPI_PACK(ndcnt,1, MPI_INTEGER, &
-                                buffer, szs, pt, MPI_COMM_WORLD, ierr)
+                                buffer(1), szs, pt, MPI_COMM_WORLD, ierr)
+
+!            !write (stream,*) "ndcnt:" , ndcnt
 
             call MPI_PACK(elcnt,1, MPI_INTEGER, &
-                                buffer, szs, pt, MPI_COMM_WORLD, ierr)
+                                buffer(1), szs, pt, MPI_COMM_WORLD, ierr)
+
+!            !write (stream,*) "elcnt:" , elcnt
 
             call MPI_PACK(refcnt,1, MPI_INTEGER, &
-                                buffer, szs, pt, MPI_COMM_WORLD, ierr)
+                                buffer(1), szs, pt, MPI_COMM_WORLD, ierr)
+
+!            !write (stream,*) "refcnt:" , refcnt
 
             call MPI_PACK(C%ngfc,1, MPI_INTEGER, &
-                                buffer, szs, pt, MPI_COMM_WORLD, ierr)
- 
-            call MPI_PACK(nlfc,1, MPI_INTEGER, &
-                                buffer, szs, pt, MPI_COMM_WORLD, ierr)
- 
-            call MPI_PACK(C%mlvl,1, MPI_INTEGER, &
-                                buffer, szs, pt, MPI_COMM_WORLD, ierr)
-            
+                                buffer(1), szs, pt, MPI_COMM_WORLD, ierr)
+!            !write (stream,*) "ngfc:" , C%ngfc
 
-            write(stream,*) pt, " - suurused saatmisel"
+            call MPI_PACK(nlfc,1, MPI_INTEGER, &
+                                buffer(1), szs, pt, MPI_COMM_WORLD, ierr)
+!            !write (stream,*) "nlfc:" , nlfc
+
+            call MPI_PACK(C%mlvl,1, MPI_INTEGER, &
+                                buffer(1), szs, pt, MPI_COMM_WORLD, ierr)
+            
+!            !write (stream,*) "mlvl:" , C%mlvl
+
+
+            !write(stream,*) pt, " - suurused saatmisel"
 
             ! Fine mesh data itself
+
+!            do i=1,lnnode
+!                !write (stream,*) fcoords(1,i), fcoords(2,i)
+!            enddo
+
             call MPI_PACK(fcoords,M%nsd*lnnode, MPI_xyzkind, &
-                                buffer, szs, pt, MPI_COMM_WORLD, ierr)
+                                buffer(1), szs, pt, MPI_COMM_WORLD, ierr)
+            !write(stream,*) pt, " - fine mesh coords saatmisel"
+
+!            do i=1,nlf
+!                !write (stream,*) lfreemap(i)
+!            enddo
 
             call MPI_PACK(lfreemap,nlf, MPI_INTEGER, &
-                                buffer, szs, pt, MPI_COMM_WORLD, ierr)
+                                buffer(1), szs, pt, MPI_COMM_WORLD, ierr)
+            !write(stream,*) pt, " - fine mesh freemap saatmisel"
+
+!            do i=1,nlf
+!                !write (stream,*) fremap(i)
+!            enddo
 
             call MPI_PACK(fremap,nlf, MPI_INTEGER, &
-                                buffer, szs, pt, MPI_COMM_WORLD, ierr)
-            write(stream,*) pt, " - fine mesh saatmisel"
+                                buffer(1), szs, pt, MPI_COMM_WORLD, ierr)
+            !write(stream,*) pt, " - fine mesh fremap saatmisel"
 
             ! Coarse grid coordinates
             call MPI_PACK(ccoords,M%nsd*ndcnt, MPI_xyzkind, &
-                                buffer, szs, pt, MPI_COMM_WORLD, ierr)
+                                buffer(1), szs, pt, MPI_COMM_WORLD, ierr)
 
-            write(stream,*) pt, " - ccoords saatmisel"
+            !write(stream,*) pt, " - ccoords saatmisel"
 
             ! Coarse freemap
             do i=1,C%ngfc
             if (gl_cnodemap(C%cfreemap(i))/=0) then
                 call MPI_PACK(gl_cnodemap(C%cfreemap(i)),1, MPI_INTEGER, &
-                                buffer, szs, pt, MPI_COMM_WORLD, ierr)         
+                                buffer(1), szs, pt, MPI_COMM_WORLD, ierr)         
             endif
             enddo
+
+            !write(stream,*) pt, " - cfreemap saatmisel"
 
             ! Coarse freedom local-to-global mapping
             do i=1,C%ngfc
             if (gl_cnodemap(C%cfreemap(i))/=0) then
                 call MPI_PACK(i, 1, MPI_INTEGER, &
-                                buffer, szs, pt, MPI_COMM_WORLD, ierr)         
+                                buffer(1), szs, pt, MPI_COMM_WORLD, ierr)         
             endif
             enddo
+
+            !write(stream,*) pt, " - lg_fmap saatmisel"
 
             ! Coarse elmap (and refined els info)
             k=1
@@ -287,9 +323,12 @@ contains
                 if (i==-1) then ! not subdivided
                 do j=C%els(el)%lbeg,C%els(el)%lbeg+C%els(el)%nfs
                     if (gl_nodemap(C%elmap(j))/=0) then
-                        lnfss(el)=lnfss(el)+1
+                        lnfss(el)=lnfss(el)+1   
+
+                        !write (stream,*) gl_nodemap(C%elmap(j))
+
                         call MPI_PACK(gl_nodemap(C%elmap(j)), 1, MPI_INTEGER, &
-                                buffer, szs, pt, MPI_COMM_WORLD, ierr)
+                                buffer(1), szs, pt, MPI_COMM_WORLD, ierr)
                     endif
                 enddo
                 else ! subdivided
@@ -298,8 +337,10 @@ contains
                     do j=C%refels(i)%lbeg,C%refels(i)%lend
                     if (gl_nodemap(C%elmap(j))/=0) then
                         lnfss(el)=lnfss(el)+1
+                        !write (stream,*) gl_nodemap(C%elmap(j))
+
                         call MPI_PACK(gl_nodemap(C%elmap(j)), 1, MPI_INTEGER, &
-                                buffer, szs, pt, MPI_COMM_WORLD, ierr)
+                                buffer(1), szs, pt, MPI_COMM_WORLD, ierr)
                     endif
                     enddo
                     lends(k)=lnfss(el)
@@ -312,40 +353,45 @@ contains
                 endif
             enddo
 
+            !write(stream,*) pt, " - elmap saatmisel"
+
             ! if (k-1 /= refcnt) smthwrong
 
             ! Refined element info gathered
             call MPI_PACK(lends,refcnt, MPI_INTEGER, &
-                                buffer, szs, pt, MPI_COMM_WORLD, ierr)
-                                
+                                buffer(1), szs, pt, MPI_COMM_WORLD, ierr)
+             !write(stream,*) pt, " - lends saatmisel"
+                               
             call MPI_PACK(levels,refcnt, MPI_INTEGER, &
-                                buffer, szs, pt, MPI_COMM_WORLD, ierr) 
+                                buffer(1), szs, pt, MPI_COMM_WORLD, ierr) 
+            !write(stream,*) pt, " - levels saatmisel"
 
             ! Coarse grid elements
             do i=1,elcnt
                 el=ellist(i)
                 call MPI_PACK(C%els(el)%nref,1, MPI_INTEGER, &
-                                buffer, szs, pt, MPI_COMM_WORLD, ierr)
+                                buffer(1), szs, pt, MPI_COMM_WORLD, ierr)
  
                 call MPI_PACK(lnfss(el),1, MPI_INTEGER, &
-                                buffer, szs, pt, MPI_COMM_WORLD, ierr)
+                                buffer(1), szs, pt, MPI_COMM_WORLD, ierr)
                                
                 do j=1, 2**M%nsd
                     call MPI_PACK(gl_cnodemap(C%els(el)%n(j)),1, MPI_INTEGER,&
-                                buffer, szs, pt, MPI_COMM_WORLD, ierr)
+                                buffer(1), szs, pt, MPI_COMM_WORLD, ierr)
                 enddo
 
                 ! Send coarse refined coordinates as needed
                 if (C%els(el)%rbeg/=-1) then
                     call MPI_PACK(&
-                        C%coords(:,C%els(el)%lbeg:C%els(el)%lbeg+C%els(el)%nref-1),&
+                        C%coords(1,C%refels(C%els(el)%rbeg)%node),&
                         M%nsd*C%els(el)%nref, MPI_xyzkind, &
-                        buffer, szs, pt, MPI_COMM_WORLD, ierr)       
+                        buffer(1), szs, pt, MPI_COMM_WORLD, ierr)      
                 endif
             enddo
+            !write(stream,*) pt, " - lopuks saatmisel"
 
             ! Send the data
-            call MPI_ISEND(buffer,pt,MPI_PACKED,p,0,MPI_COMM_WORLD,req,ierr)
+            call MPI_ISEND(buffer(1),pt,MPI_PACKED,p,0,MPI_COMM_WORLD,req,ierr)
 
         enddo
 
@@ -395,13 +441,13 @@ contains
         ! Get the buffer size from the master
         call MPI_RECV(szs,1,MPI_INTEGER,D_MASTER,0,MPI_COMM_WORLD,stat,ierr)
         
-        write(stream,*) szs
+        !write(stream,*) "szs",szs
 
         ! Allocate memory for the buffer
         allocate(buffer(szs))
 
         ! Get the full package of info
-        call MPI_RECV(buffer,szs,MPI_PACKED,D_MASTER,0,MPI_COMM_WORLD,stat,ierr)
+        call MPI_RECV(buffer(1),szs,MPI_PACKED,D_MASTER,0,MPI_COMM_WORLD,stat,ierr)
 
         !*****************************************
         ! Unpack the sizes
@@ -410,43 +456,61 @@ contains
         pt=0
 
         ! First two for fine mesh
-        call MPI_UNPACK(buffer,szs, pt,&
+        call MPI_UNPACK(buffer(1),szs, pt,&
                         M%lnnode,1, MPI_INTEGER,& 
                         MPI_COMM_WORLD, ierr)
+        
+!        !write (stream,*) "lnnode:" , M%lnnode
 
-        call MPI_UNPACK(buffer,szs, pt,&
+        call MPI_UNPACK(buffer(1),szs, pt,&
                         nlf,1, MPI_INTEGER,& 
                         MPI_COMM_WORLD, ierr)
 
+!        !write (stream,*) "nlf:" , nlf
+
         ! The others for coarse mesh
-        call MPI_UNPACK(buffer,szs, pt,&
+        call MPI_UNPACK(buffer(1),szs,pt,&
                         C%ncti,1, MPI_INTEGER,& 
                         MPI_COMM_WORLD, ierr)
 
-        call MPI_UNPACK(buffer,szs, pt,&
+!        !write (stream,*) "ncti:" , C%ncti
+
+
+        call MPI_UNPACK(buffer(1),szs, pt,&
                         C%elnum,1, MPI_INTEGER,& 
                         MPI_COMM_WORLD, ierr)
+        
+!        !write (stream,*) "elnum:" , C%elnum
 
-        call MPI_UNPACK(buffer,szs, pt,&
+        call MPI_UNPACK(buffer(1),szs, pt,&
                         C%refnum,1, MPI_INTEGER,& 
                         MPI_COMM_WORLD, ierr)
 
+!        !write (stream,*) "refnum" , C%refnum
+
+
         C%nct=C%ncti+C%refnum
 
-        call MPI_UNPACK(buffer,szs, pt,&
+        call MPI_UNPACK(buffer(1),szs, pt,&
                         C%ngfc,1, MPI_INTEGER,& 
                         MPI_COMM_WORLD, ierr)
+        
+!        !write (stream,*) "ngfc:" , C%ngfc
 
-
-        call MPI_UNPACK(buffer,szs, pt,&
+        call MPI_UNPACK(buffer(1),szs, pt,&
                         C%nlfc,1, MPI_INTEGER,& 
                         MPI_COMM_WORLD, ierr)
+        
+!        !write (stream,*) "nlfc:" , C%nlfc
 
-        call MPI_UNPACK(buffer,szs, pt,&
+        call MPI_UNPACK(buffer(1),szs, pt,&
                         C%mlvl,1, MPI_INTEGER,& 
                         MPI_COMM_WORLD, ierr)
 
-        write(stream,*) pt, " - suurused vastuvotul"
+!        !write (stream,*) "mlvl:" , C%mlvl
+
+
+        !write(stream,*) pt, " - suurused vastuvotul"
 
         !*****************************************
         ! Unpack the fine mesh info
@@ -457,18 +521,35 @@ contains
         allocate (lfreemap(nlf),fremap(nlf))
 
         ! Unpack the coordinates directly
-        call MPI_UNPACK(buffer,szs, pt,&
-                        M%lcoords,M%nsd*M%lnnode, MPI_xyzkind,& 
+        call MPI_UNPACK(buffer(1),szs, pt,&
+                        M%lcoords(1,1), M%nsd*M%lnnode, MPI_xyzkind,& 
                         MPI_COMM_WORLD, ierr)
+       !write(stream,*) pt, " - fine mesh coords vastuvotul"
+
+!            do i=1,M%lnnode
+!                write (stream,*) M%lcoords(1,i), M%lcoords(2,i)
+!            enddo
+
 
         ! Unpack lfreemap and fremap into temp. arrays
-        call MPI_UNPACK(buffer,szs, pt,&
-                        lfreemap,nlf, MPI_INTEGER,& 
+        call MPI_UNPACK(buffer(1),szs, pt,&
+                        lfreemap(1), nlf, MPI_INTEGER,& 
                         MPI_COMM_WORLD, ierr)
 
-        call MPI_UNPACK(buffer,szs, pt,&
-                        fremap,nlf, MPI_INTEGER,& 
+       !write(stream,*) pt, " - fine mesh freemap vastuvotul"
+!            do i=1,nlf
+!                !write (stream,*) lfreemap(i)
+!            enddo
+
+        call MPI_UNPACK(buffer(1),szs, pt,&
+                        fremap(1), nlf, MPI_INTEGER,& 
                         MPI_COMM_WORLD, ierr)
+
+       !write(stream,*) pt, " - fine mesh fremap vastuvotul"
+!            do i=1,nlf
+!                !write (stream,*) fremap(i)
+!            enddo
+
 
         ! Create lfreemap based on the two temp arrays
         M%lfreemap=0 
@@ -480,34 +561,39 @@ contains
         ! Deallocate aux. arrays
         deallocate(lfreemap, fremap)
 
-       write(stream,*) pt, " - fine mesh vastuvotul"
-
-
        !*****************************************
        ! Unpack the already remapped data
        !*****************************************
 
        ! First, allocate the coarse mesh
-       call CoarseGrid_allocate(C,M%nsd,nnode=M%lnnode,&
+       call CoarseGrid_allocate(C,M%nsd,nnode=M%lnnode,coords=.true.,&
                                    els=.true.,refels=.true.,&
                                    cfreemap=.true.,local=.true.)
        
        ! Coarse grid coordinates
-       call MPI_UNPACK(buffer,szs, pt,&
-                        C%coords(:,1:C%ncti),M%nsd*C%ncti, MPI_xyzkind,& 
+       call MPI_UNPACK(buffer(1),szs, pt,&
+                        C%coords(1,1),M%nsd*C%ncti, MPI_xyzkind,& 
                         MPI_COMM_WORLD, ierr)
+            do i=1,C%ncti
+                write (stream,*) C%coords(1,i), C%coords(2,i)
+            enddo
 
-       write(stream,*) pt, " - ccoords vastuvotul"
+
+       !write(stream,*) pt, " - ccoords vastuvotul"
 
        ! Coarse freemap
-       call MPI_UNPACK(buffer,szs, pt,&
-                        C%cfreemap,C%nlfc, MPI_INTEGER,& 
+       call MPI_UNPACK(buffer(1),szs, pt,&
+                        C%cfreemap(1),C%nlfc, MPI_INTEGER,& 
                         MPI_COMM_WORLD, ierr)
 
+       !write(stream,*) pt, " - cfreemap vastuvotul"
+
        ! Coarse freedom local-to-global mapping
-       call MPI_UNPACK(buffer,szs, pt,&
-                        C%lg_fmap,C%nlfc, MPI_INTEGER,& 
+       call MPI_UNPACK(buffer(1),szs, pt,&
+                        C%lg_fmap(1),C%nlfc, MPI_INTEGER,& 
                         MPI_COMM_WORLD, ierr)
+
+       !write(stream,*) pt, " - lg_fmap vastuvotul"
 
        ! Create the opposite map
        C%gl_fmap=0
@@ -516,10 +602,17 @@ contains
        enddo
 
        ! Coarse elmap
-       call MPI_UNPACK(buffer,szs, pt,&
-                        C%elmap,M%lnnode, MPI_INTEGER,& 
+       call MPI_UNPACK(buffer(1),szs, pt,&
+                        C%elmap(1),M%lnnode, MPI_INTEGER,& 
                         MPI_COMM_WORLD, ierr)
-       
+
+            do i=1,M%lnnode
+                !write (stream,*) C%elmap(i)
+            enddo
+
+
+       !write(stream,*) pt, " - elmap vastuvotul"
+
        !*****************************************
        ! Unpack and rebuild elements
        !  This is the tricky part
@@ -529,28 +622,31 @@ contains
        allocate(lends(C%refnum),levels(C%refnum),pstack(0:C%mlvl+1))
 
        ! Unpack the refined element info
-       call MPI_UNPACK(buffer,szs, pt,&
-                        lends,C%refnum, MPI_INTEGER,& 
+       call MPI_UNPACK(buffer(1),szs, pt,&
+                        lends(1),C%refnum, MPI_INTEGER,& 
                         MPI_COMM_WORLD, ierr)
-       
-       call MPI_UNPACK(buffer,szs, pt,&
-                        levels,C%refnum, MPI_INTEGER,& 
+       !write(stream,*) pt, " - lends vastuvotul"
+
+       call MPI_UNPACK(buffer(1),szs, pt,&
+                        levels(1),C%refnum, MPI_INTEGER,& 
                         MPI_COMM_WORLD, ierr)
-       
+       !write(stream,*) pt, " - levels vastuvotul"
+ 
+     
        ! One coarse element at a time
        ref=1; cnd=C%ncti+1; nd=1
        do i=1,C%elnum
-           call MPI_UNPACK(buffer,szs, pt,&
+           call MPI_UNPACK(buffer(1),szs, pt,&
                         C%els(i)%nref, 1, MPI_INTEGER,& 
                         MPI_COMM_WORLD, ierr)
-           call MPI_UNPACK(buffer,szs, pt,&
+           call MPI_UNPACK(buffer(1),szs, pt,&
                         C%els(i)%nfs, 1, MPI_INTEGER,& 
                         MPI_COMM_WORLD, ierr)
 
            allocate(C%els(i)%n(2**M%nsd))
 
-           call MPI_UNPACK(buffer,szs, pt,&
-                        C%els(i)%n, 2**M%nsd, MPI_INTEGER,& 
+           call MPI_UNPACK(buffer(1),szs, pt,&
+                        C%els(i)%n(1), 2**M%nsd, MPI_INTEGER,& 
                         MPI_COMM_WORLD, ierr)
            
            C%els(i)%lbeg=nd
@@ -559,9 +655,9 @@ contains
                 C%els(i)%rbeg=-1
            else
                 ! Unpack the coarse nodes
-                call MPI_UNPACK(buffer,szs, pt,&
-                        C%coords(:,cnd:cnd+C%els(i)%nfs-1),&
-                        M%nsd*C%els(i)%nref, MPI_INTEGER,& 
+                call MPI_UNPACK(buffer(1),szs, pt,&
+                        C%coords(1,cnd),&
+                        M%nsd*C%els(i)%nref, MPI_xyzkind,& 
                         MPI_COMM_WORLD, ierr)
 
                 C%els(i)%rbeg=ref
@@ -574,7 +670,7 @@ contains
                     rel%next=ref+1
                     rel%parent=pstack(levels(ref)-1)
                     rel%lbeg=ndp+1
-                    rel%lend=nd+lends(ref)
+                    rel%lend=nd+lends(ref)-1
                     rel%lstop=rel%lend
                     
                     ! If we ascend in the tree, mod lstops
@@ -597,6 +693,7 @@ contains
            ! Move forward
            nd=nd+C%els(i)%nfs
        enddo
+       !write(stream,*) pt, " - lopuks vastuvotul"
 
        deallocate(lends,levels,pstack,buffer)
     end subroutine ReceiveCoarse

@@ -54,6 +54,7 @@ contains
         use RealKind
         use CoarseGrid_class
         use SpMtx_class
+        use globals, only:stream
         
         implicit none
 
@@ -149,7 +150,7 @@ contains
         do i=1, C%elnum
             if (C%els(i)%rbeg==-1) then
             do j=C%els(i)%lbeg,C%els(i)%lbeg+C%els(i)%nfs-1
-                NP%M_bound(C%elmap(j))=tnsd
+                NP%M_bound(C%elmap(j)+1)=tnsd
             enddo
             endif
         enddo
@@ -217,7 +218,8 @@ contains
                         pn=C%elmap(k)
  
                         ! Evaluate the functions in the point
-                        call getvals(pts,tnsd,M%nsd,raux,iaux,M%coords(:,pn), &
+                        call getvals(pts,tnsd+C%refels(j)%level,&
+                                M%nsd,raux,iaux,M%lcoords(:,pn), &
                                 NP%val(NP%M_bound(pn):NP%M_bound(pn+1)-1))
                 
                         ! Set appropriate indi and indj

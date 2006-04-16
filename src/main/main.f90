@@ -70,13 +70,32 @@ program main
 
   !coarse grid processing (geometric version)
   if (sctls%method==2) then
+    CGC%maxce=9
+    CGC%maxinit=4
+    CGC%cutbal=2
+    CGC%center_type=COARSE_CENTER_GEOM
+    CGC%meanpow=1.0_xyzk
+    CGC%interpolation_type=COARSE_INTERPOLATION_INVDIST
+    CGC%invdistpow=2.0_xyzk
+    CGC%eps=0.00001_xyzk
+
     if (ismaster()) then
+      write (stream,*) "Building coarse grid"
       call CreateCoarse(M,C,CGC)
+!      call Mesh_pl2D_plotMesh(M,D_PLPLOT_INIT)
+      write (stream,*) "Sending parts of the coarse grid to other threads"   
+!      call CoarseGrid_pl2D_plotMesh(C)
       call SendCoarse(C,M)
+      write (stream,*) "Creating a local coarse grid"
       call CreateLocalCoarse(C,M,LC)
+!      call Mesh_pl2D_plotMesh(M,D_PLPLOT_INIT)
+!      call CoarseGrid_pl2D_plotMesh(LC, D_PLPLOT_END)
     else
+      write (stream,*) "Recieving coarse grid data"
       call  ReceiveCoarse(LC, M)
+!      call CoarseGrid_pl2D_plotMesh(LC)
     endif
+
     call CreateProlong(LC,M,CGC)
   endif
 
@@ -95,6 +114,8 @@ program main
      !call pcg(A, b, xl, M, solinf=resStat, resvects_in=.true.)
      t1 = MPI_WTIME()
      !call pcg(A, b, xl, M)
+!b=1.0_rk
+!write(stream,*),'b=======',b
      call pcg_weigs(A=A,b=b,x=xl,Msh=M,it=it,cond_num=cond_num, &
                     A_interf_=A_interf,refactor_=.true.) !,        &
                     !maxit_=10)
