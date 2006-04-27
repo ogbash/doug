@@ -20,7 +20,7 @@ program main
 
   type(Mesh)     :: M  ! Mesh
 
-  type(SpMtx)    :: A  ! System matrix (parallel sparse matrix)
+  type(SpMtx)    :: A,A_interf,A_ghost  ! System matrix (parallel sparse matrix)
   type(SpMtx)    :: AC  ! coarse matrix
   float(kind=rk), dimension(:), pointer :: b  ! local RHS
   float(kind=rk), dimension(:), pointer :: xl ! local solution vector
@@ -85,7 +85,7 @@ program main
        endif
      else ! numprocs>1
        M=Mesh_New()
-       call SpMtx_DistributeAssembled(A,M)
+       call SpMtx_DistributeAssembled(A,A_interf,A_ghost,M)
      endif
   case default
      call DOUG_abort('[DOUG main] : Unrecognised input type.', -1)
