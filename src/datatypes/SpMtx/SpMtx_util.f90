@@ -132,7 +132,7 @@ return
            write (stream,'(i5)',advance='no') M%indi(i)
            write (stream,'(i5)',advance='no') M%indj(i)
          endif
-         write (stream,'(f12.3)') M%val(i)
+         write (stream,'(f13.4)') M%val(i)
       end do
     end subroutine SpMtx_printRaw
 
