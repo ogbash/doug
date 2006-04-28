@@ -96,6 +96,8 @@ module Mesh_class
      integer, dimension(:), pointer :: gl_fmap
      !! inverse of prev. map - local freedoms to global: lg_fmap[ngf]
      integer, dimension(:), pointer :: lg_fmap
+     integer                        :: ninner ! #inner freedoms
+     integer                        :: nghost ! #inner+Ax_ghost freedoms
 
      !! Graph
      type(Graph) :: G

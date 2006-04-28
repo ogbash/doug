@@ -106,11 +106,12 @@ return
       end do
     end Subroutine SpMtx_printMat_in_arrays
 
-    subroutine SpMtx_printRaw(M,transp)
+    subroutine SpMtx_printRaw(A,transp,startnz,endnz)
       implicit none
-      type(SpMtx), intent(in)      :: M
+      type(SpMtx), intent(in)      :: A
       logical,optional             :: transp
-      integer                      :: i
+      integer,optional             :: startnz,endnz
+      integer                      :: i,i1,i2
       logical :: t
 
       if (present(transp).and.transp) then
@@ -118,21 +119,31 @@ return
       else
         t=.false.
       endif
+      if (present(startnz)) then
+        i1=startnz
+      else
+        i1=1
+      endif
+      if (present(endnz)) then
+        i2=endnz
+      else
+        i2=A%nnz
+      endif
       write (stream,'(A5)',advance='no') "N"
       write (stream,'(A5)',advance='no') "indi"
       write (stream,'(A5)',advance='no') "indj"
       write (stream,'(A9)') "val"
       write (stream,*)"-----------------------------"
-      do i = 1, M%nnz
+      do i=i1,i2
          write (stream,'(i5)',advance='no') i
          if (t) then
-           write (stream,'(i5)',advance='no') M%indj(i)
-           write (stream,'(i5)',advance='no') M%indi(i)
+           write (stream,'(i5)',advance='no') A%indj(i)
+           write (stream,'(i5)',advance='no') A%indi(i)
          else
-           write (stream,'(i5)',advance='no') M%indi(i)
-           write (stream,'(i5)',advance='no') M%indj(i)
+           write (stream,'(i5)',advance='no') A%indi(i)
+           write (stream,'(i5)',advance='no') A%indj(i)
          endif
-         write (stream,'(f13.4)') M%val(i)
+         write (stream,'(f13.4)') A%val(i)
       end do
     end subroutine SpMtx_printRaw
 

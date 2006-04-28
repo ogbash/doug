@@ -1962,25 +1962,111 @@ endif
     write(stream,*)'A after arrange:'
     call SpMtx_printRaw(A)
     call SpMtx_build_interfghost(myrank+1,max(sctls%overlap,sctls%smoothers),&
-                             A,A_interf,A_ghost,M,clrorder,clrstarts) 
-    write(stream,*)'A after:'
-    call SpMtx_printRaw(A)
-    write(stream,*)'A%M_bound=',(i,':',A%M_bound(i),' ',i=1,A%nrows+1)
-    write(stream,*)'A interf:'
-    call SpMtx_printRaw(A_interf)
+                             A,A_ghost,M,clrorder,clrstarts) 
+    write(stream,*)'A inner:'
+    call SpMtx_printRaw(A=A,startnz=A%mtx_bbs(2,2),endnz=A%mtx_bbe(2,2))
+    write(stream,*)'A interf(1,2):'
+    call SpMtx_printRaw(A=A,startnz=A%mtx_bbs(1,2),endnz=A%mtx_bbe(1,2))
+    write(stream,*)'A interf(2,1):'
+    call SpMtx_printRaw(A=A,startnz=A%mtx_bbs(2,1),endnz=A%mtx_bbe(2,1))
     write(stream,*)'A ghost:'
     call SpMtx_printRaw(A_ghost)
+    ! Localise A:
+    call SpMtx_Localise_Matrices(A,A_ghost,M)
+    write(stream,*)'M%ninner:',M%ninner
+    write(stream,*)'inner:',M%lg_fmap(1:M%ninner)
+    write(stream,*)'Ax-ghost freedoms:',M%lg_fmap(M%ninner+1:M%nghost)
+    write(stream,*)'outer-ghost freedoms:',M%lg_fmap(M%nghost+1:M%nlf)
     call MPI_BARRIER(MPI_COMM_WORLD,ierr)
     call DOUG_abort('testing nodal graph partitioning',0)
   end subroutine SpMtx_DistributeAssembled              
 
+  subroutine SpMtx_Localise_Matrices(A,A_ghost,M)
+    Type(SpMtx), intent(in out)        :: A        !Initial matrix
+    Type(SpMtx), intent(in out)        :: A_ghost  !matrix on ghost nodes
+    type(Mesh)                         :: M        !Mesh object
+
+    integer :: i,ninner,nghost,nlf
+    ! we are organising local freedoms as follows:
+    !1,2,...,M%ninner,...,M%nghost,...,M%nlf|
+    !<-inner frdms.->|<-Ax ghost->|<-outer->|
+    !                |<- all ghost frdms. ->|
+    M%ngf=max(A%nrows,A_ghost%nrows)
+    allocate(M%gl_fmap(M%ngf))
+    M%gl_fmap=0
+    do i=A%mtx_bbs(2,2),A%mtx_bbe(2,2)
+      M%gl_fmap(A%indi(i))=1
+      M%gl_fmap(A%indj(i))=1
+    enddo
+    do i=A%mtx_bbs(1,2),A%mtx_bbe(1,2)
+      if (M%gl_fmap(A%indi(i))==1) then
+        M%gl_fmap(A%indj(i))=-1
+      elseif (M%gl_fmap(A%indj(i))==1) then
+        M%gl_fmap(A%indi(i))=-1
+      else
+        call DOUG_abort('SpMtx_Localise_Matrices:A(1,2) has an error!',546)
+      endif
+    enddo
+    do i=A%mtx_bbs(2,1),A%mtx_bbe(2,1)
+      if (M%gl_fmap(A%indi(i))==1) then
+        M%gl_fmap(A%indj(i))=-1
+      elseif (M%gl_fmap(A%indj(i))==1) then
+        M%gl_fmap(A%indi(i))=-1
+      else
+        call DOUG_abort('SpMtx_Localise_Matrices:A(2,1) has an error!',546)
+      endif
+    enddo
+    do i=1,A_ghost%nnz
+      if (M%gl_fmap(A_ghost%indi(i))/=-1) then
+        M%gl_fmap(A_ghost%indi(i))=-2
+      endif
+      if (M%gl_fmap(A_ghost%indj(i))/=-1) then
+        M%gl_fmap(A_ghost%indj(i))=-2
+      endif
+    enddo
+    ! count how many corresponding freedoms there are:
+    ninner=0 ! counts inner freedoms
+    nghost=0 ! counts inner ghost freds (the one used in Ax-op)
+    nlf=0    ! counts now just outer ghost freedoms...
+    do i=1,M%ngf
+      if (M%gl_fmap(i)==1) then
+        ninner=ninner+1
+        M%gl_fmap(i)=ninner
+      elseif (M%gl_fmap(i)==-1) then
+        nghost=nghost+1
+      elseif (M%gl_fmap(i)==-2) then
+        nlf=nlf+1
+      endif
+    enddo
+    allocate(M%lg_fmap(ninner+nghost+nlf))
+    ! now put also the rest of the freedom numbers in:
+    ! [re]start the counters:
+    nlf=ninner+nghost ! we add outer ghost freedoms to the end...
+    nghost=ninner ! inner (or Ax) ghost freedoms come after inner ones
+    do i=1,M%ngf
+      if (M%gl_fmap(i)>0) then
+        M%lg_fmap(M%gl_fmap(i))=i
+      elseif (M%gl_fmap(i)==-1) then
+        nghost=nghost+1
+        M%gl_fmap(i)=nghost
+        M%lg_fmap(nghost)=i
+      elseif (M%gl_fmap(i)==-2) then
+        nlf=nlf+1
+        M%gl_fmap(i)=nlf
+        M%lg_fmap(nlf)=i
+      endif
+    enddo
+    M%ninner=ninner
+    M%nghost=nghost
+    M%nlf=nlf
+  end subroutine SpMtx_Localise_Matrices
+
   ! Take away from matrix unneeded elements...
   ! (the matrix should be arranged into row format with SpMtx_arrange_clrorder)
-  subroutine SpMtx_build_interfghost(clr,ol,A,A_interf,A_ghost,M,clrorder,clrstarts)
+  subroutine SpMtx_build_interfghost(clr,ol,A,A_ghost,M,clrorder,clrstarts)
     integer,intent(in)                 :: clr      !the color # we are keeping
     integer,intent(in)                 :: ol       !overlap size
     Type(SpMtx), intent(in out)        :: A        !Initial matrix
-    Type(SpMtx), intent(in out)        :: A_interf !new mat.betw. A and A_ghost
     Type(SpMtx), intent(in out)        :: A_ghost  !matrix on ghost nodes
     type(Mesh)                         :: M        !Mesh object
     integer,dimension(:),pointer       :: clrorder
@@ -1989,12 +2075,12 @@ endif
     integer,dimension(:),pointer       :: clrstarts  !(allocated earlier)
     !local:
     integer :: i,j,k,clrnode,clrneigh,nfront,layer,lastlayer,node,nnz
-    integer :: maxclrnode
+    integer :: maxleadind
     integer,dimension(:),pointer :: helper,front
     integer,dimension(:),pointer :: onfront
     integer,dimension(:),pointer :: frontstart,frontend
     integer :: ghostsz,interfsz
-    integer,dimension(:),pointer :: itmp,jtmp,btmp
+    integer,dimension(:),pointer :: itmp,jtmp,btmp,interf_keep
     float(kind=rk), dimension(:), pointer :: rtmp
 
     
@@ -2074,7 +2160,6 @@ endif
     !           (fexchindx,pid2indx) and we cannot do it right away...
     !        I think these need to get moved to Mesh and 
     !          need better namings as well! TODO !
-    !TODO: A_interf and A_ghost need to get assembled here
 
     !Now, let's go on with next layers...:
     !if ol==0 we still need 1st layer for Ax operation...
@@ -2179,69 +2264,86 @@ write(stream,*)'ghost: adding also:',front(i),node
       enddo
     endif
     ! build A_interf and A_ghost based on layers...
-    A_interf=SpMtx_newInit(interfsz)
+    !A_interf=SpMtx_newInit(interfsz)
+    allocate(interf_keep(interfsz))
     k=0
+    ! we have no block(1,1) here...
+    !      (see SpMtx_operation.f90)
+    A%mtx_bbs(1,1)=1
+    A%mtx_bbe(1,1)=0
     if (A%arrange_type==D_SpMtx_ARRNG_ROWS) then
       ! at first connections from outside
-!write(stream,*)'frontstart(0)=',frontstart(0)
-!write(stream,*)'frontend(0)=',frontend(0)
-!write(stream,*)'front(',frontstart(0),',',frontend(0),')=',&
-!                front(frontstart(0):frontend(0))
+      ! i.e. the block(2,1) in the matrix representation
+      A%mtx_bbs(2,1)=1
       do i=frontstart(0),frontend(0)
         do j=A%M_bound(front(i)),A%M_bound(front(i)+1)-1
           node=A%indj(j)
           if (onfront(node)==1) then
             k=k+1
-!write(stream,*)'add to interf:',k,':',front(i),node
-            A_interf%indi(k)=front(i)
-            A_interf%indj(k)=node
-            A_interf%val(k)=A%val(j)
+            !A_interf%indi(k)=front(i)
+            !A_interf%indj(k)=node
+            !A_interf%val(k)=A%val(j)
+            interf_keep(k)=j
           endif
         enddo                                  
       enddo
+      A%mtx_bbe(2,1)=k
       ! connections to outside
-!write(stream,*)'frontstart(1)=',frontstart(1)
-!write(stream,*)'frontend(1)=',frontend(1)
-!write(stream,*)'front(',frontstart(1),',',frontend(1),')=',&
-!                front(frontstart(1):frontend(1))
+      ! i.e. the block(1,2) in the matrix representation
+      A%mtx_bbs(1,2)=k+1
       do i=frontstart(1),frontend(1)
         do j=A%M_bound(front(i)),A%M_bound(front(i)+1)-1
           node=A%indj(j)
           if (onfront(node)==-1) then
             k=k+1
-!write(stream,*)'add to interf:',k,':',front(i),node
-            A_interf%indi(k)=front(i)
-            A_interf%indj(k)=node
-            A_interf%val(k)=A%val(j)
+            !A_interf%indi(k)=front(i)
+            !A_interf%indj(k)=node
+            !A_interf%val(k)=A%val(j)
+            interf_keep(k)=j
           endif
         enddo                                  
       enddo
+      A%mtx_bbe(1,2)=k
+      maxleadind=maxval(front(frontstart(0):frontend(0)))
+      maxleadind=max(maxval(front(frontstart(1):frontend(1))),maxleadind)
     elseif (A%arrange_type==D_SpMtx_ARRNG_COLS) then
       ! at first connections to outside
+      ! i.e. the block(1,2) in the matrix representation
+      A%mtx_bbs(1,2)=1
       do i=frontstart(0),frontend(0)
         do j=A%M_bound(front(i)),A%M_bound(front(i)+1)-1
           node=A%indi(j)
           if (onfront(node)==1) then
             k=k+1
-            A_interf%indi(k)=node
-            A_interf%indj(k)=front(i)
-            A_interf%val(k)=A%val(j)
+            !A_interf%indi(k)=node
+            !A_interf%indj(k)=front(i)
+            !A_interf%val(k)=A%val(j)
+            interf_keep(k)=j
           endif
         enddo                                  
       enddo
+      A%mtx_bbe(1,2)=k
       ! connections from outside
+      ! i.e. the block(2,1) in the matrix representation
+      A%mtx_bbs(2,1)=k+1
       do i=frontstart(1),frontend(1)
         do j=A%M_bound(front(i)),A%M_bound(front(i)+1)-1
           node=A%indi(j)
           if (onfront(node)==-1) then
             k=k+1
-            A_interf%indi(k)=node
-            A_interf%indj(k)=front(i)
-            A_interf%val(k)=A%val(j)
+            !A_interf%indi(k)=node
+            !A_interf%indj(k)=front(i)
+            !A_interf%val(k)=A%val(j)
+            interf_keep(k)=j
           endif
         enddo                                  
       enddo
+      A%mtx_bbe(2,1)=k
+      maxleadind=maxval(front(frontstart(0):frontend(0)))
+      maxleadind=max(maxval(front(frontstart(1):frontend(1))),maxleadind)
     endif
+    !A_interf%nrows=max(maxval(A_interf%indi),maxval(A_interf%indj))
+    !A_interf%ncols=A_interf%nrows
     if (k/=interfsz) then
       write (stream,*)'k=',k,' interfsz=',interfsz,'ol=',ol,' ghostsz=',ghostsz
       write(stream,*)'onfront=',onfront
@@ -2280,15 +2382,17 @@ write(stream,*)'ghost: adding also:',front(i),node
         write(stream,*)'onfront=',onfront
         call DOUG_abort('SpMtx_build_interfghost -- ghostsz wrong!',67)
       endif
+      A_ghost%nrows=max(maxval(A_ghost%indi),maxval(A_ghost%indj))
+      A_ghost%ncols=A_ghost%nrows
     endif
     !now clean up the original matrix from unneeded entries:
-    nnz=0
-    maxclrnode=0
+    nnz=interfsz
+    ! but count also the size of block(2,2):
     if (A%arrange_type==D_SpMtx_ARRNG_ROWS) then
       do i=clrstarts(clr),clrstarts(clr+1)-1
         clrnode=clrorder(i)
-        if (clrnode>maxclrnode) then
-          maxclrnode=clrnode
+        if (clrnode>maxleadind) then
+          maxleadind=clrnode
         endif
         do j=A%M_bound(clrnode),A%M_bound(clrnode+1)-1
           if (onfront(A%indj(j))<=0) then
@@ -2299,8 +2403,8 @@ write(stream,*)'ghost: adding also:',front(i),node
     elseif (A%arrange_type==D_SpMtx_ARRNG_COLS) then
       do i=clrstarts(clr),clrstarts(clr+1)-1
         clrnode=clrorder(i)
-        if (clrnode>maxclrnode) then
-          maxclrnode=clrnode
+        if (clrnode>maxleadind) then
+          maxleadind=clrnode
         endif
         do j=A%M_bound(clrnode),A%M_bound(clrnode+1)-1
           if (onfront(A%indi(j))<=0) then
@@ -2313,11 +2417,34 @@ write(stream,*)'ghost: adding also:',front(i),node
     allocate(itmp(nnz))
     allocate(jtmp(nnz))
     allocate(rtmp(nnz))
-    allocate(btmp(maxclrnode+1))
+    allocate(btmp(maxleadind+1))
     btmp=0
-    nnz=0
+    ! look through interf parts
     if (A%arrange_type==D_SpMtx_ARRNG_ROWS) then
-      A%nrows=maxclrnode
+      do i=1,interfsz
+        j=interf_keep(i)
+        clrnode=A%indi(j)
+        btmp(clrnode+1)=btmp(clrnode+1)+1
+        itmp(i)=A%indi(j)
+        jtmp(i)=A%indj(j)
+        rtmp(i)=A%val(j)
+      enddo
+    elseif (A%arrange_type==D_SpMtx_ARRNG_COLS) then
+      do i=1,interfsz
+        j=interf_keep(i)
+        clrnode=A%indj(j)
+        btmp(clrnode+1)=btmp(clrnode+1)+1
+        itmp(i)=A%indi(j)
+        jtmp(i)=A%indj(j)
+        rtmp(i)=A%val(j)
+      enddo
+    endif
+    deallocate(interf_keep)
+    nnz=interfsz
+    A%mtx_bbs(2,2)=nnz+1
+    ! now look through matrix inner part
+    if (A%arrange_type==D_SpMtx_ARRNG_ROWS) then
+      A%nrows=maxleadind
       do i=clrstarts(clr),clrstarts(clr+1)-1
         clrnode=clrorder(i)
         do j=A%M_bound(clrnode),A%M_bound(clrnode+1)-1
@@ -2331,7 +2458,7 @@ write(stream,*)'ghost: adding also:',front(i),node
         enddo
       enddo
     elseif (A%arrange_type==D_SpMtx_ARRNG_COLS) then
-      A%ncols=maxclrnode
+      A%ncols=maxleadind
       do i=clrstarts(clr),clrstarts(clr+1)-1
         clrnode=clrorder(i)
         do j=A%M_bound(clrnode),A%M_bound(clrnode+1)-1
@@ -2345,6 +2472,7 @@ write(stream,*)'ghost: adding also:',front(i),node
         enddo
       enddo
     endif
+    A%mtx_bbe(2,2)=nnz
     ! indi
     deallocate(A%indi)
     allocate(A%indi(1:A%nnz))
@@ -2357,11 +2485,11 @@ write(stream,*)'ghost: adding also:',front(i),node
     deallocate(jtmp)
     !M_bound
     btmp(1)=1
-    do i=2,maxclrnode+1
+    do i=2,maxleadind+1
       btmp(i)=btmp(i-1)+btmp(i)
     enddo
     deallocate(A%M_bound)
-    allocate(A%M_bound(maxclrnode+1))
+    allocate(A%M_bound(maxleadind+1))
     A%M_bound=btmp
     deallocate(btmp)
     ! val
