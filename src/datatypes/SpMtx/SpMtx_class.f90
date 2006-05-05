@@ -38,10 +38,10 @@ module SpMtx_class
   integer, parameter :: D_SpMtx_SCALE_DIAG_FILTERED =  2
 
 
-  type indlist
-    integer :: ninds
-    integer,dimension(:),pointer :: inds
-  end type indlist
+!  type indlist ! moved to module globals
+!    integer :: ninds
+!    integer,dimension(:),pointer :: inds
+!  end type indlist
 
   type SpMtx
 

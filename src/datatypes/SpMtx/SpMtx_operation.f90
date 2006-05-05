@@ -41,6 +41,8 @@ Module SpMtx_operation
 
   ! Whether auxiliary arrays for pmvm initialised or not
   logical :: D_PMVM_AUXARRS_INITED = .false.
+  ! Important to know for comm. after preconditioning:
+  logical :: D_PMVM_USING_AGHOST = .false.
 
 CONTAINS
 !---------------------------------------------------
@@ -597,12 +599,8 @@ CONTAINS
           end do
        end if
     end do
-!!$    write(stream, *) 'M%nfreesend_map=',M%nfreesend_map
-!!$    call DenseMtx_print(fexchindx)
-!!$    write(stream, *) 'A%perm_map=',A%perm_map
+    !write(stream, *) 'A%perm_map=',A%perm_map
 
-
-    ! <<<
     ! Bufers for incoming and outgoing messages
     allocate(inbufs(M%nnghbrs), outbufs(M%nnghbrs))
     do p = 1,M%nparts
@@ -620,6 +618,92 @@ CONTAINS
     deallocate(counters, booked)
 
   end subroutine pmvmCommStructs_init
+
+  subroutine pmvm_assembled_CommStructs_init(A,M,A_ghost)
+    implicit none
+
+    type(SpMtx),intent(in)          :: A ! System matrix
+    type(Mesh), intent(in)          :: M ! Mesh
+    type(SpMtx),intent(in),optional :: A_ghost ! ghost-matrix
+
+    integer, dimension(:,:), pointer :: booked
+    integer,   dimension(:), pointer :: counters
+    integer :: p, j, h, lf, gf, ge, ptn, indx, n, f
+
+    if (numprocs==1) return
+    ! Fill in indexes of freedoms to be
+    ! exchanged between processors
+    allocate(fexchindx(maxval(M%nfreesend_map),M%nnghbrs))
+    fexchindx = 0
+
+    ! Map from processes's ids to indexes in 'fexchindx[:,pid2indx(:)]'
+    allocate(pid2indx(M%nparts))
+    pid2indx = 0
+    do p = 1,M%nparts
+       do j = 1,M%nnghbrs
+          if (M%nghbrs(j) == p-1) then
+             pid2indx(p) = j
+             exit
+          end if
+       end do
+    end do
+
+    allocate(booked(M%nlf,M%nnghbrs))
+    booked = 0
+    allocate(counters(M%nnghbrs))
+    counters = 0
+    do lf = 1,M%nlf
+       ! interface freedom
+       if (M%inner_interf_fmask(lf) == D_FREEDOM_INTERF) then
+          gf = M%lg_fmap(lf)
+          h = M%hashlook(int(gf/M%hscale)+1)
+          do while (M%hash(h,1) > 0)
+             if (M%hash(h,1) == gf) then
+                ge = M%hash(h,2)
+                ptn = M%eptnmap(ge)
+                indx = pid2indx(ptn)
+                if (indx /= 0) then
+                   if (booked(lf,indx) /= 1) then ! book this freedom
+                      booked(lf,indx) = 1
+                      counters(indx) = counters(indx) + 1
+                      fexchindx(counters(indx),indx) = lf
+                   end if
+                end if
+             end if
+             h = h + 1
+          end do ! do while
+       end if
+    end do
+
+    ! Substitute indexes according to freedoms apperence in SpMtx%perm_map
+    n = sum(M%inner_interf_fmask) ! gives the number of interface freedoms
+    do p = 1,M%nparts
+       if (M%nfreesend_map(p) /= 0) then
+          do indx = 1,M%nfreesend_map(p)
+             do f = 1,n
+                if (A%perm_map(f) == fexchindx(indx,pid2indx(p))) then
+                   fexchindx(indx,pid2indx(p)) = f
+                end if
+             end do
+          end do
+       end if
+    end do
+    ! Bufers for incoming and outgoing messages
+    allocate(inbufs(M%nnghbrs), outbufs(M%nnghbrs))
+    do p = 1,M%nparts
+       if (M%nfreesend_map(p) /= 0) then
+          j = pid2indx(p)
+          n = M%nfreesend_map(p)
+          allocate( inbufs(j)%arr(n))
+          allocate(outbufs(j)%arr(n))
+       end if
+    end do
+    ! Auxiliary arrays has been initialised
+    D_PMVM_AUXARRS_INITED = .true.
+
+    deallocate(counters, booked)
+
+  end subroutine pmvm_assembled_CommStructs_init
 
 
   !------------------------------------

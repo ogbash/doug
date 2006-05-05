@@ -91,13 +91,28 @@ module Mesh_class
      !! Amounts of freedoms to send to particular neighbour :
      !! nfreesend_map[nparts] - zero indicates no freedoms to send
      integer, dimension(:), pointer :: nfreesend_map
+     integer, dimension(:), pointer :: nghostsend_map
      !! Mappings
      !! maps global freedom numbers to local: gl_fmap[ngf]
      integer, dimension(:), pointer :: gl_fmap
      !! inverse of prev. map - local freedoms to global: lg_fmap[ngf]
      integer, dimension(:), pointer :: lg_fmap
-     integer                        :: ninner ! #inner freedoms
-     integer                        :: nghost ! #inner+Ax_ghost freedoms
+     integer :: ntobsent ! #inner freedoms to be sent to neighbours
+     integer :: ninonol  ! #inner freedoms that are on overlap
+     integer :: ninner   ! #inner freedoms total (totally inner:nino)
+     integer :: indepoutol ! points to the end of freedoms on outer
+                           !   overlap that does not get comm during Ax-op.
+                           ! ie. freedoms indepoutol+1:nlf get value
+                           !   through comm in Ax-op.
+
+    ! we are organising local freedoms as follows:
+
+    !1,2,...,M%ntobsent,...,M%ninonol,...,M%ninner,...,M%indepoutol,...,M%nlf|
+    !<-feedoms4send -> |<-rest inol->|<-independ.>|<-indep.onoutol>|<receivd>|
+    !<-     inner overlap         -> |<-freedoms->|<-   outer overlap      ->|
+    !<-         all inner freedoms              ->|
+
+     type(indlist),dimension(:),pointer :: ax_recvidx,ax_sendidx,ol_commidx
 
      !! Graph
      type(Graph) :: G
