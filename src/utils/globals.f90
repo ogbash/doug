@@ -105,4 +105,9 @@ module globals
   !
   type(MasterCtrlData), save :: mctls
 
+  type indlist
+    integer :: ninds
+    integer,dimension(:),pointer :: inds
+  end type indlist
+
 end module globals
