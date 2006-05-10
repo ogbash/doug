@@ -90,7 +90,7 @@ program main
   case default
      call DOUG_abort('[DOUG main] : Unrecognised input type.', -1)
   end select
-
+if (numprocs==1) then !todo remove
   ! Testing aggregation: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
   if (sctls%strong1>0) then
     strong_conn1=sctls%strong1
@@ -184,6 +184,7 @@ program main
                               ! D_PLPLOT_END)
   endif
   write(stream,*)'# coarse aggregates:',AC%aggr%nagr
+endif !todo remove
 
   ! Testing UMFPACK:
   allocate(sol(A%nrows))
@@ -191,16 +192,20 @@ program main
   ! rhs=1.0_rk
 
   ! Solve the system
-  allocate(xl(A%nrows))
-  allocate(b(A%nrows))
+! allocate(xl(A%nrows))
+! allocate(b(A%nrows))
+  allocate(xl(M%nlf))
+  allocate(b(M%nlf))
   xl = 0.0_rk
   ! Modifications R.Scheichl 17/06/05
   ! Set RHS to vector of all 1s
   ! b = 1.0_rk
   ! Set solution to random vector and calcluate RHS via b = A*x
-  allocate(xchk(A%nrows))
+  !allocate(xchk(A%nrows))
+  allocate(xchk(M%nlf))
   call random_number(xchk)
   xchk = 0.5_8 - xchk
+xchk=1.0_rk
   call SpMtx_pmvm(b,A,xchk,M)
   rhs = b
 
@@ -231,7 +236,8 @@ program main
   end select
   ! Modifications R.Scheichl 17/06/05
   ! Check the error
-  allocate(r(A%nrows))
+  !allocate(r(A%nrows))
+  allocate(r(M%nlf))
   r = xl - xchk
   write(stream,*) 'CHECK: The norm of the error is ', &
          sqrt(Vect_dot_product(r,r)/Vect_dot_product(xchk,xchk))
@@ -244,8 +250,8 @@ program main
       allocate(x(M%ngf)); x = 0.0_rk
     end if
     call Vect_Gather(xl, x, M)
-    if (ismaster().and.(size(x) <= 100)) &
-      call Vect_Print(x, 'sol > ')
+    !if (ismaster().and.(size(x) <= 100)) &
+    !  call Vect_Print(x, 'sol > ')
   endif
 
   ! Destroy objects

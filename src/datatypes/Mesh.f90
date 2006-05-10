@@ -327,6 +327,7 @@ contains
         M%coords(2,k)=1.0_xyzk*(j-1)/(n-1)
       enddo
     enddo
+    M%nlf=ngf
   end subroutine Mesh_BuildSquare
 
   !------------------------------------------------

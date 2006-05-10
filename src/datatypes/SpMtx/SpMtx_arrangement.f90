@@ -1927,8 +1927,10 @@ endif
                    MPI_COMM_WORLD,ierr)                                 !
     call MPI_BCAST(A%val,A%nnz,MPI_fkind,D_MASTER,&                     !
                    MPI_COMM_WORLD,ierr)                                 !
-    write(stream,*)'A orig:'
-    call SpMtx_printRaw(A)
+    if (sctls%verbose>3.and.A%nrows<200) then 
+      write(stream,*)'A orig:'
+      call SpMtx_printRaw(A)
+    endif
     call SpMtx_arrange(A,arrange_type=D_SpMtx_ARRNG_ROWS,sort=.true.)   !
     !========= count color elements ============
     if (A%arrange_type==D_SpMtx_ARRNG_ROWS) then
@@ -1953,31 +1955,41 @@ endif
       clrorder(ccount(M%eptnmap(i)))=i
       ccount(M%eptnmap(i))=ccount(M%eptnmap(i))+1
     enddo
-    do i=1,numprocs                                                     !
-      write(stream,*)'partition ',i,' is in:', &                        !
-         clrorder(clrstarts(i):clrstarts(i+1)-1)                     !
-    enddo                                                               !
+    if (sctls%verbose>3.and.A%nrows<200) then 
+      do i=1,numprocs                                                     !
+        write(stream,*)'partition ',i,' is in:', &                        !
+          clrorder(clrstarts(i):clrstarts(i+1)-1)                     !
+      enddo                                                               !
+    endif
     deallocate(ccount)
     !-------------------------------------------------------------------+
-    write(stream,*)'A after arrange:'
-    call SpMtx_printRaw(A)
+    if (sctls%verbose>3.and.A%nrows<200) then 
+      write(stream,*)'A after arrange:'
+      call SpMtx_printRaw(A)
+    endif
     call SpMtx_build_ghost(myrank+1,max(sctls%overlap,sctls%smoothers),&
                              A,A_ghost,M,clrorder,clrstarts) 
-    write(stream,*)'A inner:'
-    call SpMtx_printRaw(A=A,startnz=A%mtx_bbs(2,2),endnz=A%mtx_bbe(2,2))
-    write(stream,*)'A interf(1,2):'
-    call SpMtx_printRaw(A=A,startnz=A%mtx_bbs(1,2),endnz=A%mtx_bbe(1,2))
-    write(stream,*)'A interf(2,1):'
-    call SpMtx_printRaw(A=A,startnz=A%mtx_bbs(2,1),endnz=A%mtx_bbe(2,1))
-    write(stream,*)'A ghost:'
-    call SpMtx_printRaw(A_ghost)
+    if (sctls%verbose>3.and.A%nrows<200) then 
+      write(stream,*)'A interf(1,1):'
+      call SpMtx_printRaw(A=A,startnz=A%mtx_bbs(1,1),endnz=A%mtx_bbe(1,1))
+      write(stream,*)'A interf(1,2):'
+      call SpMtx_printRaw(A=A,startnz=A%mtx_bbs(1,2),endnz=A%mtx_bbe(1,2))
+      write(stream,*)'A interf(2,1):'
+      call SpMtx_printRaw(A=A,startnz=A%mtx_bbs(2,1),endnz=A%mtx_bbe(2,1))
+      write(stream,*)'A inner:'
+      call SpMtx_printRaw(A=A,startnz=A%mtx_bbs(2,2),endnz=A%mtx_bbe(2,2))
+      write(stream,*)'A ghost:'
+      call SpMtx_printRaw(A_ghost)
+    endif
     ! Localise A:
     call SpMtx_Build_lggl(A,A_ghost,M)
-    write(stream,*)'tobsent:',M%lg_fmap(1:M%ntobsent)
-    write(stream,*)'...nintol:',M%lg_fmap(M%ntobsent+1:M%ninonol)
-    write(stream,*)'...nninner:',M%lg_fmap(M%ninonol+1:M%ninner)
-    write(stream,*)'...indepoutol:',M%lg_fmap(M%ninner+1:M%indepoutol)
-    write(stream,*)'...ghost-freds:',M%lg_fmap(M%indepoutol+1:M%nlf)
+    if (sctls%verbose>3) then 
+      write(stream,*)'tobsent:',M%lg_fmap(1:M%ntobsent)
+      write(stream,*)'...nintol:',M%lg_fmap(M%ntobsent+1:M%ninonol)
+      write(stream,*)'...nninner:',M%lg_fmap(M%ninonol+1:M%ninner)
+      write(stream,*)'...indepoutol:',M%lg_fmap(M%ninner+1:M%indepoutol)
+      write(stream,*)'...ghost-freds:',M%lg_fmap(M%indepoutol+1:M%nlf)
+    endif
     ! Localise matrices and communication arrays
     do k=1,M%nnghbrs
       M%ax_recvidx(k)%inds=M%gl_fmap(M%ax_recvidx(k)%inds)
@@ -1992,19 +2004,23 @@ endif
       A_ghost%indi(i)=M%gl_fmap(A_ghost%indi(i))
       A_ghost%indj(i)=M%gl_fmap(A_ghost%indj(i))
     enddo
-    write(stream,*)'Localised A inner:'
-    call SpMtx_printRaw(A=A,startnz=A%mtx_bbs(2,2),endnz=A%mtx_bbe(2,2))
-    write(stream,*)'Localised A interf(1,2):'
-    call SpMtx_printRaw(A=A,startnz=A%mtx_bbs(1,2),endnz=A%mtx_bbe(1,2))
-    write(stream,*)'Localised A interf(2,1):'
-    call SpMtx_printRaw(A=A,startnz=A%mtx_bbs(2,1),endnz=A%mtx_bbe(2,1))
-    write(stream,*)'Localised A ghost:'
-    call SpMtx_printRaw(A_ghost)
-    write(stream,*)'gl_fmap:',M%gl_fmap
-    write(stream,*)'gl_fmap(lg_fmap):',M%gl_fmap(M%lg_fmap)
-    write(stream,*)'lg_fmap:',M%lg_fmap
-    call MPI_BARRIER(MPI_COMM_WORLD,ierr)
-    call DOUG_abort('testing nodal graph partitioning',0)
+    if (sctls%verbose>3.and.A%nrows<200) then 
+      write(stream,*)'Localised A interf(1,1):'
+      call SpMtx_printRaw(A=A,startnz=A%mtx_bbs(1,1),endnz=A%mtx_bbe(1,1))
+      write(stream,*)'Localised A interf(1,2):'
+      call SpMtx_printRaw(A=A,startnz=A%mtx_bbs(1,2),endnz=A%mtx_bbe(1,2))
+      write(stream,*)'Localised A interf(2,1):'
+      call SpMtx_printRaw(A=A,startnz=A%mtx_bbs(2,1),endnz=A%mtx_bbe(2,1))
+      write(stream,*)'Localised A inner:'
+      call SpMtx_printRaw(A=A,startnz=A%mtx_bbs(2,2),endnz=A%mtx_bbe(2,2))
+      write(stream,*)'Localised A ghost:'
+      call SpMtx_printRaw(A_ghost)
+      write(stream,*)'gl_fmap:',M%gl_fmap
+      write(stream,*)'gl_fmap(lg_fmap):',M%gl_fmap(M%lg_fmap)
+      write(stream,*)'lg_fmap:',M%lg_fmap
+      !call MPI_BARRIER(MPI_COMM_WORLD,ierr)
+      !call DOUG_abort('testing nodal graph partitioning',0)
+    endif
   end subroutine SpMtx_DistributeAssembled              
 
   subroutine SpMtx_Build_lggl(A,A_ghost,M)
@@ -2196,6 +2212,11 @@ endif
         j=j+1
       endif
     enddo
+    if (j==0) then
+      write(*,*) 'I am process', myrank,' but I have got no own freedoms!!!?'
+      !write(*,*) ' clrstarts(clr),clrstarts(clr+1)-1:',clrstarts(clr),clrstarts(clr+1)-1
+      call DOUG_abort('empty set of freedoms om process!',3433)
+    endif
     M%nnghbrs=j
     allocate(M%nghbrs(M%nnghbrs))
     allocate(neigfstart(1:lastlayer,M%nnghbrs))
@@ -2218,15 +2239,15 @@ endif
     M%nfreesend_map=0
     !write(stream,*)'My neighbours are: ',(M%nghbrs(i),i=1,M%nnghbrs)
  
-     !I overlap is 0, then only nodes on the fron are used as
-     !  ghost values in Ax operation
-     !if ol>0, then the subdomain expands in ol layers (for solves)
+    !I overlap is 0, then only nodes on the fron are used as
+    !  ghost values in Ax operation
+    !if ol>0, then the subdomain expands in ol layers (for solves)
  
-     !TODO: it would be good to build also communication structures here.
-     !        1. communication for Ax operation:
-     !           if ol>0: 
-     !             -- only the outermost layer of ghost nodes get received
-     !              ie. the innermost layer of my nodes to each neighbour
+    !TODO: it would be good to build also communication structures here.
+    !        1. communication for Ax operation:
+    !           if ol>0: 
+    !             -- only the outermost layer of ghost nodes get received
+    !              ie. the innermost layer of my nodes to each neighbour
     !              need to be sent first, call them INTERFACE NODES (aswell,
     !                              although they are actually inside ones)
     !             -- node of neighbour in M%ax_recvidx if:
@@ -2254,6 +2275,7 @@ endif
       do i=frontstart(0),frontend(0)
         node=front(i)
         do j=A%M_bound(node),A%M_bound(node+1)-1
+
           neigh=A%indj(j)
           clrneigh=M%eptnmap(neigh)
           if (clrneigh/=clr) then
@@ -2280,24 +2302,56 @@ endif
           neigfend(1,k)=nfront+ndirectneigs(clrnode)
           nfront=neigfend(1,k)
         endif
-        front(neigfstart(1,k):neigfend(1,k))=&
-             directneigs(1:ndirectneigs(clrnode),neighmap(clrnode))
-        onfront(front(neigfstart(1,k):neigfend(1,k)))=clrnode ! mark the nodes
-        ! successive layers:
-        recvcnt=0
-        do layer=2,lastlayer-1
-          neigfstart(layer,k)=nfront+1
-          do i=neigfstart(layer-1,k),neigfend(layer-1,k)
+        if (ol<2) then
+          front(neigfstart(1,k):neigfend(1,k))=&
+               directneigs(1:ndirectneigs(clrnode),neighmap(clrnode))
+          onfront(front(neigfstart(1,k):neigfend(1,k)))=&
+               numprocs+clrnode ! mark the nodes for recv
+          recvcnt=ndirectneigs(clrnode)
+        else
+          front(neigfstart(1,k):neigfend(1,k))=&
+               directneigs(1:ndirectneigs(clrnode),neighmap(clrnode))
+          onfront(front(neigfstart(1,k):neigfend(1,k)))=clrnode ! mark the nodes
+          ! successive layers:
+          recvcnt=0
+          do layer=2,lastlayer-1
+            neigfstart(layer,k)=nfront+1
+            do i=neigfstart(layer-1,k),neigfend(layer-1,k)
+              node=front(i)
+              do j=A%M_bound(node),A%M_bound(node+1)-1
+                neigh=A%indj(j)
+                clrneigh=M%eptnmap(neigh)
+                if (clrneigh==clrnode) then ! the same colour
+                  if (onfront(neigh)/=clrnode.and.&
+                      onfront(neigh)/=numprocs+clrnode) then
+                    onfront(neigh)=clrnode
+                    nfront=nfront+1
+                    front(nfront)=neigh
+                  endif
+                elseif (clrneigh/=clr.and.onfront(node)/=numprocs+clrnode) then 
+                  ! node to be included to recv part
+                  onfront(node)=numprocs+clrnode
+                  recvcnt=recvcnt+1
+                endif
+              enddo
+            enddo
+            neigfend(layer,k)=nfront
+          enddo ! layer
+          ! last layer: TODO siin: if ol==1 then we do not have neigfstart(0)!!!
+          !!neigfstart(lastlayer,k)=nfront+1
+          do i=neigfstart(lastlayer-1,k),neigfend(lastlayer-1,k)
             node=front(i)
             do j=A%M_bound(node),A%M_bound(node+1)-1
               neigh=A%indj(j)
               clrneigh=M%eptnmap(neigh)
-              if (clrneigh==clrnode) then ! the same colour
+              if (clrneigh==clrnode) then
                 if (onfront(neigh)/=clrnode.and.&
                     onfront(neigh)/=numprocs+clrnode) then
-                  onfront(neigh)=clrnode
+                  ! neigh to be included to recv part
+                  onfront(neigh)=numprocs+clrnode
                   nfront=nfront+1
                   front(nfront)=neigh
+                  recvcnt=recvcnt+1
                 endif
               elseif (clrneigh/=clr.and.onfront(node)/=numprocs+clrnode) then 
                 ! node to be included to recv part
@@ -2306,31 +2360,7 @@ endif
               endif
             enddo
           enddo
-          neigfend(layer,k)=nfront
-        enddo ! layer
-        ! last layer:
-        neigfstart(lastlayer,k)=nfront+1
-        do i=neigfstart(lastlayer-1,k),neigfend(lastlayer-1,k)
-          node=front(i)
-          do j=A%M_bound(node),A%M_bound(node+1)-1
-            neigh=A%indj(j)
-            clrneigh=M%eptnmap(neigh)
-            if (clrneigh==clrnode) then
-              if (onfront(neigh)/=clrnode.and.&
-                  onfront(neigh)/=numprocs+clrnode) then
-                ! neigh to be included to recv part
-                onfront(neigh)=numprocs+clrnode
-                nfront=nfront+1
-                front(nfront)=neigh
-                recvcnt=recvcnt+1
-              endif
-            elseif (clrneigh/=clr.and.onfront(node)/=numprocs+clrnode) then 
-              ! node to be included to send part
-              onfront(node)=numprocs+clrnode
-              recvcnt=recvcnt+1
-            endif
-          enddo
-        enddo
+        endif ! ol
         neigfend(lastlayer,k)=nfront
         M%ax_recvidx(k)%ninds=recvcnt
         allocate(M%ax_recvidx(k)%inds(recvcnt))
@@ -2340,12 +2370,22 @@ endif
           node=front(i)
           if (onfront(node)==numprocs+clrnode) then
             recvcnt=recvcnt+1
+!if (recvcnt>M%ax_recvidx(k)%ninds) then
+!write (stream,*)'so far aboutto receive:',M%ax_recvidx(k)%inds
+!write (stream,*)'wanna add:',node
+!write (stream,*)'neigfstart(1,k),neigfend(lastlayer,k):',neigfstart(1,k),neigfend(lastlayer,k)
+!write (stream,*)'front(neigfstart(1,k):neigfend(lastlayer,k)):',&
+!           front(neigfstart(1,k):neigfend(lastlayer,k))
+!write (stream,*)'ndirectneigs(clrnode)=',ndirectneigs(clrnode)
+!endif
             M%ax_recvidx(k)%inds(recvcnt)=node
           endif
         enddo
         call quicksort(M%ax_recvidx(k)%ninds,M%ax_recvidx(k)%inds)
-write(stream,*)myrank,'*** Ax:Recving from ',M%nghbrs(k),' nodes:',&
-        M%ax_recvidx(k)%inds(1:M%ax_recvidx(k)%ninds)
+        if (sctls%verbose>3.and.A%nrows<200) then 
+          write(stream,*)myrank,'*** Ax:Recving from ',M%nghbrs(k),' nodes:',&
+            M%ax_recvidx(k)%inds(1:M%ax_recvidx(k)%ninds)
+        endif
       enddo ! loop over neighbours
     elseif (A%arrange_type==D_SpMtx_ARRNG_COLS) then
       !TODO
@@ -2366,42 +2406,78 @@ write(stream,*)myrank,'*** Ax:Recving from ',M%nghbrs(k),' nodes:',&
         clrnode=M%nghbrs(k)+1
         nfront=nfront1
         frontstart(-1)=nfront+1
-        ! Layer 1 first:
-        do i=1,ndirectneigs(M%nghbrs(k)+1)
-          node=directneigs(i,k)
-          do j=A%M_bound(node),A%M_bound(node+1)-1
-            neigh=A%indj(j)
-            clrneigh=M%eptnmap(neigh)
-            if (clrneigh==clr) then ! my node
-              if (onfront(neigh)/=-clrnode) then
-                nfront=nfront+1
-                front(nfront)=neigh
-                onfront(neigh)=-clrnode
-              endif
-            endif
-          enddo
-        enddo
-        frontend(-1)=nfront
-        ! successive layers:
-        do layer=2,lastlayer-1
-          frontstart(-layer)=nfront+1
-          do i=frontstart(-layer+1),frontend(-layer+1)
-            node=front(i)
+        if (ol>1) then
+          ! Layer 1 first:
+          do i=1,ndirectneigs(M%nghbrs(k)+1)
+            node=directneigs(i,k)
             do j=A%M_bound(node),A%M_bound(node+1)-1
               neigh=A%indj(j)
               clrneigh=M%eptnmap(neigh)
               if (clrneigh==clr) then ! my node
-                if (onfront(neigh)/=-clrnode.and.&
-                    onfront(neigh)/=-numprocs-clrnode) then
-                  onfront(neigh)=-clrnode
+                if (onfront(neigh)/=-clrnode) then
                   nfront=nfront+1
                   front(nfront)=neigh
+                  onfront(neigh)=-clrnode
+                endif
+              endif
+            enddo
+          enddo
+          frontend(-1)=nfront
+          ! successive layers:
+          do layer=2,lastlayer-1
+            frontstart(-layer)=nfront+1
+            do i=frontstart(-layer+1),frontend(-layer+1)
+              node=front(i)
+              do j=A%M_bound(node),A%M_bound(node+1)-1
+                neigh=A%indj(j)
+                clrneigh=M%eptnmap(neigh)
+                if (clrneigh==clr) then ! my node
+                  if (onfront(neigh)/=-clrnode.and.&
+                      onfront(neigh)/=-numprocs-clrnode) then
+                    onfront(neigh)=-clrnode
+                    nfront=nfront+1
+                    front(nfront)=neigh
+                  endif
+                elseif (clrneigh/=clrnode.and.onfront(node)/=-numprocs-clrnode) then 
+                  ! node to be included to send part
+                  onfront(node)=-numprocs-clrnode
+                  sendcnt=sendcnt+1
+                  if (sendnodes(node)==0) then
+                    sendnodes(node)=1
+                    sendnodecnt=sendnodecnt+1
+                    sendnodeidx(sendnodecnt)=node
+                  endif
+                endif
+              enddo
+            enddo
+            frontend(-layer)=nfront
+          enddo ! layer
+          frontstart(-lastlayer)=nfront+1
+          ! last layer:
+          do i=frontstart(-lastlayer+1),frontend(-lastlayer+1)
+            node=front(i)
+            do j=A%M_bound(node),A%M_bound(node+1)-1
+              neigh=A%indj(j)
+              clrneigh=M%eptnmap(neigh)
+              if (clrneigh==clr) then
+                if (onfront(neigh)/=-clrnode.and.&
+                    onfront(neigh)/=-numprocs-clrnode) then
+                  ! neigh to be included to send part
+                  onfront(neigh)=-numprocs-clrnode
+                  nfront=nfront+1
+                  front(nfront)=neigh
+                  sendcnt=sendcnt+1
+                  if (sendnodes(neigh)==0) then
+                    sendnodes(neigh)=1
+                    sendnodecnt=sendnodecnt+1
+                    sendnodeidx(sendnodecnt)=neigh
+                  endif
                 endif
               elseif (clrneigh/=clrnode.and.onfront(node)/=-numprocs-clrnode) then 
                 ! node to be included to send part
                 onfront(node)=-numprocs-clrnode
                 sendcnt=sendcnt+1
-                if (sendnodeidx(node)==0) then
+                if (sendnodes(node)==0) then
                   sendnodes(node)=1
                   sendnodecnt=sendnodecnt+1
                   sendnodeidx(sendnodecnt)=node
@@ -2409,42 +2485,32 @@ write(stream,*)myrank,'*** Ax:Recving from ',M%nghbrs(k),' nodes:',&
               endif
             enddo
           enddo
-          frontend(-layer)=nfront
-        enddo ! layer
-        ! last layer:
-        frontstart(-lastlayer)=nfront+1
-        do i=frontstart(-lastlayer+1),frontend(-lastlayer+1)
-          node=front(i)
-          do j=A%M_bound(node),A%M_bound(node+1)-1
-            neigh=A%indj(j)
-            clrneigh=M%eptnmap(neigh)
-            if (clrneigh==clr) then
-              if (onfront(neigh)/=-clrnode.and.&
-                  onfront(neigh)/=-numprocs-clrnode) then
-                ! neigh to be included to send part
-                onfront(neigh)=-numprocs-clrnode
-                nfront=nfront+1
-                front(nfront)=neigh
-                sendcnt=sendcnt+1
-                if (sendnodeidx(neigh)==0) then
-                  sendnodes(neigh)=1
-                  sendnodecnt=sendnodecnt+1
-                  sendnodeidx(sendnodecnt)=neigh
+          frontend(-lastlayer)=nfront
+        else !(ol<2)
+          ! Layer 1 only:
+          do i=1,ndirectneigs(M%nghbrs(k)+1)
+            node=directneigs(i,k)
+            do j=A%M_bound(node),A%M_bound(node+1)-1
+              neigh=A%indj(j)
+              clrneigh=M%eptnmap(neigh)
+              if (clrneigh==clr) then
+                if (onfront(neigh)/=-numprocs-clrnode) then
+                  ! neigh to be included to send part
+                  onfront(neigh)=-numprocs-clrnode
+                  nfront=nfront+1
+                  front(nfront)=neigh
+                  sendcnt=sendcnt+1
+                  if (sendnodes(neigh)==0) then
+                    sendnodes(neigh)=1
+                    sendnodecnt=sendnodecnt+1
+                    sendnodeidx(sendnodecnt)=neigh
+                  endif
                 endif
               endif
-            elseif (clrneigh/=clrnode.and.onfront(node)/=-numprocs-clrnode) then 
-              ! node to be included to send part
-              onfront(node)=-numprocs-clrnode
-              sendcnt=sendcnt+1
-              if (sendnodeidx(node)==0) then
-                sendnodes(node)=1
-                sendnodecnt=sendnodecnt+1
-                sendnodeidx(sendnodecnt)=node
-              endif
-            endif
+            enddo
           enddo
-        enddo
-        frontend(-lastlayer)=nfront
+          frontend(-1)=nfront
+        endif
         M%ax_sendidx(k)%ninds=sendcnt
         allocate(M%ax_sendidx(k)%inds(sendcnt))
         sendcnt=0
@@ -2462,15 +2528,19 @@ write(stream,*)myrank,'*** Ax:Recving from ',M%nghbrs(k),' nodes:',&
           M%ol_commidx(k)%inds(ol_sendcnt)=node
         enddo
         call quicksort(M%ax_sendidx(k)%ninds,M%ax_sendidx(k)%inds)
-write(stream,*)myrank,'*** Ax:Sending to ',M%nghbrs(k),' nodes:',&
-        M%ax_sendidx(k)%inds(1:M%ax_sendidx(k)%ninds)
+        if (sctls%verbose>3.and.A%nrows<200) then 
+          write(stream,*)myrank,'*** Ax:Sending to ',M%nghbrs(k),' nodes:',&
+            M%ax_sendidx(k)%inds(1:M%ax_sendidx(k)%ninds)
+        endif
         do i=neigfstart(1,k),neigfend(lastlayer,k)
           ol_sendcnt=ol_sendcnt+1
           M%ol_commidx(k)%inds(ol_sendcnt)=front(i)
         enddo
         call quicksort(M%ol_commidx(k)%ninds,M%ol_commidx(k)%inds)
-write(stream,*)myrank,'*** OL:comm. with ',M%nghbrs(k),' nodes:',&
-        M%ol_commidx(k)%inds(1:M%ol_commidx(k)%ninds)
+        if (sctls%verbose>3.and.A%nrows<200) then 
+          write(stream,*)myrank,'*** OL:comm. with ',M%nghbrs(k),' nodes:',&
+            M%ol_commidx(k)%inds(1:M%ol_commidx(k)%ninds)
+        endif
       enddo ! loop over neighbours
     elseif (A%arrange_type==D_SpMtx_ARRNG_COLS) then
       !TODO
@@ -2534,7 +2604,7 @@ write(stream,*)myrank,'*** OL:comm. with ',M%nghbrs(k),' nodes:',&
       ! now go outside:
       do i=neigfstart(1,1),neigfend(lastlayer,M%nnghbrs)
         node=front(i)
-        if (onfront(node)>lastlayer) then ! gets value from comm.
+        if (onfront(node)>numprocs) then ! gets value from comm.
           ! but we need to take it to the ghost matrix (if it is
           !   within the domain with overlap)!
           do j=A%M_bound(node),A%M_bound(node+1)-1
@@ -2584,8 +2654,8 @@ write(stream,*)myrank,'*** OL:comm. with ',M%nghbrs(k),' nodes:',&
     allocate(btmp(maxleadind+1))
     if (ol>0) then
       A_ghost=SpMtx_newInit(a_ghostsz)
-      a_gsz=0 
     endif     
+    a_gsz=0 
               
     if (A%arrange_type==D_SpMtx_ARRNG_ROWS) then
       ! start with the inner ones...
@@ -2629,10 +2699,9 @@ write(stream,*)myrank,'*** OL:comm. with ',M%nghbrs(k),' nodes:',&
         endif
       enddo
       ! now go outside:
-      !do i=frontstart(1),frontend(lastlayer)
       do i=neigfstart(1,1),neigfend(lastlayer,M%nnghbrs)
         node=front(i)
-        if (onfront(node)>lastlayer) then ! gets value from comm.
+        if (onfront(node)>numprocs) then ! gets value from comm.
           ! but we need to take it to the ghost matrix (if it is
           !   within the domain with overlap)!
           do j=A%M_bound(node),A%M_bound(node+1)-1
@@ -2692,7 +2761,7 @@ write(stream,*)myrank,'*** OL:comm. with ',M%nghbrs(k),' nodes:',&
       call DOUG_abort('SpMtx_build_ghost -- bbe(2,2) wrong!',67)
     endif
     if (a_gsz/=a_ghostsz) then
-      write(stream,*)'a_gsz,a_ghostsz:',bbe(2,2),A%mtx_bbe(2,2)
+      write(stream,*)'a_gsz,a_ghostsz:',a_gsz,a_ghostsz
       call DOUG_abort('SpMtx_build_ghost -- a_gsz wrong!',67)
     endif
 

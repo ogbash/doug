@@ -152,18 +152,18 @@ CONTAINS
     implicit none
 
     type(SpMtx),                      intent(in) :: A ! System matrix
-    float(kind=rk), dimension(:), intent(in out),target :: x ! Vector
+    float(kind=rk),dimension(:),intent(inout),target :: x ! Vector
 !!$  ==> NEED TO GET RID OF IT HERE
     type(Mesh),                       intent(in) :: M ! Mesh
 
-    float(kind=rk), dimension(size(x)),target           :: y ! Result
+    float(kind=rk),dimension(size(x)),target           :: y ! Result
 
-    integer :: i, n, p, count
+    integer :: i, n, p
 
     ! MPI
-    integer, dimension(:), pointer :: in_reqs
-    integer                        :: ierr, out_req, status(MPI_STATUS_SIZE)
-    integer, parameter             :: D_TAG_FREE_INTERFFREE = 666
+    integer,dimension(:),pointer :: in_reqs
+    integer                      :: ierr,out_req,status(MPI_STATUS_SIZE)
+    integer,parameter            :: D_TAG_FREE_INTERFFREE=676
     float(kind=rk),dimension(:),pointer :: yp,xp
 
     if (numprocs==1) then
@@ -173,13 +173,12 @@ CONTAINS
       return
     endif
 
-    y = 0.0_rk
+    y=0.0_rk
 
     ! Initialise auxiliary data structures
     ! to assist with pmvm
     if (.not.D_PMVM_AUXARRS_INITED) &
-         call pmvmCommStructs_init(A, M)
-
+         call pmvmCommStructs_init(A,M)
 
     ! Innerface freedoms matrix-vector multiplication
     !  ---------- -----------
@@ -190,57 +189,84 @@ CONTAINS
     ! | interf.  |   inner   |
     ! |          |           |
     !  ---------- ------------
-    call SpMtx_mvm(A, x, y, &
-         A%mtx_bbs(1,1), A%mtx_bbe(A%nblocks,A%nblocks))
+    call SpMtx_mvm(A,x,y, &
+         A%mtx_bbs(1,1),A%mtx_bbe(1,1))
     !call Vect_Print(y, 'after 1:1 mult:')
 
+    if (sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED) then
+      call SpMtx_mvm(A,x,y, &
+         A%mtx_bbs(1,2),A%mtx_bbe(1,2))
+    else ! look -- flipping in file datatypes/ElemMtxs_assemble.f90
+         ! todo: is the flipping still needed, or correct at all?
+      ! Inner/iterface freedoms matrix-vector multiplication
+      !  --------- ----------
+      ! | interf. | interf./ |
+      ! |         | inner    |
+      !  ---------+----------
+      ! |^ inner/ |          |
+      ! |  interf.| inner    |
+      ! |        v|          |
+      !  ---------- ----------
+      call SpMtx_mvm(A,x,y, &
+           A%mtx_bbs(A%nblocks+1,1),A%mtx_bbe(A%nblocks+1,1))
+    endif
 
-    ! Inner/iterface freedoms matrix-vector multiplication
-    !  --------- ----------
-    ! | interf. | interf./ |
-    ! |         | inner    |
-    !  ---------+----------
-    ! |^ inner/ |          |
-    ! |  interf.| inner    |
-    ! |        v|          |
-    !  ---------- ----------
-    call SpMtx_mvm(A, x, y, &
-         A%mtx_bbs(A%nblocks+1,1), A%mtx_bbe(2*A%nblocks,A%nblocks))
-
-!write(stream,*)'----- q before all comm:------ ',y
+!!!write(stream,*)'----- q before all comm:------ ',y
     ! y - initialise receives
     allocate(in_reqs(M%nnghbrs))
-    do p = 1,M%nparts
-       if (M%nfreesend_map(p) /= 0) then
-          i = pid2indx(p)
-          n = M%nfreesend_map(p)
-          call MPI_IRECV(inbufs(i)%arr, n, MPI_fkind, &
-               p-1, D_TAG_FREE_INTERFFREE, MPI_COMM_WORLD, in_reqs(i), ierr)
-       end if
-    end do
-
-    ! y - nonblockingly send
-    do p = 1,M%nparts
-       if (M%nfreesend_map(p) /= 0) then
-          i = pid2indx(p)
-          n = M%nfreesend_map(p)
-          outbufs(i)%arr = y(fexchindx(1:n,i))
-          call MPI_ISEND(outbufs(i)%arr, n, MPI_fkind, &
-               p-1, D_TAG_FREE_INTERFFREE, MPI_COMM_WORLD, out_req, ierr)
-       end if
-    end do
-
-    ! Innerface/inner freedoms matrix-vector multiplication
-    !  --------- -----------
-    ! | interf. |^ interf./ |
-    ! |         |  inner   v|
-    !  ---------+-----------
-    ! | inner/  |           |
-    ! | interf. |   inner   |
-    ! |         |           |
-    !  --------- ------------
-    call SpMtx_mvm(A, x, y, &
-         A%mtx_bbs(1,A%nblocks+1), A%mtx_bbe(A%nblocks,2*A%nblocks))
+    if (sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED) then
+      do i=1,M%nnghbrs
+        n=M%ax_recvidx(i)%ninds
+        p=M%nghbrs(i)
+!write(stream,*) '**** starting non-blocking recv from ',p
+        call MPI_IRECV(inbufs(i)%arr,n,MPI_fkind, &
+                 p,D_TAG_FREE_INTERFFREE,MPI_COMM_WORLD,in_reqs(i),ierr)
+      enddo
+      ! y - nonblockingly send
+      do i=1,M%nnghbrs
+        n=M%ax_sendidx(i)%ninds
+        p=M%nghbrs(i)
+        outbufs(i)%arr=y(M%ax_sendidx(i)%inds)
+        call MPI_ISEND(outbufs(i)%arr,n,MPI_fkind, &
+                 p,D_TAG_FREE_INTERFFREE,MPI_COMM_WORLD,out_req,ierr)
+!write(stream,*) '**** sending to ',p,outbufs(i)%arr
+      enddo
+    else
+      do p=1,M%nparts
+         if (M%nfreesend_map(p)/=0) then
+            i=pid2indx(p)
+            n=M%nfreesend_map(p)
+            call MPI_IRECV(inbufs(i)%arr,n,MPI_fkind, &
+                 p-1,D_TAG_FREE_INTERFFREE,MPI_COMM_WORLD,in_reqs(i),ierr)
+         endif
+      enddo
+      ! y - nonblockingly send
+      do p=1,M%nparts
+         if (M%nfreesend_map(p)/=0) then
+            i=pid2indx(p)
+            n=M%nfreesend_map(p)
+            outbufs(i)%arr=y(fexchindx(1:n,i))
+            call MPI_ISEND(outbufs(i)%arr,n,MPI_fkind, &
+                 p-1,D_TAG_FREE_INTERFFREE,MPI_COMM_WORLD,out_req,ierr)
+         endif
+      enddo
+    endif
+    if (sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED) then
+      call SpMtx_mvm(A,x,y, &
+           A%mtx_bbs(2,1),A%mtx_bbe(2,1))
+    else
+      ! Innerface/inner freedoms matrix-vector multiplication
+      !  --------- -----------
+      ! | interf. |^ interf./ |
+      ! |         |  inner   v|
+      !  ---------+-----------
+      ! | inner/  |           |
+      ! | interf. |   inner   |
+      ! |         |           |
+      !  --------- ------------
+      call SpMtx_mvm(A,x,y, &
+           A%mtx_bbs(1,A%nblocks+1),A%mtx_bbe(1,A%nblocks+1))
+    endif
 
     ! Inner freedoms matrix-vector multiplication
     !  ---------- ----------
@@ -251,31 +277,38 @@ CONTAINS
     ! |  interf. | inner    |
     ! |          |         v|
     !  ---------- ----------
-    call SpMtx_mvm(A, x, y, &
-         A%mtx_bbs(A%nblocks+1,A%nblocks+1),A%mtx_bbe(2*A%nblocks,2*A%nblocks))
+    call SpMtx_mvm(A,x,y, &
+         A%mtx_bbs(A%nblocks+1,A%nblocks+1),A%mtx_bbe(A%nblocks+1,A%nblocks+1))
     !call Vect_Print(y, 'after 4:4 mult:')
 
-!write(stream,*)'----- q before comm:------ ',y
+!!!write(stream,*)'----- q before comm:------ ',y
     ! y - wait for neighbours' interface freedoms
-    do while (.true.)
-       call MPI_WAITANY(M%nnghbrs, in_reqs, i, status, ierr)
-       if (i /= MPI_UNDEFINED) then
-          count = M%nfreesend_map(M%nghbrs(i)+1)
-          y(fexchindx(1:count,i)) = &
-               y(fexchindx(1:count,i)) + inbufs(i)%arr
-
-!!$          write(stream,*) 'got from:', M%nghbrs(i),'buf:', inbufs(i)%arr
-!!$          write(stream,*) 'y=',y
-
-       else
+    if (sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED) then
+      do while (.true.)
+        call MPI_WAITANY(M%nnghbrs,in_reqs,i,status,ierr)
+        if (i/=MPI_UNDEFINED) then
+!write(stream,*)'**** received from ',M%nghbrs(i),inbufs(i)%arr
+          y(M%ax_recvidx(i)%inds)=inbufs(i)%arr
+        else
           exit
-       end if
-    end do
-
+        endif
+      enddo
+    else
+      do while (.true.)
+        call MPI_WAITANY(M%nnghbrs,in_reqs,i,status,ierr)
+        if (i/=MPI_UNDEFINED) then
+          n=M%nfreesend_map(M%nghbrs(i)+1)
+          y(fexchindx(1:n,i))=&
+               y(fexchindx(1:n,i))+inbufs(i)%arr
+          !write(stream,*) 'got from:', M%nghbrs(i),'buf:', inbufs(i)%arr
+          !write(stream,*) 'y=',y
+        else
+          exit
+        endif
+      enddo
+    endif
     deallocate(in_reqs)
   end subroutine SpMtx_pmvm
-  !end function SpMtx_pmvm
-
 
   subroutine Add_common_interf(x,A,M)
     implicit none
@@ -540,7 +573,20 @@ CONTAINS
     integer,   dimension(:), pointer :: counters
     integer :: p, j, h, lf, gf, ge, ptn, indx, n, f
 
-    if (numprocs==1) return
+    if (sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED) then
+      allocate(inbufs(M%nnghbrs), outbufs(M%nnghbrs))
+      do p = 1,M%nnghbrs
+        allocate(inbufs(p)%arr(M%ax_recvidx(p)%ninds))
+        allocate(outbufs(p)%arr(M%ax_sendidx(p)%ninds))
+      enddo
+      call Vect_buildDotMask(M)
+      D_PMVM_AUXARRS_INITED = .true.
+      return
+    endif
+    if (numprocs==1) then
+      D_PMVM_AUXARRS_INITED = .true.
+      return
+    endif
     ! <<<
     ! Fill in indexes of freedoms to be
     ! exchanged between processors

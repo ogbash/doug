@@ -48,6 +48,7 @@ module Vect_mod
   ! Aux. parameters
   integer, parameter :: D_DOTMASK_MINE    = 1
   integer, parameter :: D_DOTMASK_NOTMINE = 0
+  integer :: ninner
 
 
   ! = = = = = = = = = =
@@ -115,11 +116,14 @@ contains
 !write(stream,*)' .....hash: ################################################'
 !write(stream,*)'M%hscale=',M%hscale
 
+    if (sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED) then
+      ninner=M%ninner
+      return
+    endif
     if (intf_end == -1) then
       s=sum(M%inner_interf_fmask)
       call Vect_setIntfEnd(s)
     endif
-
     allocate(dot_intf_fmask(intf_end))
     ! Mark all freedoms as to perform dot product on
     dot_intf_fmask = D_DOTMASK_MINE
@@ -153,6 +157,9 @@ contains
 
     integer :: i, j
 
+    if (sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED) then
+      return
+    endif
     if (.not.associated(dot_intf_fmask)) &
          call DOUG_abort('[Vect_buildDotMap] :SEVERE: dot_intf_fmask must'//&
          ' be built first.',-1)
@@ -188,16 +195,19 @@ contains
        return
     end if
     
-    ! Interface freedoms defined in 'dot_intf_fmap' + local inner ones
-    local_res = dot_product(x1(dot_intf_fmap), x2(dot_intf_fmap)) + &
-         dot_product(x1(intf_end+1:), x2(intf_end+1:))
-    !local_res=0.0_rk
-    !do i=1,size(dot_intf_fmap)
-    !  local_res=local_res+x1(dot_intf_fmap(i))*x2(dot_intf_fmap(i))
-    !enddo
-    !local_res = local_res + &
-    !     dot_product(x1(intf_end+1:), x2(intf_end+1:))
-
+    if (sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED) then
+      local_res=dot_product(x1(1:ninner),x2(1:ninner))
+    else
+      ! Interface freedoms defined in 'dot_intf_fmap' + local inner ones
+      local_res = dot_product(x1(dot_intf_fmap), x2(dot_intf_fmap)) + &
+           dot_product(x1(intf_end+1:), x2(intf_end+1:))
+      !local_res=0.0_rk
+      !do i=1,size(dot_intf_fmap)
+      !  local_res=local_res+x1(dot_intf_fmap(i))*x2(dot_intf_fmap(i))
+      !enddo
+      !local_res = local_res + &
+      !     dot_product(x1(intf_end+1:), x2(intf_end+1:))
+    endif
     call MPI_ALLREDUCE(local_res, res, 1, MPI_fkind, MPI_SUM, &
          MPI_COMM_WORLD, ierr)
   end function Vect_dot_product
@@ -250,6 +260,7 @@ contains
     ! Aux. receive buffers on master side
     integer,        dimension(:), pointer :: ibuf
     float(kind=rk), dimension(:), pointer :: fbuf
+    integer, parameter :: D_TAG_NLF   = 222
     integer, parameter :: D_TAG_FMAP  = 333
     integer, parameter :: D_TAG_FDATA = 444
     integer :: bs, ierr, request, status(MPI_STATUS_SIZE)
@@ -275,25 +286,33 @@ contains
 
 !!!  >>> MASTER COULD DO IT BEFORE HAND EARLIER ...
        ! Number of freedoms local to processes
-       allocate(nlfs(M%nparts),f_booked(M%nparts))
-       nlfs = 0
-       f_booked = .false.
-       do gf = 1,M%ngf ! walk through global freedoms
-          h = M%hashlook(int(gf/M%hscale)+1)
-          do while (M%hash(h,1) > 0)
-             if (M%hash(h,1) == gf) then ! found this freedom in hash table
-                p = M%eptnmap(M%hash(h,2))
-                if (.not.f_booked(p)) then
-                   nlfs(p) = nlfs(p) + 1
-                   f_booked(p) = .true.
-                end if
-             end if
-             h = h + 1
-          end do ! do while
-          f_booked = .false.
-       end do
+!      allocate(nlfs(M%nparts),f_booked(M%nparts))
+!      nlfs = 0
+!      f_booked = .false.
+!      do gf = 1,M%ngf ! walk through global freedoms
+!         h = M%hashlook(int(gf/M%hscale)+1)
+!         do while (M%hash(h,1) > 0)
+!            if (M%hash(h,1) == gf) then ! found this freedom in hash table
+!               p = M%eptnmap(M%hash(h,2))
+!               if (.not.f_booked(p)) then
+!                  nlfs(p) = nlfs(p) + 1
+!                  f_booked(p) = .true.
+!               end if
+!            end if
+!            h = h + 1
+!         end do ! do while
+!         f_booked = .false.
+!      end do
 !!! <<< MASTER COULD DO IT BEFORE HAND EARLIER
-
+       allocate(nlfs(M%nparts))
+       do p = 1,M%nparts
+         if (p-1 == root) then! Don't receive from myself
+           nlfs(p)=0
+           cycle
+         endif
+         call MPI_RECV(nlfs(p),1,MPI_INTEGER, &
+              p-1, D_TAG_NLF, MPI_COMM_WORLD, status, ierr)
+       enddo
        allocate(ibuf(maxval(nlfs))); ibuf = 0
        allocate(fbuf(maxval(nlfs))); fbuf = 0.0_rk
 
@@ -307,9 +326,7 @@ contains
        do p = 1,M%nparts
           if (p-1 == root) & ! Don't receive from myself
                cycle
-
           bs = nlfs(p) ! size of receive buffers
-
           ! Get freedoms' global indexes
           call MPI_RECV(ibuf, bs, MPI_INTEGER, &
                p-1, D_TAG_FMAP, MPI_COMM_WORLD, status, ierr)
@@ -319,23 +336,25 @@ contains
           x(ibuf(1:bs)) = fbuf(1:bs)
        end do
        ! Destroy local dynamic data
-       deallocate( &
-            nlfs,    &
-            f_booked,&
-            ibuf,    &
-            fbuf)
+!       deallocate( &
+!            nlfs,    &
+!            f_booked,&
+!            ibuf,    &
+!            fbuf)
+       deallocate(nlfs,ibuf,fbuf)
     ! Workers
     else
+       ! nlf
+       call MPI_ISEND(M%nlf, 1, MPI_INTEGER, &
+            root, D_TAG_NLF, MPI_COMM_WORLD, request, ierr)
        ! Freedoms' global indexes
        call MPI_ISEND(M%lg_fmap, M%nlf, MPI_INTEGER, &
             root, D_TAG_FMAP, MPI_COMM_WORLD, request, ierr)
        ! Local vector to send
        call MPI_ISEND(xl, M%nlf, MPI_fkind, &
             root, D_TAG_FDATA, MPI_COMM_WORLD, request, ierr)
-
-call MPI_WAIT(request,status,ierr)
-write(stream,*) 'WARNING: must wait for this send request to complete!'
-
+       call MPI_WAIT(request,status,ierr)
+       !write(stream,*) 'WARNING: must wait for this send request to complete!'
     end if
   end subroutine Vect_Gather
 

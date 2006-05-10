@@ -478,6 +478,7 @@ contains
     ! Initialise auxiliary data structures
     ! to assist with pmvm
     call pmvmCommStructs_init(A, Msh)
+
     call SpMtx_pmvm(r,A,x,Msh)
     r = b - r
     init_norm = Vect_dot_product(r,r)
@@ -505,10 +506,12 @@ contains
                    CoarseMtx_=CoarseMtx_, &
                     refactor_=refactor)
       refactor=.false.
-      call Add_common_interf(z,A,Msh)
+      if (sctls%method/=0) then
+        call Add_common_interf(z,A,Msh)
+      endif
       ! compute current rho
       rho_curr = Vect_dot_product(r,z)
-      !call Print_Glob_Vect(z,Msh,'global z===')
+ !call Print_Glob_Vect(z,Msh,'global z===')
 
       if (it == 1) then
          p = z
@@ -517,10 +520,13 @@ contains
          p = z + beta(it) * p
       end if
       call SpMtx_pmvm(q,A, p, Msh)
+ !call Print_Glob_Vect(q,Msh,'global q===')
       ! compute alpha
       alpha(it) = rho_curr / Vect_dot_product(p,q)
       x = x + alpha(it) * p
+ !call Print_Glob_Vect(x,Msh,'global x===')
       r = r - alpha(it) * q
+ !call Print_Glob_Vect(r,Msh,'global r===')
       rho_prev = rho_curr
       ! check
       res_norm = Vect_dot_product(r,r)
