@@ -97,6 +97,8 @@ module Mesh_class
      integer, dimension(:), pointer :: gl_fmap
      !! inverse of prev. map - local freedoms to global: lg_fmap[ngf]
      integer, dimension(:), pointer :: lg_fmap
+     ! Data structures for assembled matrices case with its particluar
+     !   overlap size:
      integer :: ntobsent ! #inner freedoms to be sent to neighbours
      integer :: ninonol  ! #inner freedoms that are on overlap
      integer :: ninner   ! #inner freedoms total (totally inner:nino)
@@ -112,7 +114,8 @@ module Mesh_class
     !<-     inner overlap         -> |<-freedoms->|<-   outer overlap      ->|
     !<-         all inner freedoms              ->|
 
-     type(indlist),dimension(:),pointer :: ax_recvidx,ax_sendidx,ol_commidx
+     type(indlist),dimension(:),pointer :: ax_recvidx,ax_sendidx
+     type(indlist),dimension(:),pointer :: ol_inner,ol_outer
 
      !! Graph
      type(Graph) :: G

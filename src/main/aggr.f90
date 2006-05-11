@@ -203,10 +203,20 @@ endif !todo remove
   ! Set solution to random vector and calcluate RHS via b = A*x
   !allocate(xchk(A%nrows))
   allocate(xchk(M%nlf))
-  call random_number(xchk)
-  xchk = 0.5_8 - xchk
-xchk=1.0_rk
+  call random_number(xchk(1:M%ninner))
+  xchk(1:M%ninner) = 0.5_8 - xchk(1:M%ninner)
+! if (numprocs>1) then
+!   xchk(1:M%ninner) = M%lg_fmap(1:M%ninner)
+! else
+!   xchk=(/(i,i=1,M%nlf)/)
+! endif
+  call update_outer_ol(xchk,M)
+! if (numprocs>1) then
+!   write(stream,*)'xchk=',xchk- M%lg_fmap(:)
+! endif
+  !xchk=1.0_rk
   call SpMtx_pmvm(b,A,xchk,M)
+! call Print_Glob_Vect(xchk,M,'global xchk===')
   rhs = b
 
   select case(sctls%solver)
@@ -236,9 +246,17 @@ xchk=1.0_rk
   end select
   ! Modifications R.Scheichl 17/06/05
   ! Check the error
-  !allocate(r(A%nrows))
-  allocate(r(M%nlf))
+  if (numprocs==1) then
+    allocate(r(A%nrows))
+  else
+    allocate(r(M%nlf))
+  endif
   r = xl - xchk
+ !if (numprocs==1) then
+ !  write(stream,*)'error:',r(1:A%nrows)
+ !else
+ !  write(stream,*)'error:',r(1:M%ninner)
+ !endif
   write(stream,*) 'CHECK: The norm of the error is ', &
          sqrt(Vect_dot_product(r,r)/Vect_dot_product(xchk,xchk))
   deallocate(xchk)

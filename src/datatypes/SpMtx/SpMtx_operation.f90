@@ -226,7 +226,7 @@ CONTAINS
       do i=1,M%nnghbrs
         n=M%ax_sendidx(i)%ninds
         p=M%nghbrs(i)
-        outbufs(i)%arr=y(M%ax_sendidx(i)%inds)
+        outbufs(i)%arr(1:M%ax_sendidx(i)%ninds)=y(M%ax_sendidx(i)%inds)
         call MPI_ISEND(outbufs(i)%arr,n,MPI_fkind, &
                  p,D_TAG_FREE_INTERFFREE,MPI_COMM_WORLD,out_req,ierr)
 !write(stream,*) '**** sending to ',p,outbufs(i)%arr
@@ -245,7 +245,7 @@ CONTAINS
          if (M%nfreesend_map(p)/=0) then
             i=pid2indx(p)
             n=M%nfreesend_map(p)
-            outbufs(i)%arr=y(fexchindx(1:n,i))
+            outbufs(i)%arr(1:n)=y(fexchindx(1:n,i))
             call MPI_ISEND(outbufs(i)%arr,n,MPI_fkind, &
                  p-1,D_TAG_FREE_INTERFFREE,MPI_COMM_WORLD,out_req,ierr)
          endif
@@ -288,7 +288,7 @@ CONTAINS
         call MPI_WAITANY(M%nnghbrs,in_reqs,i,status,ierr)
         if (i/=MPI_UNDEFINED) then
 !write(stream,*)'**** received from ',M%nghbrs(i),inbufs(i)%arr
-          y(M%ax_recvidx(i)%inds)=inbufs(i)%arr
+          y(M%ax_recvidx(i)%inds)=inbufs(i)%arr(1:M%ax_recvidx(i)%ninds)
         else
           exit
         endif
@@ -299,7 +299,7 @@ CONTAINS
         if (i/=MPI_UNDEFINED) then
           n=M%nfreesend_map(M%nghbrs(i)+1)
           y(fexchindx(1:n,i))=&
-               y(fexchindx(1:n,i))+inbufs(i)%arr
+               y(fexchindx(1:n,i))+inbufs(i)%arr(1:n)
           !write(stream,*) 'got from:', M%nghbrs(i),'buf:', inbufs(i)%arr
           !write(stream,*) 'y=',y
         else
@@ -348,7 +348,7 @@ CONTAINS
        if (M%nfreesend_map(p) /= 0) then
           i = pid2indx(p)
           n = M%nfreesend_map(p)
-          outbufs(i)%arr = x_tmp(fexchindx(1:n,i))
+          outbufs(i)%arr(1:n) = x_tmp(fexchindx(1:n,i))
           call MPI_ISEND(outbufs(i)%arr, n, MPI_fkind, &
                p-1, D_TAG_FREE_INTERFFREE, MPI_COMM_WORLD, out_req, ierr)
        end if
@@ -372,6 +372,67 @@ CONTAINS
     deallocate(x_tmp)
     deallocate(in_reqs)
   end subroutine Add_common_interf
+
+  subroutine update_outer_ol(x,M)
+    implicit none
+
+    float(kind=rk),dimension(:),intent(in out)   :: x ! Vector
+    type(Mesh),                       intent(in) :: M ! Mesh
+    integer :: i,n,p,ol,mx
+    ! MPI
+    integer, dimension(:), pointer :: in_reqs
+    integer                        :: ierr, out_req, status(MPI_STATUS_SIZE)
+    integer, parameter             :: D_TAG_FREE_OUTEROL = 778
+
+    if (numprocs==1.or.sctls%input_type/=DCTL_INPUT_TYPE_ASSEMBLED) then
+      return
+    endif
+    ol=max(sctls%overlap,sctls%smoothers)
+    if (ol<1) then
+      return
+    endif
+    if (.not.D_PMVM_AUXARRS_INITED) then
+      allocate(inbufs(M%nnghbrs), outbufs(M%nnghbrs))
+      do p = 1,M%nnghbrs
+        mx=max(M%ax_recvidx(p)%ninds,&
+               M%ol_inner(p)%ninds+M%ol_outer(p)%ninds)
+        allocate(inbufs(p)%arr(mx))
+        mx=max(M%ax_sendidx(p)%ninds,&
+               M%ol_inner(p)%ninds+M%ol_outer(p)%ninds)
+        allocate(outbufs(p)%arr(mx))
+      enddo
+      call Vect_buildDotMask(M)
+      D_PMVM_AUXARRS_INITED = .true.
+    endif
+    allocate(in_reqs(M%nnghbrs))
+    ! initialise receives
+    do i=1,M%nnghbrs
+      n=M%ol_outer(i)%ninds
+      p=M%nghbrs(i)
+!write(stream,*) '**** starting non-blocking recv from ',p
+      call MPI_IRECV(inbufs(i)%arr,n,MPI_fkind, &
+               p,D_TAG_FREE_OUTEROL,MPI_COMM_WORLD,in_reqs(i),ierr)
+    enddo
+    ! non-blocking send:
+    do i=1,M%nnghbrs
+      n=M%ol_inner(i)%ninds
+      p=M%nghbrs(i)
+      outbufs(i)%arr(1:n)=x(M%ol_inner(i)%inds)
+      call MPI_ISEND(outbufs(i)%arr,n,MPI_fkind, &
+               p,D_TAG_FREE_OUTEROL,MPI_COMM_WORLD,out_req,ierr)
+!write(stream,*) '**** sending to ',p,outbufs(i)%arr
+    enddo
+call MPI_Barrier(MPI_COMM_WORLD,ierr)
+    do while (.true.)
+      call MPI_WAITANY(M%nnghbrs,in_reqs,i,status,ierr)
+      if (i/=MPI_UNDEFINED) then
+!write(stream,*)'**** received from ',M%nghbrs(i),inbufs(i)%arr
+        x(M%ol_outer(i)%inds)=inbufs(i)%arr(1:M%ol_outer(i)%ninds)
+      else
+        exit
+      endif
+    enddo
+  end subroutine update_outer_ol
 
 !!$  !--------------------------------------
 !!$  ! Parallel matrix-vector multiplication
@@ -571,16 +632,22 @@ CONTAINS
 
     integer, dimension(:,:), pointer :: booked
     integer,   dimension(:), pointer :: counters
-    integer :: p, j, h, lf, gf, ge, ptn, indx, n, f
+    integer :: p,j,h,lf,gf,ge,ptn,indx,n,f,mx
 
     if (sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED) then
-      allocate(inbufs(M%nnghbrs), outbufs(M%nnghbrs))
-      do p = 1,M%nnghbrs
-        allocate(inbufs(p)%arr(M%ax_recvidx(p)%ninds))
-        allocate(outbufs(p)%arr(M%ax_sendidx(p)%ninds))
-      enddo
-      call Vect_buildDotMask(M)
-      D_PMVM_AUXARRS_INITED = .true.
+      if (.not.D_PMVM_AUXARRS_INITED) then
+        allocate(inbufs(M%nnghbrs), outbufs(M%nnghbrs))
+        do p = 1,M%nnghbrs
+          mx=max(M%ax_recvidx(p)%ninds,&
+                 M%ol_inner(p)%ninds+M%ol_outer(p)%ninds)
+          allocate(inbufs(p)%arr(mx))
+          mx=max(M%ax_sendidx(p)%ninds,&
+                 M%ol_inner(p)%ninds+M%ol_outer(p)%ninds)
+          allocate(outbufs(p)%arr(mx))
+        enddo
+        call Vect_buildDotMask(M)
+        D_PMVM_AUXARRS_INITED = .true.
+      endif
       return
     endif
     if (numprocs==1) then
@@ -664,93 +731,6 @@ CONTAINS
     deallocate(counters, booked)
 
   end subroutine pmvmCommStructs_init
-
-  subroutine pmvm_assembled_CommStructs_init(A,M,A_ghost)
-    implicit none
-
-    type(SpMtx),intent(in)          :: A ! System matrix
-    type(Mesh), intent(in)          :: M ! Mesh
-    type(SpMtx),intent(in),optional :: A_ghost ! ghost-matrix
-
-    integer, dimension(:,:), pointer :: booked
-    integer,   dimension(:), pointer :: counters
-    integer :: p, j, h, lf, gf, ge, ptn, indx, n, f
-
-    if (numprocs==1) return
-    ! Fill in indexes of freedoms to be
-    ! exchanged between processors
-    allocate(fexchindx(maxval(M%nfreesend_map),M%nnghbrs))
-    fexchindx = 0
-
-    ! Map from processes's ids to indexes in 'fexchindx[:,pid2indx(:)]'
-    allocate(pid2indx(M%nparts))
-    pid2indx = 0
-    do p = 1,M%nparts
-       do j = 1,M%nnghbrs
-          if (M%nghbrs(j) == p-1) then
-             pid2indx(p) = j
-             exit
-          end if
-       end do
-    end do
-
-    allocate(booked(M%nlf,M%nnghbrs))
-    booked = 0
-    allocate(counters(M%nnghbrs))
-    counters = 0
-    do lf = 1,M%nlf
-       ! interface freedom
-       if (M%inner_interf_fmask(lf) == D_FREEDOM_INTERF) then
-          gf = M%lg_fmap(lf)
-          h = M%hashlook(int(gf/M%hscale)+1)
-          do while (M%hash(h,1) > 0)
-             if (M%hash(h,1) == gf) then
-                ge = M%hash(h,2)
-                ptn = M%eptnmap(ge)
-                indx = pid2indx(ptn)
-                if (indx /= 0) then
-                   if (booked(lf,indx) /= 1) then ! book this freedom
-                      booked(lf,indx) = 1
-                      counters(indx) = counters(indx) + 1
-                      fexchindx(counters(indx),indx) = lf
-                   end if
-                end if
-             end if
-             h = h + 1
-          end do ! do while
-       end if
-    end do
-
-    ! Substitute indexes according to freedoms apperence in SpMtx%perm_map
-    n = sum(M%inner_interf_fmask) ! gives the number of interface freedoms
-    do p = 1,M%nparts
-       if (M%nfreesend_map(p) /= 0) then
-          do indx = 1,M%nfreesend_map(p)
-             do f = 1,n
-                if (A%perm_map(f) == fexchindx(indx,pid2indx(p))) then
-                   fexchindx(indx,pid2indx(p)) = f
-                end if
-             end do
-          end do
-       end if
-    end do
-    ! Bufers for incoming and outgoing messages
-    allocate(inbufs(M%nnghbrs), outbufs(M%nnghbrs))
-    do p = 1,M%nparts
-       if (M%nfreesend_map(p) /= 0) then
-          j = pid2indx(p)
-          n = M%nfreesend_map(p)
-          allocate( inbufs(j)%arr(n))
-          allocate(outbufs(j)%arr(n))
-       end if
-    end do
-    ! Auxiliary arrays has been initialised
-    D_PMVM_AUXARRS_INITED = .true.
-
-    deallocate(counters, booked)
-
-  end subroutine pmvm_assembled_CommStructs_init
-
 
   !------------------------------------
   ! Deallocate data structures used to

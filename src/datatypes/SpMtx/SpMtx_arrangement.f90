@@ -1880,6 +1880,8 @@ endif
     integer, dimension(:), allocatable :: ccount !count colors
     integer,dimension(4)           :: buf
     
+!    integer, dimension(:), pointer :: itmp
+    
     if (ismaster()) then ! Here master simply splits the matrix into pieces
                          !   using METIS
       call SpMtx_buildAdjncy(A,nedges,xadj,adjncy)
@@ -1890,6 +1892,12 @@ endif
       call Graph_Partition(G,numprocs,D_PART_VKMETIS,part_opts)
       call color_print_aggrs(A%nrows,G%part,overwrite=.false.)
       call flush(stream)
+!allocate(itmp(A%nrows))
+!itmp=(/(i,i=1,A%nrows )/)
+!write(stream,*)'numbering:'
+!call color_print_aggrs(A%nrows,itmp,overwrite=.false.)
+!call flush(stream)
+!deallocate(itmp)
       buf(1)=A%nrows
       buf(2)=A%ncols
       buf(3)=A%nnz
@@ -1994,7 +2002,8 @@ endif
     do k=1,M%nnghbrs
       M%ax_recvidx(k)%inds=M%gl_fmap(M%ax_recvidx(k)%inds)
       M%ax_sendidx(k)%inds=M%gl_fmap(M%ax_sendidx(k)%inds)
-      M%ol_commidx(k)%inds=M%gl_fmap(M%ol_commidx(k)%inds)
+      M%ol_inner(k)%inds=M%gl_fmap(M%ol_inner(k)%inds)
+      M%ol_outer(k)%inds=M%gl_fmap(M%ol_outer(k)%inds)
     enddo
     do i=1,A%nnz
       A%indi(i)=M%gl_fmap(A%indi(i))
@@ -2035,37 +2044,34 @@ endif
     !<-     inner overlap         -> |<-freedoms->|<-   outer overlap      ->|
     ! the goal:
     !      -1               -2            -3               2             1   |
-    !---the algorithm for marking the freedoms:------------------------------+
-    !         M%ol_commidx (2)       |############|       M%ol_commidx (2)   |
+    !-- the algorithm for marking the freedoms:--start with -3, then: -------+
+    !         M%ol_inner  (-2)       |############|       M%ol_outer   (2)   |
     !    M%ax_sendidx  |                                           !M%recvidx|
-    !    +(-1)         |                                           |  +(-1)  |
-    !<-         all inner freedoms              ->|<-  all outer freedoms  ->|
-    !                   *(-1)                     |                          |
+    !    set to -1     |                                           | set to 1|
     !------------------------------------------------------------------------+
     M%ngf=max(A%nrows,A_ghost%nrows)
     allocate(M%gl_fmap(M%ngf))
-    M%gl_fmap=3
+    do i=1,A%nnz
+      M%gl_fmap(A%indi(i))=-3
+      M%gl_fmap(A%indj(i))=-3
+    enddo
     do k=1,M%nnghbrs
-      do i=1,M%ol_commidx(k)%ninds
-        M%gl_fmap(M%ol_commidx(k)%inds(i))=2
+      do i=1,M%ol_inner(k)%ninds
+        M%gl_fmap(M%ol_inner(k)%inds(i))=-2
+      enddo
+      do i=1,M%ol_outer(k)%ninds
+        M%gl_fmap(M%ol_outer(k)%inds(i))=2
       enddo
     enddo
     do k=1,M%nnghbrs
       do i=1,M%ax_sendidx(k)%ninds
         j=M%ax_sendidx(k)%inds(i)
-        !M%gl_fmap(j)=M%gl_fmap(j)-1
-        M%gl_fmap(j)=1
+        M%gl_fmap(j)=-1
       enddo
       do i=1,M%ax_recvidx(k)%ninds
         j=M%ax_recvidx(k)%inds(i)
-        !M%gl_fmap(j)=M%gl_fmap(j)-1
         M%gl_fmap(j)=1
       enddo
-    enddo
-    do i=1,M%ngf
-      if (M%eptnmap(i)==myrank+1) then ! my node (calling it inner)
-        M%gl_fmap(i)=-M%gl_fmap(i)
-      endif
     enddo
     ! count how many corresponding freedoms there are:
     ntobsent=0   ! -1
@@ -2133,6 +2139,9 @@ endif
     if (nlf/=j) then
       call DOUG_abort('SpMtx_Build_lggl: nlf not right...',756)
     endif
+    if (sctls%verbose>3) then 
+      write(stream,*)'inner freedoms:',M%lg_fmap(1:M%ninner)
+    endif
   end subroutine SpMtx_Build_lggl
 
   ! Take away from matrix unneeded elements...
@@ -2150,7 +2159,7 @@ endif
     integer,dimension(:),pointer       :: clrstarts  !(allocated earlier)
     !local:
     integer :: i,j,k,clrnode,clrneigh,nfront,layer,lastlayer,neigh,node,nnz
-    integer :: maxleadind,sendcnt,ol_sendcnt,nfront1,sendnodecnt,recvcnt
+    integer :: maxleadind,sendcnt,nfront1,sendnodecnt,recvcnt
     integer,dimension(:),pointer :: neighmap,front
     integer,dimension(:),pointer :: onfront
                                             !   to each neighbour (Ax op)
@@ -2161,7 +2170,6 @@ endif
     integer :: a_ghostsz,a_gsz
     integer,dimension(:),pointer :: itmp,jtmp,btmp
     float(kind=rk),dimension(:),pointer :: rtmp
-    !type(indlist),dimension(:),pointer :: ax_recvidx,ax_sendidx,ol_commidx
     integer,dimension(:), pointer :: ndirectneigs
     integer,dimension(:,:), pointer :: directneigs
     integer,dimension(2,2) :: bbe
@@ -2234,8 +2242,10 @@ endif
     allocate(directneigs(maxval(ndirectneigs),M%nnghbrs))
     allocate(M%ax_recvidx(M%nnghbrs))
     M%ax_recvidx%ninds = 0
-    allocate(M%ol_commidx(M%nnghbrs))
-    M%ol_commidx%ninds = 0
+    allocate(M%ol_inner(M%nnghbrs))
+    allocate(M%ol_outer(M%nnghbrs))
+    M%ol_inner%ninds = 0
+    M%ol_outer%ninds = 0
     M%nfreesend_map=0
     !write(stream,*)'My neighbours are: ',(M%nghbrs(i),i=1,M%nnghbrs)
  
@@ -2243,7 +2253,7 @@ endif
     !  ghost values in Ax operation
     !if ol>0, then the subdomain expands in ol layers (for solves)
  
-    !TODO: it would be good to build also communication structures here.
+    ! also communication structures are built here.
     !        1. communication for Ax operation:
     !           if ol>0: 
     !             -- only the outermost layer of ghost nodes get received
@@ -2253,7 +2263,7 @@ endif
     !             -- node of neighbour in M%ax_recvidx if:
     !                a) on outermost layer, OR
     !                b) the node has a connection to outside 
-    !                   (a might add some nodes in vain but this makes the
+    !                   (might add some nodes in vain but this makes the
     !                    algorithm deterministic from both sides...)
     !           ol==0:
     !             -- as bebore, the communication is done in the beginning!
@@ -2263,8 +2273,7 @@ endif
     !               to neighbours) get communicated
     !    but: seems that now a few datastructures are in SpMtx_operation
     !           (fexchindx,pid2indx) and we cannot do it right away...
-    !        I think these need to get moved to Mesh and 
-    !          need better namings as well! TODO !
+    !           ax_recvidx,ax_sendidx,ol_inner,ol_outer introduced instead
 
     !Now, let's go on with next layers...:
     !if ol==0 we still need 1st layer for Ax operation...
@@ -2365,7 +2374,14 @@ endif
         M%ax_recvidx(k)%ninds=recvcnt
         allocate(M%ax_recvidx(k)%inds(recvcnt))
         recvcnt=0
-        M%ol_commidx(k)%ninds=neigfend(lastlayer,k)-neigfstart(1,k)+1
+        M%ol_outer(k)%ninds=neigfend(lastlayer,k)-neigfstart(1,k)+1
+        allocate(M%ol_outer(k)%inds(M%ol_outer(k)%ninds))
+        M%ol_outer(k)%inds=front(neigfstart(1,k):neigfend(lastlayer,k))
+        call quicksort(M%ol_outer(k)%ninds,M%ol_outer(k)%inds)
+        if (sctls%verbose>3.and.A%nrows<200) then 
+          write(stream,*)myrank,'*** outer OL with: ',M%nghbrs(k),' is:',&
+            M%ol_outer(k)%inds(1:M%ol_outer(k)%ninds)
+        endif
         do i=neigfstart(1,k),neigfend(lastlayer,k)
           node=front(i)
           if (onfront(node)==numprocs+clrnode) then
@@ -2514,32 +2530,26 @@ endif
         M%ax_sendidx(k)%ninds=sendcnt
         allocate(M%ax_sendidx(k)%inds(sendcnt))
         sendcnt=0
-        M%ol_commidx(k)%ninds=M%ol_commidx(k)%ninds+&
-                              frontend(-lastlayer)-frontstart(-1)+1
-        allocate(M%ol_commidx(k)%inds(M%ol_commidx(k)%ninds))
-        ol_sendcnt=0
+        M%ol_inner(k)%ninds=frontend(-lastlayer)-frontstart(-1)+1
+        allocate(M%ol_inner(k)%inds(M%ol_inner(k)%ninds))
+        M%ol_inner(k)%ninds=frontend(-lastlayer)-frontstart(-1)+1
+        M%ol_inner(k)%inds=front(frontstart(-1):frontend(-lastlayer))
+        call quicksort(M%ol_inner(k)%ninds,M%ol_inner(k)%inds)
+        if (sctls%verbose>3.and.A%nrows<200) then 
+          write(stream,*)myrank,'*** inner OL with: ',M%nghbrs(k),' is:',&
+            M%ol_inner(k)%inds(1:M%ol_inner(k)%ninds)
+        endif
         do i=frontstart(-1),frontend(-lastlayer)
           node=front(i)
           if (onfront(node)==-numprocs-clrnode) then
             sendcnt=sendcnt+1
             M%ax_sendidx(k)%inds(sendcnt)=node
           endif
-          ol_sendcnt=ol_sendcnt+1
-          M%ol_commidx(k)%inds(ol_sendcnt)=node
         enddo
         call quicksort(M%ax_sendidx(k)%ninds,M%ax_sendidx(k)%inds)
         if (sctls%verbose>3.and.A%nrows<200) then 
           write(stream,*)myrank,'*** Ax:Sending to ',M%nghbrs(k),' nodes:',&
             M%ax_sendidx(k)%inds(1:M%ax_sendidx(k)%ninds)
-        endif
-        do i=neigfstart(1,k),neigfend(lastlayer,k)
-          ol_sendcnt=ol_sendcnt+1
-          M%ol_commidx(k)%inds(ol_sendcnt)=front(i)
-        enddo
-        call quicksort(M%ol_commidx(k)%ninds,M%ol_commidx(k)%inds)
-        if (sctls%verbose>3.and.A%nrows<200) then 
-          write(stream,*)myrank,'*** OL:comm. with ',M%nghbrs(k),' nodes:',&
-            M%ol_commidx(k)%inds(1:M%ol_commidx(k)%ninds)
         endif
       enddo ! loop over neighbours
     elseif (A%arrange_type==D_SpMtx_ARRNG_COLS) then

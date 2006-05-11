@@ -479,6 +479,7 @@ contains
     ! to assist with pmvm
     call pmvmCommStructs_init(A, Msh)
 
+! call Print_Glob_Vect(x,Msh,'global x===')
     call SpMtx_pmvm(r,A,x,Msh)
     r = b - r
     init_norm = Vect_dot_product(r,r)
@@ -511,7 +512,7 @@ contains
       endif
       ! compute current rho
       rho_curr = Vect_dot_product(r,z)
- !call Print_Glob_Vect(z,Msh,'global z===')
+!call Print_Glob_Vect(z,Msh,'global z===')
 
       if (it == 1) then
          p = z
@@ -520,11 +521,11 @@ contains
          p = z + beta(it) * p
       end if
       call SpMtx_pmvm(q,A, p, Msh)
- !call Print_Glob_Vect(q,Msh,'global q===')
+!call Print_Glob_Vect(q,Msh,'global q===')
       ! compute alpha
       alpha(it) = rho_curr / Vect_dot_product(p,q)
       x = x + alpha(it) * p
- !call Print_Glob_Vect(x,Msh,'global x===')
+!call Print_Glob_Vect(x,Msh,'global x===')
       r = r - alpha(it) * q
  !call Print_Glob_Vect(r,Msh,'global r===')
       rho_prev = rho_curr
@@ -546,7 +547,7 @@ contains
     !deallocate(dd)
     ! Deallocate auxiliary data structures
     ! helped to assist with pmvm
-    call pmvmCommStructs_destroy()
+ !  call pmvmCommStructs_destroy()
 
     !deallocate(b_k)
     !deallocate(z)
