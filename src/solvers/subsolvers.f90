@@ -121,7 +121,7 @@ contains
                  nodes2=AC%fullaggr%nodes)   
         endif
       else !}{ no coarse solves:
-        if (present(A_interf_)) then
+        if (present(A_interf_).or.sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED) then
           A%fullaggr%nagr=1
           A%nsubsolves=1
         endif
@@ -140,13 +140,15 @@ contains
           if (numprocs==1) then 
             A_interf_%nnz=0
           endif
+write(stream,*)'################### calling:multi_subsolve'
+call flush(stream)
           call multi_subsolve(               &
                  nids=A%nsubsolves,          &
                  ids=A%subsolve_ids,         &
                  sol=sol,                    &
                  rhs=rhs,                    &
                  subd=A%subd,                &
-                 nfreds=A%nrows,             &
+                 nfreds=max(A%nrows,A_interf_%nrows),&
                  nnz=A%nnz,                  &
                  indi=A%indi,                &
                  indj=A%indj,                &
@@ -156,20 +158,36 @@ contains
                  indj_interf=A_interf_%indj, &
                  val_interf=A_interf_%val)
         else
-          call multi_subsolve(               &
-                 nids=A%nsubsolves,          &
-                 ids=A%subsolve_ids,         &
-                 sol=sol,                    &
-                 rhs=rhs,                    &
-                 subd=A%subd,                &
-                 nfreds=A%nrows,             &
-                 nnz=A%nnz,                  &
-                 indi=A%indi,                &
-                 indj=A%indj,                &
-                 val=A%val,                  &
-                 nagr1=A%fullaggr%nagr,      &
-                 starts1=A%fullaggr%starts,  &
-                 nodes1=A%fullaggr%nodes)
+          if (A%arrange_type==D_SpMtx_ARRNG_ROWS) then
+write(stream,*)'##########B######## calling:multi_subsolve'
+call flush(stream)
+            call multi_subsolve(               &
+                   nids=A%nsubsolves,          &
+                   ids=A%subsolve_ids,         &
+                   sol=sol,                    &
+                   rhs=rhs,                    &
+                   subd=A%subd,                &
+                   nfreds=A%nrows,             &
+                   nnz=A%nnz,                  &
+                   indi=A%indi,                &
+                   indj=A%indj,                &
+                   val=A%val)
+          else
+            call multi_subsolve(               &
+                   nids=A%nsubsolves,          &
+                   ids=A%subsolve_ids,         &
+                   sol=sol,                    &
+                   rhs=rhs,                    &
+                   subd=A%subd,                &
+                   nfreds=A%nrows,             &
+                   nnz=A%nnz,                  &
+                   indi=A%indi,                &
+                   indj=A%indj,                &
+                   val=A%val,                  &
+                   nagr1=A%fullaggr%nagr,      &
+                   starts1=A%fullaggr%starts,  &
+                   nodes1=A%fullaggr%nodes)
+          endif
         endif
       endif !}
       factorised=.true.
@@ -221,7 +239,7 @@ contains
   subroutine exact_multi_subsmooth(nids,ids,sol,rhs,nfreds,nnz,indi,indj,val, &
     nagr1,starts1,nodes1, & ! fine level aggregate list
     overlap)
-    use SpMtx_class, only: indlist
+    !use SpMtx_class, only: indlist
     implicit none
     integer,intent(inout) :: nids
     integer,dimension(:),pointer :: ids
@@ -370,7 +388,7 @@ contains
     nagr1,starts1,nodes1, & ! fine level aggregate list
     nagr2,starts2,nodes2, & ! coarse level aggregate list
     starts3,nodes3)         ! restrict op. starts & nodelist
-    use SpMtx_class, only: indlist
+    !use SpMtx_class, only: indlist
 !chk use SpMtx_util
     implicit none
     integer,intent(inout) :: nids
@@ -404,7 +422,8 @@ contains
     !chk real(kind=rk),dimension(:),pointer,save :: vmp,vsval
     !chk integer,dimension(:),allocatable,save :: vsindi,vsindj ! selected indeces
     
-    if (present(nagr1).or.present(nagr2).or.present(nnz_interf)) then
+    if (present(nagr1).or.present(nagr2).or.&
+        present(val).or.present(nnz_interf)) then
       dofactorise=.true.
     else
       dofactorise=.false.
@@ -736,7 +755,7 @@ contains
         !  sval(snnz)=val_interf(i)
         !enddo
         ! merge the two matrix entries:
-        if (numprocs==1) then 
+        if (numprocs==1.or..not.present(nnz_interf)) then 
           snnz=0
           do i=1,nnz
             snnz=snnz+1
@@ -753,6 +772,7 @@ contains
             if (i>1.and.i<=nnz) then
               if (indi(i-1)==indi(i)) then
                 if (indj(i-1)>indj(i)) then
+                  write (stream,*)'indi__indj:',indi(i),indj(i)
                   call DOUG_abort('solvers/subsolvers.f90 -- order error A',-1)
                 endif
               endif
@@ -812,6 +832,7 @@ contains
         selind(1:nselind)=(/ (i,i=1,nselind) /)
         subrhs(1:nselind)=rhs(selind(1:nselind))
         setuptime=setuptime+(MPI_WTIME()-t1) ! switchoff clock
+write(stream,*)'################### nselind,snnz:',nselind,snnz
         call factorise_and_solve(ids(1),subsol,subrhs,nselind,snnz,sindi,sindj,sval)
         t1 = MPI_WTIME() ! switch on clock
         sol(selind(1:nselind))=sol(selind(1:nselind))+subsol(1:nselind)

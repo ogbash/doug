@@ -280,13 +280,14 @@ contains
     use CoarseMtx_mod
     implicit none
     real(kind=rk),dimension(:),pointer :: sol
-    type(SpMtx),           intent(in)  :: A
+    type(SpMtx)                        :: A
     real(kind=rk),dimension(:),pointer :: rhs
     type(SpMtx),optional               :: A_interf_  ! matr@interf.
     type(SpMtx),optional               :: CoarseMtx_ ! Coarse matrix
     logical,intent(in),optional :: refactor_
     ! ----- local: ------
     real(kind=rk),dimension(:),pointer,save :: csol,crhs,tmpsol,tmpsol2
+    type(SpMtx)                        :: A_tmp
     ! ----------------------------
     if (sctls%method==0) then
       sol=rhs
@@ -366,16 +367,76 @@ contains
         sol(1:A%nrows)=sol(1:A%nrows)+tmpsol(1:A%nrows)
       endif
     else !}{
-      if (refactor_.and.present(A_interf_).and.sctls%verbose>9) then
-        call SpMtx_printMat(A)
-        call SpMtx_printRaw(A)
-        call SpMtx_printMat(A_interf_)
-        call SpMtx_printRaw(A_interf_)
-        !stop
-      endif
-      call sparse_multisolve(sol=sol,A=a,rhs=rhs, &
+      if (refactor_.and.present(A_interf_)) then
+        if (sctls%verbose>9) then
+          call SpMtx_printMat(A)
+          call SpMtx_printRaw(A)
+          call SpMtx_printMat(A_interf_)
+          call SpMtx_printRaw(A_interf_)
+          !stop
+        endif
+        if (sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED) then
+          ! we need the fully sorted entries but A has block struct...
+          !   keep the original values...
+          A_tmp=SpMtx_newInit(nnz=A%nnz,nblocks=A%nblocks,nrows=A%nrows,&
+                             ncols=A%ncols,&
+                             indi=A%indi,indj=A%indj,val=A%val,&
+                             arrange_type=A%arrange_type,M_bound=A%M_bound)
+          A%arrange_type=D_SpMtx_ARRNG_NO
+          !A%nrows=max(A%nrows,A_interf_%nrows)
+          !A%ncols=max(A%nrows,A_interf_%ncols)
+          !if (associated(A%M_bound)) then
+          !  deallocate(A%M_bound)
+          !endif
+          call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS,sort=.true.)
+ write(stream,*)'AAAAAAAAAAAAAAAA is:'
+ call SpMtx_printRaw(A)
+ write(stream,*)'AAAAAAAAAAAAAAAA :'
+ call flush(stream)
+          call sparse_multisolve(sol=sol,A=A,rhs=rhs, &
+                                 A_interf_=A_interf_, &
+                                  refactor=refactor_) !fine solves 
+          ! put the original structure and orders back:
+          A%indi=A_tmp%indi
+          A%indj=A_tmp%indj
+          A%val=A_tmp%val
+          A%M_bound=A_tmp%M_bound
+          A%nrows=A_tmp%nrows
+          A%ncols=A_tmp%ncols
+          A%arrange_type=A_tmp%arrange_type
+          call SpMtx_Destroy(A_tmp)
+        else
+          call sparse_multisolve(sol=sol,A=a,rhs=rhs, &
+                               A_interf_=A_interf_, &
+                                refactor=refactor_) !fine solves 
+        endif
+      elseif (refactor_.and.sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED) then
+          A_tmp=SpMtx_newInit(nnz=A%nnz,nblocks=A%nblocks,nrows=A%nrows,&
+                             ncols=A%ncols,&
+                             indi=A%indi,indj=A%indj,val=A%val,&
+                             arrange_type=A%arrange_type,M_bound=A%M_bound)
+          A%arrange_type=D_SpMtx_ARRNG_NO
+          call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS,sort=.true.)
+ write(stream,*)'BBBBBBBBBBBBAAAA is:'
+ call SpMtx_printRaw(A)
+ write(stream,*)'BBBBBBBBBBBBAAAA :'
+ call flush(stream)
+          call sparse_multisolve(sol=sol,A=A,rhs=rhs, &
+                                  refactor=refactor_) !fine solves 
+          ! put the original structure and orders back:
+          A%indi=A_tmp%indi
+          A%indj=A_tmp%indj
+          A%val=A_tmp%val
+          A%M_bound=A_tmp%M_bound
+          A%nrows=A_tmp%nrows
+          A%ncols=A_tmp%ncols
+          A%arrange_type=A_tmp%arrange_type
+          call SpMtx_Destroy(A_tmp)
+      else
+        call sparse_multisolve(sol=sol,A=a,rhs=rhs, &
                              A_interf_=A_interf_, &
-                             refactor=refactor_) !fine solves 
+                              refactor=refactor_) !fine solves 
+      endif
     endif !}
   end subroutine preconditioner
 
@@ -500,6 +561,7 @@ contains
     endif
     do while((ratio_norm > tol*tol).and.(it < maxit))
       it = it + 1
+call Print_Glob_Vect(r,Msh,'global r===')
       call preconditioner(sol=z,          &
                             A=A,          &
                           rhs=r,          &
@@ -507,12 +569,13 @@ contains
                    CoarseMtx_=CoarseMtx_, &
                     refactor_=refactor)
       refactor=.false.
+!write(stream,*)'localz==:',z
       if (sctls%method/=0) then
         call Add_common_interf(z,A,Msh)
       endif
+!call Print_Glob_Vect(z,Msh,'global z===')
       ! compute current rho
       rho_curr = Vect_dot_product(r,z)
-!call Print_Glob_Vect(z,Msh,'global z===')
 
       if (it == 1) then
          p = z
