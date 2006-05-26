@@ -85,7 +85,7 @@ program main
        endif
      else ! numprocs>1
        M=Mesh_New()
-       call SpMtx_DistributeAssembled(A,A_interf,A_ghost,M)
+       call SpMtx_DistributeAssembled(A,A_ghost,M)
      endif
   case default
      call DOUG_abort('[DOUG main] : Unrecognised input type.', -1)
@@ -232,7 +232,12 @@ endif !todo remove
        call pcg_weigs(A=A,b=b,x=xl,Msh=M,it=it,cond_num=cond_num, &
           CoarseMtx_=AC,refactor_=.true.)
      else
-       call pcg_weigs(A, b, xl, M,it,cond_num)
+       if (numprocs>1.and.max(sctls%overlap,sctls%smoothers)>0) then
+         call pcg_weigs(A=A,b=b,x=xl,Msh=M,it=it,cond_num=cond_num, &
+           A_interf_=A_ghost,refactor_=.true.)
+       else
+         call pcg_weigs(A, b, xl, M,it,cond_num,refactor_=.true.)
+       endif
      endif
      t=MPI_WTIME()-t1
      write(stream,*) 'time spent in pcg():',t
