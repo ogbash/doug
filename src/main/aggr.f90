@@ -83,7 +83,7 @@ program main
      call DOUG_abort('[DOUG main] : Unrecognised input type.', -1)
   end select
 if (numprocs==1) then !todo remove
-  ! Testing aggregation: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+  ! Testing aggregation: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
   if (sctls%strong1>0) then
     strong_conn1=sctls%strong1
   else
