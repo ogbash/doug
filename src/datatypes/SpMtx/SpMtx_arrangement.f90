@@ -1863,14 +1863,14 @@ endif
     endif
   end subroutine SpMtx_aggregate
 
-  subroutine SpMtx_DistributeAssembled(A,A_interf,A_ghost,M)
+  subroutine SpMtx_DistributeAssembled(A,A_ghost,M)
     use Graph_class
     use Mesh_class
     implicit none
 
-    type(SpMtx),intent(inout) :: A,A_interf,A_ghost
+    type(SpMtx),intent(inout) :: A,A_ghost
     type(Mesh)                :: M
-    integer :: i,k,ierr,n
+    integer :: i,k,ierr,n,ol
     integer, dimension(:), pointer :: xadj
     integer, dimension(:), pointer :: adjncy
     integer                        :: nedges
@@ -1881,7 +1881,7 @@ endif
     integer,dimension(4)           :: buf
     
 !    integer, dimension(:), pointer :: itmp
-    
+    ol=max(sctls%overlap,sctls%smoothers)
     if (ismaster()) then ! Here master simply splits the matrix into pieces
                          !   using METIS
       call SpMtx_buildAdjncy(A,nedges,xadj,adjncy)
@@ -1975,9 +1975,9 @@ endif
       write(stream,*)'A after arrange:'
       call SpMtx_printRaw(A)
     endif
-    call SpMtx_build_ghost(myrank+1,max(sctls%overlap,sctls%smoothers),&
+    call SpMtx_build_ghost(myrank+1,ol,&
                              A,A_ghost,M,clrorder,clrstarts) 
-    if (sctls%verbose>3.and.A%nrows<200) then 
+    if (sctls%verbose>3.and.A%nrows<300) then 
       write(stream,*)'A interf(1,1):'
       call SpMtx_printRaw(A=A,startnz=A%mtx_bbs(1,1),endnz=A%mtx_bbe(1,1))
       write(stream,*)'A interf(1,2):'
@@ -1986,10 +1986,15 @@ endif
       call SpMtx_printRaw(A=A,startnz=A%mtx_bbs(2,1),endnz=A%mtx_bbe(2,1))
       write(stream,*)'A inner:'
       call SpMtx_printRaw(A=A,startnz=A%mtx_bbs(2,2),endnz=A%mtx_bbe(2,2))
-      write(stream,*)'A ghost:'
-      call SpMtx_printRaw(A_ghost)
+      if (ol>0) then
+        write(stream,*)'A ghost:'
+        call SpMtx_printRaw(A_ghost)
+      endif
     endif
     ! Localise A:
+    if (ol<=0) then
+      A_ghost%nrows=0
+    endif
     call SpMtx_Build_lggl(A,A_ghost,M)
     if (sctls%verbose>3) then 
       write(stream,*)'tobsent:',M%lg_fmap(1:M%ntobsent)
@@ -2009,10 +2014,17 @@ endif
       A%indi(i)=M%gl_fmap(A%indi(i))
       A%indj(i)=M%gl_fmap(A%indj(i))
     enddo
-    do i=1,A_ghost%nnz
-      A_ghost%indi(i)=M%gl_fmap(A_ghost%indi(i))
-      A_ghost%indj(i)=M%gl_fmap(A_ghost%indj(i))
-    enddo
+    A%nrows=maxval(A%indi)
+    A%ncols=maxval(A%indj)
+    if (ol>0) then
+      do i=1,A_ghost%nnz
+        A_ghost%indi(i)=M%gl_fmap(A_ghost%indi(i))
+        A_ghost%indj(i)=M%gl_fmap(A_ghost%indj(i))
+      enddo
+      A_ghost%nrows=maxval(A_ghost%indi)
+      A_ghost%ncols=maxval(A_ghost%indj)
+      call SpMtx_arrange(A_ghost,D_SpMtx_ARRNG_ROWS,sort=.true.)
+    endif
     if (sctls%verbose>3.and.A%nrows<200) then 
       write(stream,*)'Localised A interf(1,1):'
       call SpMtx_printRaw(A=A,startnz=A%mtx_bbs(1,1),endnz=A%mtx_bbe(1,1))
@@ -2022,8 +2034,10 @@ endif
       call SpMtx_printRaw(A=A,startnz=A%mtx_bbs(2,1),endnz=A%mtx_bbe(2,1))
       write(stream,*)'Localised A inner:'
       call SpMtx_printRaw(A=A,startnz=A%mtx_bbs(2,2),endnz=A%mtx_bbe(2,2))
-      write(stream,*)'Localised A ghost:'
-      call SpMtx_printRaw(A_ghost)
+      if (ol>0) then
+        write(stream,*)'Localised A ghost:'
+        call SpMtx_printRaw(A_ghost)
+      endif
       write(stream,*)'gl_fmap:',M%gl_fmap
       write(stream,*)'gl_fmap(lg_fmap):',M%gl_fmap(M%lg_fmap)
       write(stream,*)'lg_fmap:',M%lg_fmap
