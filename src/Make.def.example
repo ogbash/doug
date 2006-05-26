@@ -57,6 +57,7 @@ SHELL = /bin/sh
 #
   #-- FORTRAN preprocessor flags
   D_WANT_PLPLOT   = D_WANT_PLPLOT_NO
+  D_WANT_UMFPACK2 = D_WANT_UMFPACK2_NO
   D_WANT_UMFPACK4 = D_WANT_UMFPACK4_YES
   D_WANT_MUMPS    = D_WANT_MUMPS_NO
   FPRECOMP  = -cpp -D$(NUMTYPE) \
@@ -135,35 +136,27 @@ SHELL = /bin/sh
   endif
 
   #-- METIS:
-  LIBDIR_METIS = /usr/local/lib
+  #LIBDIR_METIS = /usr/local/export/metis-linux-4.0
+  LIBDIR_METIS = /usr/lib64
   LIBS_METIS = -L$(LIBDIR_METIS) -lmetis
 
   #-- UMFPACK:
-  ifeq ($(D_WANT_UMFPACK4), D_WANT_UMFPACK4_YES)
-    LIBDIR_UMFPACK     = /usr/local/UMFPACKv4.4
-    INCL_UMFPACK4      = -I$(LIBDIR_UMFPACK)/UMFPACK/Include 
-    #LIBS_UMFPACK4      = -L$(LIBDIR_UMFPACK)/UMFPACK/Lib -L$(LIBDIR_UMFPACK)/AMD/Lib -lumfpack-intel -lamd-intel -lblas-intel
-    LIBS_UMFPACK4      = -L$(LIBDIR_UMFPACK)/UMFPACK/Lib  -L$(LIBDIR_UMFPACK)/AMD/Lib -lumfpack-intel -lamd -lblas-intel
-    # crashes with sigsegv in libumfpack4-intel...:
-    #LIBS_UMFPACK4      = -lblas -lumfpack4-intel -lamd-intel 
+  #LIBDIR_UMFPACK = /home/konstan/software/UMFPACK/UMFPACKv4.4
+  LIBDIR_UMFPACK =
+  ifeq ($(D_WANT_UMFPACK2), D_WANT_UMFPACK2_YES)
+    LIBS_UMFPACK2      = -lumfpack-intel -lblas-intel
+    #LIBS_UMFPACK2      = -lumfpack-intel-g -lblas-intel
   else
-    INCL_UMFPACK4      = -I$(LIBDIR_UMFPACK)/UMFPACK/Include  -I/usr/local/include/UMFPACKv4.4
-#    INCL_UMFPACK4      = 
-    LIBS_UMFPACK4      = -L$(LIBDIR_UMFPACK)/UMFPACK/Lib  -L$(LIBDIR_UMFPACK)/AMD/Lib -lumfpack-intel -lamd -lblas-intel
-#    LIBS_UMFPACK4      =
+    LIBS_UMFPACK2      =
   endif
-
-  #-- MUMPS:
-  LIBDIR_MUMPS = /usr/local/lib/MUMPS
-  LIBDIR_BLACS = /usr/local/lib/BLACS
-  LIBDIR_ATLAS = /usr/local/lib/ATLAS
-  ifeq ($(D_WANT_MUMPS), D_WANT_MUMPS_YES)
-    INCL_MUMPS      = -I$(LIBDIR_MUMPS)/include
-    LIBS_MUMPS0    = -L$(LIBDIR_MUMPS)/lib -lscalapack -ldmumps -lpord $(LIBDIR_BLACS)/blacs_MPI-LINUX-0.a  $(LIBDIR_BLACS)/blacsF77init_MPI-LINUX-0.a   $(LIBDIR_BLACS)/blacs_MPI-LINUX-0.a  $(LIBDIR_BLACS)/blacsF77init_MPI-LINUX-0.a -L$(LIBDIR_ATLAS) -lf77blas -lcblas -latlas
-    LIBS_MUMPS      = $(LIBS_MUMPS0) -L$(LIBDIR_MUMPS)/lib -lscalapack  -ldmumps -lpord  $(LIBDIR_BLACS)/blacs_MPI-LINUX-0.a  $(LIBDIR_BLACS)/blacsF77init_MPI-LINUX-0.a   $(LIBDIR_BLACS)/blacs_MPI-LINUX-0.a  $(LIBDIR_BLACS)/blacsF77init_MPI-LINUX-0.a -L$(LIBDIR_ATLAS) -lf77blas -lcblas -latlas
+  ifeq ($(D_WANT_UMFPACK4), D_WANT_UMFPACK4_YES)
+    #INCL_UMFPACK4      = -I$(LIBDIR_UMFPACK)/UMFPACK/Include
+    #LIBS_UMFPACK4      = -L$(LIBDIR_UMFPACK)/UMFPACK/Lib -L$(LIBDIR_UMFPACK)/AMD/Lib -lumfpack -lamd
+    # crashes with sigsegv in libumfpack4-intel...:
+    LIBS_UMFPACK4      = -lumfpack -lamd -lcblas -latlas -lm
   else
-    INCL_MUMPS      = 
-    LIBS_MUMPS      =
+    INCL_UMFPACK4      = 
+    LIBS_UMFPACK4      =
   endif
 
 #
