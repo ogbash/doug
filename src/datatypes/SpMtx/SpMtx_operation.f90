@@ -326,6 +326,10 @@ CONTAINS
     if (numprocs==1) then
       return
     endif
+    if (sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED) then
+      call add_whole_ol(x,M)
+      return
+    endif
     !! Initialise auxiliary data structures
     !!if (.not.D_PMVM_AUXARRS_INITED) &
     !!     call pmvmCommStructs_init(A, M)
@@ -433,6 +437,72 @@ call MPI_Barrier(MPI_COMM_WORLD,ierr)
       endif
     enddo
   end subroutine update_outer_ol
+
+  subroutine add_whole_ol(x,M)
+    implicit none
+
+    float(kind=rk),dimension(:),intent(in out)   :: x ! Vector
+    type(Mesh),                       intent(in) :: M ! Mesh
+    integer :: i,n,n2,p,ol,mx
+    ! MPI
+    integer, dimension(:), pointer :: in_reqs
+    integer                        :: ierr, out_req, status(MPI_STATUS_SIZE)
+    integer, parameter             :: D_TAG_FREE_OUTEROL = 778
+
+    if (numprocs==1.or.sctls%input_type/=DCTL_INPUT_TYPE_ASSEMBLED) then
+      return
+    endif
+    ol=max(sctls%overlap,sctls%smoothers)
+    if (ol<1) then
+      return
+    endif
+    if (.not.D_PMVM_AUXARRS_INITED) then
+      allocate(inbufs(M%nnghbrs), outbufs(M%nnghbrs))
+      do p = 1,M%nnghbrs
+        mx=max(M%ax_recvidx(p)%ninds,&
+               M%ol_inner(p)%ninds+M%ol_outer(p)%ninds)
+        allocate(inbufs(p)%arr(mx))
+        mx=max(M%ax_sendidx(p)%ninds,&
+               M%ol_inner(p)%ninds+M%ol_outer(p)%ninds)
+        allocate(outbufs(p)%arr(mx))
+      enddo
+      call Vect_buildDotMask(M)
+      D_PMVM_AUXARRS_INITED = .true.
+    endif
+    allocate(in_reqs(M%nnghbrs))
+    ! initialise receives
+    do i=1,M%nnghbrs
+      n=M%ol_inner(i)%ninds+M%ol_outer(i)%ninds
+      p=M%nghbrs(i)
+!write(stream,*) '**** starting non-blocking recv from ',p
+      call MPI_IRECV(inbufs(i)%arr,n,MPI_fkind, &
+               p,D_TAG_FREE_OUTEROL,MPI_COMM_WORLD,in_reqs(i),ierr)
+    enddo
+    ! non-blocking send:
+    do i=1,M%nnghbrs
+      n=M%ol_inner(i)%ninds
+      n2=M%ol_outer(i)%ninds
+      p=M%nghbrs(i)
+      outbufs(i)%arr(1:n)=x(M%ol_inner(i)%inds)
+      outbufs(i)%arr(n+1:n+n2)=x(M%ol_outer(i)%inds)
+      call MPI_ISEND(outbufs(i)%arr,n,MPI_fkind, &
+               p,D_TAG_FREE_OUTEROL,MPI_COMM_WORLD,out_req,ierr)
+!write(stream,*) '**** sending to ',p,outbufs(i)%arr
+    enddo
+call MPI_Barrier(MPI_COMM_WORLD,ierr)
+    do while (.true.)
+      call MPI_WAITANY(M%nnghbrs,in_reqs,i,status,ierr)
+      if (i/=MPI_UNDEFINED) then
+!write(stream,*)'**** received from ',M%nghbrs(i),inbufs(i)%arr
+        n=M%ol_outer(i)%ninds
+        n2=M%ol_inner(i)%ninds
+        x(M%ol_outer(i)%inds)=x(M%ol_outer(i)%inds)+inbufs(i)%arr(1:n)
+        x(M%ol_inner(i)%inds)=x(M%ol_inner(i)%inds)+inbufs(i)%arr(n+1:n+n2)
+      else
+        exit
+      endif
+    enddo
+  end subroutine add_whole_ol
 
 !!$  !--------------------------------------
 !!$  ! Parallel matrix-vector multiplication
