@@ -58,16 +58,8 @@ program main
   ! Select input type
   select case (sctls%input_type)
   case (DCTL_INPUT_TYPE_ELEMENTAL)
-
      ! ELEMENTAL
      call parallelAssembleFromElemInput(M, A, b, nparts, part_opts)
-
-     !
-     ! added to test AMG
-!!$     call Mesh_Destroy(M)
-!!$     n=sqrt(1.0_rk*A%nrows)
-!!$     call Mesh_BuildSquare(M,n)
-
   case (DCTL_INPUT_TYPE_ASSEMBLED) ! ASSEMBLED matrix 
      write(stream,'(a,a)') ' ##### Assembled input file: ##### ',mctls%assembled_mtx_file
      if (ismaster()) then
