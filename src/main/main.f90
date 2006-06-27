@@ -10,7 +10,8 @@ program main
   use CoarseGrid_class
   use TransmitCoarse
   use CreateCoarseGrid
-  use CoarseCreateProlong
+  use CoarseCreateRestrict
+  use CoarseMtx_mod
 
   implicit none
 
@@ -23,6 +24,8 @@ program main
   type(Mesh)     :: M  ! Mesh
 
   type(SpMtx)    :: A, A_interf  ! System matrix (parallel sparse matrix)
+  type(SpMtx)    :: AC  ! Coarse matrix
+
   float(kind=rk), dimension(:), pointer :: b  ! local RHS
   float(kind=rk), dimension(:), pointer :: xl ! local solution vector
   float(kind=rk), dimension(:), pointer :: x  ! global solution on master
@@ -82,21 +85,34 @@ program main
     if (ismaster()) then
       write (stream,*) "Building coarse grid"
       call CreateCoarse(M,C,CGC)
+
 !      call Mesh_pl2D_plotMesh(M,D_PLPLOT_INIT)
-      write (stream,*) "Sending parts of the coarse grid to other threads"   
+!      write (stream,*) "Sending parts of the coarse grid to other threads"   
 !      call CoarseGrid_pl2D_plotMesh(C)
-      call SendCoarse(C,M)
+!      call SendCoarse(C,M)
+
       write (stream,*) "Creating a local coarse grid"
       call CreateLocalCoarse(C,M,LC)
+
+      write (stream,*) "Creating Restriction matrix"
+      call CreateRestrict(C,M,CGC)
+
+      write (stream,*) "Restrict is ",Restrict%nrows," by ",Restrict%ncols
+
+!      call SpMtx_printMat(Restrict) ! should have col. sums near 1.0 
+
+      write (stream,*) "Creating the Coarse Matrix"
+      call CoarseMtxBuild(A,AC)
+
 !      call Mesh_pl2D_plotMesh(M,D_PLPLOT_INIT)
 !      call CoarseGrid_pl2D_plotMesh(LC, D_PLPLOT_END)
-    else
-      write (stream,*) "Recieving coarse grid data"
-      call  ReceiveCoarse(LC, M)
+!    else
+!      write (stream,*) "Recieving coarse grid data"
+!      call  ReceiveCoarse(LC, M)
 !      call CoarseGrid_pl2D_plotMesh(LC)
     endif
 
-    call CreateProlong(LC,M,CGC)
+    !call CreateRestrict(LC,M,CGC)
   endif
 
   ! Solve the system
@@ -112,13 +128,22 @@ program main
 
      ! Preconditioned conjugate gradient
      !call pcg(A, b, xl, M, solinf=resStat, resvects_in=.true.)
+
      t1 = MPI_WTIME()
+
+     if (sctls%method==2 .and. & ! in assembled case it would mess somehting up
+          sctls%input_type/=DCTL_INPUT_TYPE_ASSEMBLED) then
+             call pcg_weigs(A=A,b=b,x=xl,Msh=M,it=it,cond_num=cond_num, &
+                    A_interf_=A_interf,CoarseMtx_=AC,refactor_=.true.)
+     else
      !call pcg(A, b, xl, M)
 !b=1.0_rk
 !write(stream,*),'b=======',b
      call pcg_weigs(A=A,b=b,x=xl,Msh=M,it=it,cond_num=cond_num, &
                     A_interf_=A_interf,refactor_=.true.) !,        &
                     !maxit_=10)
+     endif
+
      write(stream,*) 'time spent in pcg():',MPI_WTIME()-t1
 
 !call Vect_Print(xl,'xl: local solution')

@@ -110,7 +110,8 @@ contains
             B%size=B%size+1; cur=B%size
         
             ! Float the value downward
-            do while (cur>1 .and. B%by(cur/2)<val)
+            do while (cur>1)
+                if (B%by(cur/2)>=val) exit
                 B%by(cur)=B%by(cur/2)
                 B%inds(cur)=B%inds(cur/2)
                 cur=cur/2

@@ -1,4 +1,4 @@
-module CoarseCreateProlong
+module CoarseCreateRestrict
     use RealKind
 
 #ifdef D_COMPLEX
@@ -12,10 +12,11 @@ module CoarseCreateProlong
 
 contains
 
-    !! Create the prolongation matrix
-    subroutine CreateProlong(C,M,CGC)
+    !! Create the Restriction matrix
+    subroutine CreateRestrict(C,M,CGC)
         use CoarseGrid_class
         use SpMtx_class
+        use CoarseMtx_mod
  
         implicit none
 
@@ -31,26 +32,28 @@ contains
         select case(CGC%interpolation_type)
         
         case (COARSE_INTERPOLATION_INVDIST)
-        call CreatePathProlong(C,M,C%P,CGC,genNoData,getInvDistVals,getSizeOne)
+        call CreatePathRestrict(C,M,Restrict,CGC,genNoData,&
+                                getInvDistVals,getSizeOne)
 
         case (COARSE_INTERPOLATION_RANDOM)
-        call CreatePathProlong(C,M,C%P,CGC,genNoData,getRandomVals,getSizeOne)
+        call CreatePathRestrict(C,M,Restrict,CGC,genNoData,&
+                                getRandomVals,getSizeOne)
  
         case (COARSE_INTERPOLATION_KRIGING)
-        call CreatePathProlong(C,M,C%P,CGC,genKrigingData,&
+        call CreatePathRestrict(C,M,Restrict,CGC,genKrigingData,&
                                 getKrigingVals,getKrigingSize)
                                 
         case (COARSE_INTERPOLATION_MULTLIN)
-        call CreatePathProlong(C,M,C%P,CGC,genMultiLinearData,&
+        call CreatePathRestrict(C,M,Restrict,CGC,genMultiLinearData,&
                                 getMultiLinearVals,getMultiLinearSize)
 
         end select
 
     end subroutine
 
-    !! Calculates the prolongation matrix taking the coarse element path
-    !!   down to the fine node
-    subroutine CreatePathProlong(C,M,P,CGC,gendata,getvals,getsize)
+    !! Calculates the node prolongation matrix taking the coarse element path
+    !!   down to the fine node. Later rebuilds it into a freedom restrict mat.
+    subroutine CreatePathRestrict(C,M,R,CGC,gendata,getvals,getsize)
         use RealKind
         use CoarseGrid_class
         use SpMtx_class
@@ -62,8 +65,8 @@ contains
         type(CoarseGrid), intent(inout) :: C
         !! Fine Mesh for which to build
         type(Mesh), intent(in) :: M
-        !! The prolongatio matrix to be created
-        type(SpMtx), intent(out) :: P
+        !! The restriction matrix to be created
+        type(SpMtx), intent(out) :: R
 
         type(CoarseGridCtrl), intent(in) :: CGC
   
@@ -102,7 +105,7 @@ contains
         end interface
        
        
-        type(SpMtx) :: NP ! node prolongation matrix 
+        type(SpMtx) :: NP ! node prolongation matrix - restrict is transposed
        
         integer :: cnt
         integer :: i, j, k, pn, nd, f
@@ -261,7 +264,7 @@ contains
         enddo
 
         !****************************************************
-        ! Create P based on NP
+        ! Create R based on NP
         !****************************************************
 
         ! Calculate the upper bound for nnz
@@ -271,37 +274,37 @@ contains
         enddo
         
         ! Allocate the matrix
-        P=SpMtx_newInit(cnt,nrows=M%nlf,ncols=C%nlfc)
-        allocate(P%M_bound(M%nlf+1))
+        R=SpMtx_newInit(cnt,nrows=C%nlfc,ncols=M%nlf)
+        allocate(R%M_bound(M%nlf+1))
 
         ! Fill it
         f=1;         
         do i=1,M%nlf    
             nd=M%lfreemap(i)
-            P%M_bound(i)=f
+            R%M_bound(i)=f
             do j=NP%M_bound(nd),NP%M_bound(nd+1)-1
                 do k=fbeg(NP%indj(j)),fbeg(NP%indj(j)+1)-1
                 if (NP%val(j)>eps) then
-                    P%val(f)=NP%val(j)
-                    P%indi(f)=i
-                    P%indj(f)=flist(k)
+                    R%val(f)=NP%val(j)
+                    R%indi(f)=flist(k)
+                    R%indj(f)=i
                     f=f+1
                 endif
                 enddo
             enddo
         enddo
-        P%M_bound(M%nlf+1)=f
+        R%M_bound(M%nlf+1)=f
         
-        ! Set the matrix to be column-sorted format
-        P%arrange_type=D_SpMtx_ARRNG_ROWS
+        ! Set the matrix to be row-sorted format
+        R%arrange_type=D_SpMtx_ARRNG_COLS
 
         ! Destroy the node version
         call SpMtx_Destroy(NP)
         
         ! Give back the unneeded memory in P
-        if (P%nnz>f-1) call SpMtx_resize(P,f-1)
+        if (R%nnz>f-1) call SpMtx_resize(R,f-1)
         
-   end subroutine CreatePathProlong
+   end subroutine CreatePathRestrict
 
     !************************************************
     ! Inverse Distances Interpolation
@@ -424,7 +427,7 @@ contains
         vec(csz+1,1)=1.0_xyzk
 
         ! Solve it
-        !!!! call DGETRS('N', csz+1, 1, reshape(rinp,(/ csz+1, csz+1 /)),csz+1, &
+        !!!!call DGETRS('N', csz+1, 1, reshape(rinp,(/ csz+1, csz+1 /)),csz+1, &
         !!!!                iinp, vec, csz+1, i)
 
         ! if (i/=0) ERROR
@@ -608,7 +611,7 @@ contains
     end subroutine getMultiLinearVals
 
     !************************************************
-    ! Random Interpolation
+    ! Random Interpolation - use only on single proc.
     !************************************************
     
     !! Get the interpolation values by using random numbers
@@ -628,4 +631,4 @@ contains
         
     end subroutine getRandomVals
  
-end module CoarseCreateProlong
+end module CoarseCreateRestrict

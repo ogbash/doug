@@ -295,9 +295,16 @@ contains
     endif
     sol=0.0_rk
     if (present(CoarseMtx_)) then !{
-      call sparse_multisolve(sol=sol,A=a,rhs=rhs, &
+      if (sctls%method==2) then
+          call sparse_multisolve(sol=sol,A=a,rhs=rhs, &
+                        A_interf_=A_interf_, &
+                        refactor=refactor_) !fine solves 
+      else
+          call sparse_multisolve(sol=sol,A=a,rhs=rhs, &
                         A_interf_=A_interf_,AC=CoarseMtx_, &
                         refactor=refactor_,Restrict=Restrict) !fine solves 
+      endif 
+
       if (sctls%levels>1) then
         if (present(refactor_).and.refactor_) then ! setup coarse solve:
           if (associated(crhs)) then
@@ -594,6 +601,7 @@ call Print_Glob_Vect(r,Msh,'global r===')
       rho_prev = rho_curr
       ! check
       res_norm = Vect_dot_product(r,r)
+      write (stream,*) "Norm is", res_norm
       ratio_norm = res_norm / init_norm
       if (ismaster()) &
            write(stream, '(i5,a,e22.15)') it,': res_norm=',dsqrt(res_norm)

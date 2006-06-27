@@ -105,7 +105,7 @@ module CoarseGrid_class
         integer, dimension(:), pointer :: lg_fmap
 
         !! Prolongation Matrix
-        type(SpMtx) :: P
+        !type(SpMtx) :: P
     end type
 
 contains

@@ -20,7 +20,7 @@ SRC = \
 	SpMtx.f90             \
         CoarseMtx.f90         \
         CoarseGrid.f90        \
-        CreateProlong.f90     \
+        CreateRestrict.f90    \
         CreateCoarse.f90      \
         TransmitCoarse.f90
 

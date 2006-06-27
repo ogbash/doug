@@ -533,7 +533,7 @@ subroutine CreateCoarseFreemap(C,M,CGC)
         integer :: i
 
         ! As there is currently one freedom for each node..
-        C%ngfc=C%nct
+        C%ngfc=C%nct; C%nlfc=C%ngfc
 
         call CoarseGrid_allocate(C,cfreemap=.true.)
        
