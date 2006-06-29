@@ -23,8 +23,8 @@ CONTAINS
   subroutine SpMtx_Ax(y,A,x,dozero,transp)
     Implicit None
     type(SpMtx), intent(in)                :: A        !sparse matrix
-    real(kind=rk), intent(in), dimension(:):: x        !vector (in)
-    real(kind=rk), dimension(:), pointer   :: y        !result vector
+    real(kind=rk),dimension(:),pointer     :: x        !vector (in)
+    real(kind=rk),dimension(:),pointer     :: y        !result vector
     integer                                :: xsize    !result vector size
     integer                                :: i,ii,j,arrtype,ncols,nrows
     logical, optional, intent(in)          :: dozero   !

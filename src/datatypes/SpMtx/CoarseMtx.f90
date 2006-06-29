@@ -305,7 +305,7 @@ contains
      !Restrict = SpMtx_New()
      !Restrict = SpMtx_Init(             &
      !           nnz=nz,                 & ! non-overlapping simple case
-     !       nblocks=1,                  &
+     !       nblocks/home/eero/share/AMG/Hetero1.txt=1,                  &
      !         nrows=nagr,               &
      !         ncols=A%nrows,            & ! should match for sparse Mult eg.
      !    symmstruct=.false.,            &

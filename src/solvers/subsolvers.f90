@@ -168,7 +168,7 @@ call flush(stream)
                    rhs=rhs,                    &
                    subd=A%subd,                &
                    nfreds=A%nrows,             &
-                   nnz=A%nnz,                  &
+                   nnz=A%mtx_bbe(2,2),         &
                    indi=A%indi,                &
                    indj=A%indj,                &
                    val=A%val)
@@ -180,7 +180,7 @@ call flush(stream)
                    rhs=rhs,                    &
                    subd=A%subd,                &
                    nfreds=A%nrows,             &
-                   nnz=A%nnz,                  &
+                   nnz=A%mtx_bbe(2,2),         &
                    indi=A%indi,                &
                    indj=A%indj,                &
                    val=A%val,                  &

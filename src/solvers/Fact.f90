@@ -61,13 +61,13 @@ contains
        allocate(Ap(n+1))
        allocate(Ai(nz))
        allocate(Amap(nz))
-write(stream,*)'pweh n,nz:',n,nz
-do i=1,nz
- write(stream,*)'rowe:',i,indi(i),indj(i),val(i)
-enddo
+!!write(stream,*)'pweh n,nz:',n,nz
+!!do i=1,nz
+!! write(stream,*)'rowe:',i,indi(i),indj(i),val(i)
+!!enddo
        call umf4triplet2col(n,n,nz,indi,indj,val, &
           Ap,Ai,Av,Amap,status)
-write(stream,*)'umf4triplet2col ok'
+!!write(stream,*)'umf4triplet2col ok'
        if (status /= 0) then
           write(stream,*)'n,nz:',n,nz
           call DOUG_abort('[Fact_New] umf4triplet2col failed',-1)
@@ -78,7 +78,7 @@ write(stream,*)'umf4triplet2col ok'
 
        ! pre-order and symbolic analysis
        call umf4sym(n,n,Ap,Ai,Av,symbolic,control,info90)
-write(stream,*)'umf4sym ok'
+!!write(stream,*)'umf4sym ok'
        if (sctls%verbose > 3) then
           write(stream,70) info90(1), info90(16),            &
             (info90(21) * info90(4)) / 2**20,                &

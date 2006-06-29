@@ -30,9 +30,9 @@ contains
        x0_, solinf, resvects_, CoarseMtx_)
     implicit none
 
-    type(SpMtx),                  intent(in out) :: A ! System matrix (sparse)
-    float(kind=rk), dimension(:), intent(in out) :: b ! RHS
-    float(kind=rk), dimension(:), intent(in out) :: x ! Solution
+    type(SpMtx),intent(in out) :: A ! System matrix (sparse)
+    float(kind=rk),dimension(:),pointer :: b ! RHS
+    float(kind=rk),dimension(:),pointer :: x ! Solution
     ! Mesh - aux data for Ax operation
     type(Mesh),                       intent(in) :: Msh
 
@@ -396,10 +396,11 @@ contains
           !  deallocate(A%M_bound)
           !endif
           call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS,sort=.true.)
- write(stream,*)'AAAAAAAAAAAAAAAA is:'
- call SpMtx_printRaw(A)
- write(stream,*)'AAAAAAAAAAAAAAAA :'
- call flush(stream)
+   write(stream,*)'AAAAAAAAAAAAAAAA is:'
+   call SpMtx_printRaw(A)
+   call SpMtx_printRaw(A_interf_)
+   write(stream,*)'AAAAAAAAAAAAAAAA :'
+   call flush(stream)
           call sparse_multisolve(sol=sol,A=A,rhs=rhs, &
                                  A_interf_=A_interf_, &
                                   refactor=refactor_) !fine solves 
@@ -425,7 +426,8 @@ contains
           A%arrange_type=D_SpMtx_ARRNG_NO
           call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS,sort=.true.)
  write(stream,*)'BBBBBBBBBBBBAAAA is:'
- call SpMtx_printRaw(A)
+ write(stream,*)'A%nrows=',A%nrows
+ call SpMtx_printRaw(A,startnz=1,endnz=A%mtx_bbe(2,2))
  write(stream,*)'BBBBBBBBBBBBAAAA :'
  call flush(stream)
           call sparse_multisolve(sol=sol,A=A,rhs=rhs, &
@@ -465,11 +467,11 @@ contains
        x0_,solinf,resvects_,CoarseMtx_,refactor_)
     implicit none
 
-    type(SpMtx),                  intent(in out) :: A ! System matrix (sparse)
-    float(kind=rk), dimension(:), intent(in out) :: b ! RHS
-    float(kind=rk), dimension(:), intent(in out) :: x ! Solution
+    type(SpMtx),intent(in out) :: A ! System matrix (sparse)
+    float(kind=rk),dimension(:),pointer :: b ! RHS
+    float(kind=rk),dimension(:),pointer :: x ! Solution
     ! Mesh - aux data for Ax operation
-    type(Mesh),                       intent(in) :: Msh
+    type(Mesh),intent(in) :: Msh
 
     integer,intent(out) :: it
     real(kind=rk),intent(out) :: cond_num
@@ -568,7 +570,7 @@ contains
     endif
     do while((ratio_norm > tol*tol).and.(it < maxit))
       it = it + 1
-call Print_Glob_Vect(r,Msh,'global r===')
+!call Print_Glob_Vect(r,Msh,'global r===')
       call preconditioner(sol=z,          &
                             A=A,          &
                           rhs=r,          &
@@ -576,10 +578,10 @@ call Print_Glob_Vect(r,Msh,'global r===')
                    CoarseMtx_=CoarseMtx_, &
                     refactor_=refactor)
       refactor=.false.
-!write(stream,*)'localz==:',z
       if (sctls%method/=0) then
         call Add_common_interf(z,A,Msh)
       endif
+!write(stream,*)'localz==:',z
 !call Print_Glob_Vect(z,Msh,'global z===')
       ! compute current rho
       rho_curr = Vect_dot_product(r,z)

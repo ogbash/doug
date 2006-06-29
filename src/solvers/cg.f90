@@ -26,11 +26,11 @@ contains
 
     implicit none
 
-    type(SpMtx),                  intent(in out) :: A ! System matrix (sparse)
-    float(kind=rk), dimension(:),     intent(in) :: b ! RHS
-    float(kind=rk), dimension(:), intent(in out) :: x ! Solution
+    type(SpMtx),intent(in out) :: A ! System matrix (sparse)
+    float(kind=rk),dimension(:),pointer :: b ! RHS
+    float(kind=rk),dimension(:),pointer :: x ! Solution
     ! Mesh - aux data for Ax operation
-    type(Mesh),                       intent(in) :: M
+    type(Mesh),intent(in) :: M
     ! optional arguments
     ! Tolerance of the method
     real(kind=rk),          intent(in), optional :: tol_
@@ -51,13 +51,16 @@ contains
     float(kind=rk) :: res, res_priv, rho, rhoold, alpha, beta, tmp
     float(kind=rk) :: r_2sum, b_2sum
     float(kind=rk), dimension(2) :: sendbuf, recvbuf
-    float(kind=rk), dimension(size(b)) :: p, q, r, b_k
+    float(kind=rk), dimension(:),pointer :: p, q, r, b_k
     integer :: ierr
     ! + testing ++++++:
     real(kind=rk),dimension(:),pointer,save :: r_glob
     integer :: i
 
-
+    allocate(p(size(b)))
+    allocate(q(size(b)))
+    allocate(r(size(b)))
+    allocate(b_k(size(b)))
     write(stream,'(/a)') 'Conjugate gradient:'
 
     if (size(b) /= size(x)) &
@@ -202,6 +205,7 @@ maxit=100
           exit
        end if
        res_priv = res
+       deallocate(p,q,r,b_k)
     end do
 
     if (solinf%flag == D_SOLVE_CONV_STAGN) then

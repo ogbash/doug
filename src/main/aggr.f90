@@ -41,7 +41,7 @@ program main
   integer :: n
   character :: str
   character(len=40) :: frm
-  float(kind=rk) :: strong_conn1,strong_conn2,cond_num
+  float(kind=rk) :: strong_conn1,strong_conn2,cond_num,nrm
   integer :: aggr_radius1,aggr_radius2
   integer :: min_asize1,min_asize2
   integer :: max_asize1,max_asize2
@@ -206,10 +206,23 @@ endif !todo remove
 ! if (numprocs>1) then
 !   write(stream,*)'xchk=',xchk- M%lg_fmap(:)
 ! endif
-  !xchk=1.0_rk
-  call SpMtx_pmvm(b,A,xchk,M)
+
+!xchk=1.0_rk*M%lg_fmap
+
+!xchk=1.0_rk
+
+call SpMtx_pmvm(b,A,xchk,M)
+!call add_whole_ol(xchk,M)
+call Print_Glob_Vect(xchk,M,'global xchk===',rows=.true.)
+call Print_Glob_Vect(b,M,'global b===')
+!call MPI_BARRIER(MPI_COMM_WORLD,i)
+!call DOUG_abort('[DOUG main] : testing Ax', -1)
 ! call Print_Glob_Vect(xchk,M,'global xchk===')
-  rhs = b
+nrm=Vect_dot_product(b,b)
+b=b/dsqrt(nrm)
+xchk=xchk/dsqrt(nrm)
+!rhs = b
+  !b = 1.0_rk
 
   select case(sctls%solver)
   case (DCTL_SOLVE_CG)
@@ -225,6 +238,7 @@ endif !todo remove
           CoarseMtx_=AC,refactor_=.true.)
      else
        if (numprocs>1.and.max(sctls%overlap,sctls%smoothers)>0) then
+       !!!if (numprocs>1) then
          call pcg_weigs(A=A,b=b,x=xl,Msh=M,it=it,cond_num=cond_num, &
            A_interf_=A_ghost,refactor_=.true.)
        else
@@ -265,8 +279,8 @@ endif !todo remove
       allocate(x(M%ngf)); x = 0.0_rk
     end if
     call Vect_Gather(xl, x, M)
-    !if (ismaster().and.(size(x) <= 100)) &
-    !  call Vect_Print(x, 'sol > ')
+    if (ismaster().and.(size(x) <= 100)) &
+      call Vect_Print(x, 'sol > ')
   endif
 
   ! Destroy objects

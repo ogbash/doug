@@ -113,9 +113,19 @@ module Mesh_class
     !<-feedoms4send -> |<-rest inol->|<-independ.>|<-indep.onoutol>|<receivd>|
     !<-     inner overlap         -> |<-freedoms->|<-   outer overlap      ->|
     !<-         all inner freedoms              ->|
+    
+    ! if ol=0 then
+    !<-feedoms4send -> |<-rest inol->|<-independ.>|<-indep.onoutol>|<receivd>|
+    !                  |            /             |               /          |
+    !                  |  . . . . .               |  . . . . . . .           |
+    !                  |/                         |/                         |
+    !              actual freedoms                |     ghost freedoms       |
+
 
      type(indlist),dimension(:),pointer :: ax_recvidx,ax_sendidx
-     type(indlist),dimension(:),pointer :: ol_inner,ol_outer
+     type(indlist),dimension(:),pointer :: ol_outer
+     type(indlist),dimension(:),pointer :: ol_inner
+     type(indlist),dimension(:),pointer :: ol_solve
 
      !! Graph
      type(Graph) :: G

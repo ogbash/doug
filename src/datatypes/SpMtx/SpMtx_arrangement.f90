@@ -75,7 +75,11 @@ CONTAINS
       allocate(M%M_bound(M%nrows+1))
     end if
     !===== 1.find how many elements are every row/col 
-    nnz=M%nnz
+    if (M%mtx_bbe(2,2)>0) then
+      nnz=M%mtx_bbe(2,2)
+    else
+      nnz=M%nnz
+    endif
     el = 0
     do i = 1, nnz
       if (columnwise) then
@@ -176,9 +180,9 @@ CONTAINS
       end do
     endif
     !===== finishing ...
-    M%indi = indi
-    M%indj = indj
-    M%val = val
+    M%indi(1:nnz) = indi
+    M%indj(1:nnz) = indj
+    M%val(1:nnz) = val
     deallocate(val,indj,indi)    
     deallocate(el)
   end subroutine SpMtx_arrange
@@ -1460,6 +1464,9 @@ endif
               deallocate(layerlen)
             elseif (ok==2) then ! }{
               next_start_layer=neighood+2
+              if (.not.toosmall.and.nneigs<minasize) then 
+                toosmall=.true.
+              endif
             else ! }{ (ok==1 or 0)
               next_start_layer=0
             endif ! } 
@@ -1673,7 +1680,7 @@ endif
 !print *,'eater of ',i,' is:',eater
           else ! try to give the struct away node by node to all good neighbours...
 !if (present(Afine)) then
-! print *,' ...not eaten... '
+ print *,' ...not eaten... '
 !endif
             nleft=aggrsize(i)
             reduced=.true.
@@ -1705,8 +1712,8 @@ endif
                         structnodes(k,i)=-1
                         nleft=nleft-1
                         reduced=.true.
-!print *,i,'  ######## sold ',structnodes(aggrsize(colr),colr), &
-! ' to:',colr,'########'
+print *,i,'  ######## sold ',structnodes(aggrsize(colr),colr), &
+ ' to:',colr,'########'
                         exit looking ! this node is sold
                       endif
                     endif
@@ -1725,8 +1732,9 @@ endif
                 endif
               enddo
               aggrsize(i)=nleft
+print *,'    ========== aggregate ',i,' remained as small as ',nleft,'@@@@@'
             elseif (nleft==0) then ! the aggregate got removed
-!print *,'    ========== aggregate ',i,' got removed node by node ============'
+print *,'    ========== aggregate ',i,' got removed node by node ============'
               noccupied=noccupied+1
               aggrsize(i)=0
               nagrs_new=nagrs_new-1
@@ -1990,10 +1998,15 @@ endif
         write(stream,*)'A ghost:'
         call SpMtx_printRaw(A_ghost)
       endif
+      if (A%nnz>A%mtx_bbe(2,2)) then
+        write(stream,*)'A additional in case of ol==0:'
+        call SpMtx_printRaw(A=A,startnz=A%mtx_bbe(2,2)+1,endnz=A%nnz)
+      endif
     endif
     ! Localise A:
     if (ol<=0) then
-      A_ghost%nrows=0
+      M%ninonol=M%ntobsent
+      M%indepoutol=M%ninner
     endif
     call SpMtx_Build_lggl(A,A_ghost,M)
     if (sctls%verbose>3) then 
@@ -2007,9 +2020,14 @@ endif
     do k=1,M%nnghbrs
       M%ax_recvidx(k)%inds=M%gl_fmap(M%ax_recvidx(k)%inds)
       M%ax_sendidx(k)%inds=M%gl_fmap(M%ax_sendidx(k)%inds)
-      M%ol_inner(k)%inds=M%gl_fmap(M%ol_inner(k)%inds)
-      M%ol_outer(k)%inds=M%gl_fmap(M%ol_outer(k)%inds)
     enddo
+    if (ol>0) then
+      do k=1,M%nnghbrs
+        M%ol_inner(k)%inds=M%gl_fmap(M%ol_inner(k)%inds)
+        M%ol_outer(k)%inds=M%gl_fmap(M%ol_outer(k)%inds)
+        M%ol_solve(k)%inds=M%gl_fmap(M%ol_solve(k)%inds)
+      enddo
+    endif
     do i=1,A%nnz
       A%indi(i)=M%gl_fmap(A%indi(i))
       A%indj(i)=M%gl_fmap(A%indj(i))
@@ -2038,6 +2056,10 @@ endif
         write(stream,*)'Localised A ghost:'
         call SpMtx_printRaw(A_ghost)
       endif
+      if (A%nnz>A%mtx_bbe(2,2)) then
+        write(stream,*)'localised A additional in case of ol==0:'
+        call SpMtx_printRaw(A=A,startnz=A%mtx_bbe(2,2)+1,endnz=A%nnz)
+      endif
       write(stream,*)'gl_fmap:',M%gl_fmap
       write(stream,*)'gl_fmap(lg_fmap):',M%gl_fmap(M%lg_fmap)
       write(stream,*)'lg_fmap:',M%lg_fmap
@@ -2065,10 +2087,16 @@ endif
     !------------------------------------------------------------------------+
     M%ngf=max(A%nrows,A_ghost%nrows)
     allocate(M%gl_fmap(M%ngf))
+    M%gl_fmap=0
     do i=1,A%nnz
       M%gl_fmap(A%indi(i))=-3
       M%gl_fmap(A%indj(i))=-3
     enddo
+    !do k=1,M%nnghbrs
+    !  do i=1,M%ol_solve(k)%ninds
+    !    M%gl_fmap(M%ol_solve(k)%inds(i))=2
+    !  enddo
+    !enddo
     do k=1,M%nnghbrs
       do i=1,M%ol_inner(k)%ninds
         M%gl_fmap(M%ol_inner(k)%inds(i))=-2
@@ -2087,6 +2115,11 @@ endif
         M%gl_fmap(j)=1
       enddo
     enddo
+!write(stream,*)'global freedom organisation:'
+!do i=1,M%ngf
+! write(stream,*)i,':::',M%gl_fmap(i)
+!enddo
+
     ! count how many corresponding freedoms there are:
     ntobsent=0   ! -1
     ninonol=0    ! -2
@@ -2172,7 +2205,648 @@ endif
                    !             clrorder(clrstarts(i):clrstarts(i+1)-1)
     integer,dimension(:),pointer       :: clrstarts  !(allocated earlier)
     !local:
-    integer :: i,j,k,clrnode,clrneigh,nfront,layer,lastlayer,neigh,node,nnz
+    integer :: i,j,jj,k,clrnode,clrneigh,nfront,layer,lastlayer,neigh,node,nnz
+    integer :: maxleadind,sendcnt,nfront1,sendnodecnt,recvcnt,neighnum
+    integer :: hl,offset,klayer
+    integer,dimension(:),pointer :: neighmap,front
+    integer,dimension(:),pointer :: onfront
+                                            !   to each neighbour (Ax op)
+    integer,dimension(:),pointer :: sendnodes,sendnodeidx ! to mark fred.s that
+            ! will be communicated from my subdomain wherever (Ax op)
+    integer,dimension(:),pointer :: frontstart,frontend
+    integer :: a_ghostsz,a_gsz,ol0connfrom_outside
+    integer :: ol0cfo,nol_on_neigh,nol_off_neigh
+    integer,dimension(:),pointer :: itmp,jtmp,btmp
+    float(kind=rk),dimension(:),pointer :: rtmp
+    integer,dimension(:), pointer :: nnodesonclrol,ccount
+    integer,dimension(2,2) :: bbe
+
+    ! we assume this now:
+    !! if (A%arrange_type==D_SpMtx_ARRNG_ROWS) then
+    !!elseif (A%arrange_type==D_SpMtx_ARRNG_COLS) then
+    !!  !TODO?
+    !!else
+    !!  call DOUG_abort('SpMtx_keep_subd_wol: Matrix arrangment not done!',19)
+    !!endif
+    
+    allocate(neighmap(numprocs))
+    neighmap=0
+    allocate(front(A%nrows)) ! for keeping track of the front
+    allocate(onfront(A%nrows)) ! for keeping track on the front
+    onfront=0
+    lastlayer=max(ol,1)
+    allocate(frontstart(0:2*lastlayer))
+    allocate(frontend(0:2*lastlayer))
+    allocate(nnodesonclrol(numprocs))
+    nnodesonclrol=0 
+    nfront=0
+    ! mark clr nodes as the very first step.
+    frontstart(0)=1
+    do i=clrstarts(clr),clrstarts(clr+1)-1
+      node=clrorder(i)
+      if (onfront(node)==0) then
+        nfront=nfront+1
+        front(nfront)=node
+        onfront(node)=-1
+      endif
+    enddo
+    frontend(0)=nfront
+    ! first, add 2*ol layers to the subdomain
+    frontstart(1)=nfront+1
+    do i=clrstarts(clr),clrstarts(clr+1)-1
+      node=clrorder(i)
+      do j=A%M_bound(node),A%M_bound(node+1)-1
+        neigh=A%indj(j)
+        clrneigh=M%eptnmap(neigh)
+        if (clrneigh/=clr.and.onfront(neigh)==0) then
+          onfront(neigh)=1
+          nnodesonclrol(clrneigh)=nnodesonclrol(clrneigh)+1
+          nfront=nfront+1
+          front(nfront)=neigh
+        endif
+      enddo
+    enddo
+    frontend(1)=nfront
+    if (ol>0) then
+      !Now, let's go on with next layers...:
+      do layer=2,2*lastlayer
+        frontstart(layer)=nfront+1
+        do i=frontstart(layer-1),frontend(layer-1)
+          node=front(i)
+          do j=A%M_bound(node),A%M_bound(node+1)-1
+            neigh=A%indj(j)
+            clrneigh=M%eptnmap(neigh)
+            if (clrneigh/=clr.and.onfront(neigh)==0) then
+              onfront(neigh)=layer
+              nnodesonclrol(clrneigh)=nnodesonclrol(clrneigh)+1
+              nfront=nfront+1
+              front(nfront)=neigh
+            endif                                  
+          enddo
+        enddo
+        frontend(layer)=nfront
+      enddo
+    else
+      frontend(2)=frontend(1)
+    endif
+    ! now we are ready to decrease A the first time:
+    nnz=0
+    maxleadind=0
+    do i=1,A%nnz
+      if (onfront(A%indi(i))/=0.and. &
+          onfront(A%indj(i))/=0) then
+        nnz=nnz+1
+        if (A%indi(i)>maxleadind) then
+          maxleadind=A%indi(i)
+        endif
+      endif
+    enddo
+    allocate(itmp(nnz))
+    allocate(jtmp(nnz))
+    allocate(rtmp(nnz))
+    allocate(btmp(maxleadind+1))
+    btmp=0
+    nnz=0
+    do i=1,A%nnz
+      if (onfront(A%indi(i))/=0.and. &
+          onfront(A%indj(i))/=0) then
+        nnz=nnz+1
+        node=A%indi(i)
+        itmp(nnz)=node
+        btmp(node+1)=btmp(node+1)+1
+        jtmp(nnz)=A%indj(i)
+        rtmp(nnz)=A%val(i)
+      endif
+    enddo
+    A%nnz=nnz
+    deallocate(A%indi)
+    allocate(A%indi(1:A%nnz))
+    A%indi(1:A%nnz)=itmp(1:nnz)
+    deallocate(itmp)
+    ! indj
+    deallocate(A%indj)
+    allocate(A%indj(1:A%nnz))
+    A%indj(1:A%nnz)=jtmp(1:nnz)
+    deallocate(jtmp)
+    !M_bound
+    btmp(1)=1
+    do i=2,maxleadind+1
+      btmp(i)=btmp(i-1)+btmp(i)
+    enddo
+    deallocate(A%M_bound)
+    allocate(A%M_bound(maxleadind+1))
+    A%M_bound=btmp
+    deallocate(btmp)
+    ! val
+    deallocate(A%val)
+    allocate(A%val(1:A%nnz))
+    A%val(1:A%nnz)=rtmp(1:nnz)
+    deallocate(rtmp)
+    ! take a look what are the neighbours:
+    j=0
+    do i=1,numprocs
+      if (nnodesonclrol(i)>0) then
+        j=j+1
+      endif
+    enddo
+    M%nnghbrs=j
+    allocate(M%nghbrs(M%nnghbrs+1))
+    j=0
+    do i=1,numprocs
+      if (nnodesonclrol(i)>0) then
+        j=j+1
+        M%nghbrs(j)=i-1
+        neighmap(i)=j !shows now, where the subdomain is in M%nghbrs
+                    ! and is 0 if the subdomain is not neighbour
+                    !  (it is actually pid2indx in SpMtx_operation)
+      elseif (i==clr) then
+        M%nghbrs(M%nnghbrs+1)=i-1
+        neighmap(i)=M%nnghbrs+1
+      endif
+    enddo
+    ! now we are able to determine recvnodes already... i.e. nodes
+    !  where onfront==lastlayer or actually the nodes at front(
+    !        frontstart(lastlayer):frontend(lastlayer))
+    allocate(M%ax_recvidx(M%nnghbrs))
+    M%ax_recvidx%ninds = 0
+    do i=frontstart(lastlayer),frontend(lastlayer)
+      node=front(i)
+      neighnum=neighmap(M%eptnmap(node))
+      M%ax_recvidx(neighnum)%ninds=M%ax_recvidx(neighnum)%ninds+1
+    enddo
+    do neighnum=1,M%nnghbrs
+      allocate(M%ax_recvidx(neighnum)%inds(M%ax_recvidx(neighnum)%ninds))
+    enddo
+    M%ax_recvidx%ninds = 0
+    do i=frontstart(lastlayer),frontend(lastlayer)
+      node=front(i)
+      neighnum=neighmap(M%eptnmap(node))
+      M%ax_recvidx(neighnum)%ninds=M%ax_recvidx(neighnum)%ninds+1
+      M%ax_recvidx(neighnum)%inds(M%ax_recvidx(neighnum)%ninds)=node
+    enddo
+    ! but now we need to rework clrorder aswell: 
+    allocate(ccount(M%nnghbrs+1))
+    ccount=0
+    do i=frontstart(0),frontend(2*lastlayer)
+      j=front(i)
+      ccount(neighmap(M%eptnmap(j)))=ccount(neighmap(M%eptnmap(j)))+1
+    enddo
+    allocate(clrstarts(M%nnghbrs+2))
+    clrstarts(1)=1
+    do i=1,M%nnghbrs+1
+      clrstarts(i+1)=clrstarts(i)+ccount(i)
+    end do
+    allocate(clrorder(maxleadind))
+    ccount(1:M%nnghbrs+1)=clrstarts(1:M%nnghbrs+1)-1
+    ! todo siin viga: also clr nodes need to be added!
+!rite(stream,*)'maxleadind=',maxleadind
+!rite(stream,*)'fff front=',front
+!rite(stream,*)'fff part(front)=',M%eptnmap(front)
+!rite(stream,*)'fff clrstarts=',clrstarts
+!rite(stream,*)'fff neighmap=',neighmap
+!rite(stream,*)'fff M%nghbrs=',M%nghbrs
+    do i=frontstart(0),frontend(2*lastlayer)
+      j=front(i)
+      ccount(neighmap(M%eptnmap(j)))=ccount(neighmap(M%eptnmap(j)))+1
+      clrorder(ccount(neighmap(M%eptnmap(j))))=j
+    enddo
+    if (sctls%verbose>3.and.A%nrows<200) then 
+      do i=1,M%nnghbrs+1                                                    !
+        write(stream,*)'partition ',M%nghbrs(i),' is in:', &                        !
+          clrorder(clrstarts(i):clrstarts(i+1)-1)                     !
+      enddo                                                               !
+    endif
+    deallocate(ccount)
+    !
+    ! First, we must repair the onfront back to 0 from where -1n
+    do i=frontstart(0),frontend(0)
+      onfront(front(i))=0
+    enddo
+    ! Now we may start out from each neighbour individually concerning
+    !   ol-outer, ol_inner, ol_solve and ax_sendidx
+    ! mark clr nodes as the very first step.
+    allocate(M%ax_sendidx(M%nnghbrs))
+    M%ax_sendidx%ninds = 0
+    allocate(sendnodes(A%nrows)) ! indicator of nodes that will be sent to...
+    sendnodes=0                  !    whichever neighbour
+    allocate(M%ol_inner(M%nnghbrs))
+    M%ol_inner%ninds = 0
+    allocate(M%ol_outer(M%nnghbrs))
+    M%ol_outer%ninds = 0
+    allocate(M%ol_solve(M%nnghbrs))
+    hl=2*lastlayer+1 ! the highest layer#+1 for offset def
+    do k=1,M%nnghbrs
+      nfront=0
+      offset=k*hl
+      !clrnode=M%nghbrs(k)+1
+      frontstart(0)=1
+!rite(stream,*)'starting with: onfront=',onfront
+      do i=clrstarts(k),clrstarts(k+1)-1
+        node=clrorder(i)
+!rite(stream,*)'node is:',node
+        layer=modulo(onfront(node),hl)
+!rite(stream,*)'layer is:',layer
+        if (layer<=lastlayer) then ! the node on ol_outer
+          M%ol_outer(k)%ninds=M%ol_outer(k)%ninds+1
+        endif
+        onfront(node)=offset+layer
+        nfront=nfront+1
+        front(nfront)=node
+      enddo
+      frontend(0)=nfront
+      do klayer=1,lastlayer
+        frontstart(klayer)=nfront+1
+        do i=frontstart(klayer-1),frontend(klayer-1)
+          node=front(i)
+          do j=A%M_bound(node),A%M_bound(node+1)-1
+            neigh=A%indj(j)
+            if (onfront(neigh)<offset) then ! the neigh not included yet
+              layer=modulo(onfront(neigh),hl)
+              if (layer==0) then ! the node inside the clr
+                if (klayer==lastlayer) then ! the node for ax_sendidx
+                  M%ax_sendidx(k)%ninds=M%ax_sendidx(k)%ninds+1
+                endif
+                M%ol_inner(k)%ninds=M%ol_inner(k)%ninds+1
+              elseif (layer<=lastlayer) then ! the node on ol_outer
+                M%ol_outer(k)%ninds=M%ol_outer(k)%ninds+1
+              endif
+              onfront(neigh)=offset+layer
+              nfront=nfront+1
+              front(nfront)=neigh
+            endif
+          enddo
+        enddo
+        frontend(klayer)=nfront
+!rite(stream,*)'neigh:',k,' is:',M%nghbrs(k),' onfront=',onfront
+!rite(stream,*)'lastlayer:',lastlayer
+      enddo
+      allocate(M%ax_sendidx(k)%inds(M%ax_sendidx(k)%ninds))
+      allocate(M%ol_inner(k)%inds(M%ol_inner(k)%ninds))
+      allocate(M%ol_outer(k)%inds(M%ol_outer(k)%ninds))
+      M%ax_sendidx(k)%ninds = 0
+      M%ol_inner(k)%ninds = 0
+      M%ol_outer(k)%ninds = 0
+      !do i=frontstart(1),frontend(lastlayer-1)
+!rite(stream,*)'the front in ',k,' is:',front(frontstart(0):frontend(lastlayer-1))
+!rite(stream,*)'the front out ',k,' is:',front(frontstart(lastlayer):frontend(lastlayer))
+      do i=frontstart(0),frontend(lastlayer-1)
+        node=front(i)
+        layer=modulo(onfront(node),hl)
+        if (layer==0) then ! the node inside the clr
+!rite(stream,*)'adding to inner: node=',node,' layer=',layer
+          M%ol_inner(k)%ninds=M%ol_inner(k)%ninds+1
+          M%ol_inner(k)%inds(M%ol_inner(k)%ninds)=node
+        elseif (layer<=lastlayer) then ! the node on ol_outer
+!rite(stream,*)'adding to 0 outer: node=',node,' layer=',layer
+          M%ol_outer(k)%ninds=M%ol_outer(k)%ninds+1
+          M%ol_outer(k)%inds(M%ol_outer(k)%ninds)=node
+        endif
+      enddo
+      do i=frontstart(lastlayer),frontend(lastlayer)
+        node=front(i)
+        layer=modulo(onfront(node),hl)
+        if (layer==0) then ! the node inside the clr
+          M%ax_sendidx(k)%ninds=M%ax_sendidx(k)%ninds+1
+          M%ax_sendidx(k)%inds(M%ax_sendidx(k)%ninds)=node
+          sendnodes(node)=1 ! the node added to the send pool
+!rite(stream,*)'adding to inner: node=',node,' layer=',layer
+          M%ol_inner(k)%ninds=M%ol_inner(k)%ninds+1
+          M%ol_inner(k)%inds(M%ol_inner(k)%ninds)=node
+        elseif (layer<=lastlayer) then ! the node on ol_outer
+!rite(stream,*)'adding to outer: node=',node,' layer=',layer
+          M%ol_outer(k)%ninds=M%ol_outer(k)%ninds+1
+          M%ol_outer(k)%inds(M%ol_outer(k)%ninds)=node
+        endif
+      enddo
+      call quicksort(M%ol_inner(k)%ninds,M%ol_inner(k)%inds)
+write(stream,*)k,':ol_inner:::',M%ol_inner(k)%inds
+      call quicksort(M%ol_outer(k)%ninds,M%ol_outer(k)%inds)
+write(stream,*)k,':ol_outer:::',M%ol_outer(k)%inds
+      call quicksort(M%ax_sendidx(k)%ninds,M%ax_sendidx(k)%inds)
+write(stream,*)k,':ax_sendidx:::',M%ax_sendidx(k)%inds
+      call quicksort(M%ax_recvidx(k)%ninds,M%ax_recvidx(k)%inds)
+write(stream,*)k,':ax_recvidx:::',M%ax_recvidx(k)%inds
+      M%ol_solve(k)%ninds=M%ol_outer(k)%ninds+&
+                          M%ol_inner(k)%ninds
+      allocate(M%ol_solve(k)%inds(M%ol_solve(k)%ninds))
+      j=M%ol_outer(k)%ninds
+      M%ol_solve(k)%inds(1:j)=M%ol_outer(k)%inds(:)
+      jj=j+M%ol_inner(k)%ninds
+      M%ol_solve(k)%inds(j+1:jj)=M%ol_inner(k)%inds(:)
+      call quicksort(M%ol_solve(k)%ninds,M%ol_solve(k)%inds)
+write(stream,*)k,':ol_solve:::',M%ol_solve(k)%inds
+    enddo ! k 
+    ! note: actually, interf/inner may contain also interf/receive_nodes
+    !         connections 
+    !  --------- ----------
+    ! | interf. | interf./ |
+    ! |       11| inner  12|
+    !  ---------+----------
+    ! |^ inner/ |          |
+    ! |  interf.| inner    |
+    ! |       21|        22|
+    !  ---------- ----------
+    !
+    ! onfront>lastlayer => M%ax_recvidx
+    !
+    ! Count A arrays size
+    A%mtx_bbe(1,1)=0
+    A%mtx_bbe(1,2)=0
+    A%mtx_bbe(2,1)=0
+    A%mtx_bbe(2,2)=0
+    a_ghostsz=0
+    maxleadind=0
+    ol0connfrom_outside=0
+    ! start with the inner ones...
+    !do i=clrstarts(clr),clrstarts(clr+1)-1
+    do i=clrstarts(M%nnghbrs+1),clrstarts(M%nnghbrs+2)-1
+      node=clrorder(i)
+      if (sendnodes(node)==1) then ! node which will be sent, treat it as an
+                                   !   interface node
+        do j=A%M_bound(node),A%M_bound(node+1)-1
+          neigh=A%indj(j)
+          if (sendnodes(neigh)==1) then
+            if (node>maxleadind) then
+              maxleadind=node
+            endif
+            A%mtx_bbe(1,1)=A%mtx_bbe(1,1)+1
+          elseif (M%eptnmap(neigh)==clr) then
+            if (node>maxleadind) then
+              maxleadind=node
+            endif
+            A%mtx_bbe(1,2)=A%mtx_bbe(1,2)+1
+          elseif (ol==0) then ! this must be connection from outside
+            if (node>maxleadind) then
+              maxleadind=node
+            endif
+            ol0connfrom_outside=ol0connfrom_outside+1
+          else 
+            if (node>maxleadind) then
+              maxleadind=node
+            endif
+            A%mtx_bbe(1,2)=A%mtx_bbe(1,2)+1
+          endif
+        enddo
+      else
+        do j=A%M_bound(node),A%M_bound(node+1)-1
+          neigh=A%indj(j)
+          if (sendnodes(neigh)==1) then
+            if (node>maxleadind) then
+              maxleadind=node
+            endif
+            A%mtx_bbe(2,1)=A%mtx_bbe(2,1)+1
+          else
+            if (node>maxleadind) then
+              maxleadind=node
+            endif
+            A%mtx_bbe(2,2)=A%mtx_bbe(2,2)+1
+          endif
+        enddo
+      endif
+    enddo
+    ! now go outside:
+    do k=1,M%nnghbrs
+      !clrnode=M%nghbrs(k)+1
+      do i=clrstarts(k),clrstarts(k+1)-1
+        node=clrorder(i)
+        layer=modulo(onfront(node),hl)
+        if (layer==lastlayer) then ! gets value from comm.
+          ! but we need to take it to the ghost matrix (if it is
+          !   within the domain with overlap)!
+          do j=A%M_bound(node),A%M_bound(node+1)-1
+            neigh=A%indj(j)
+            if (ol>0) then
+              if (modulo(onfront(neigh),hl)<=lastlayer) then 
+                a_ghostsz=a_ghostsz+1
+              endif
+            endif
+          enddo
+        elseif (layer<lastlayer) then
+          ! may still have conn. from internal node to be sent out
+          do j=A%M_bound(node),A%M_bound(node+1)-1
+            neigh=A%indj(j)
+            if (sendnodes(neigh)==1) then
+              if (node>maxleadind) then
+                maxleadind=node
+              endif
+              A%mtx_bbe(2,1)=A%mtx_bbe(2,1)+1
+            elseif (modulo(onfront(neigh),hl)<=lastlayer) then 
+              if (node>maxleadind) then
+                maxleadind=node
+              endif
+              A%mtx_bbe(2,2)=A%mtx_bbe(2,2)+1
+            endif!
+          enddo  !
+        endif
+      enddo
+    enddo
+    A%mtx_bbs(1,1)=1!; A%mtx_bbe(1,1) remains as it is
+    A%mtx_bbs(1,2)=A%mtx_bbe(1,1)+1 
+    A%mtx_bbe(1,2)=A%mtx_bbs(1,2)+A%mtx_bbe(1,2)-1
+    A%mtx_bbs(2,1)=A%mtx_bbe(1,2)+1 
+    A%mtx_bbe(2,1)=A%mtx_bbs(2,1)+A%mtx_bbe(2,1)-1
+    A%mtx_bbs(2,2)=A%mtx_bbe(2,1)+1 
+    A%mtx_bbe(2,2)=A%mtx_bbs(2,2)+A%mtx_bbe(2,2)-1
+    if (ol==0) then ! We put the additional part of the matrix that does not
+                    !   participate in solves but still in the Ax-operation between 
+                    !   A%mtx_bbe(2,2) and A%nnz
+      nnz=A%mtx_bbe(2,2)+ol0connfrom_outside
+      ol0cfo=A%mtx_bbe(2,2)
+    else
+      nnz=A%mtx_bbe(2,2)
+      a_gsz=0 
+    endif
+    bbe(1,1)=A%mtx_bbs(1,1)-1
+    bbe(1,2)=A%mtx_bbs(1,2)-1
+    bbe(2,1)=A%mtx_bbs(2,1)-1
+    bbe(2,2)=A%mtx_bbs(2,2)-1
+    A%nnz=nnz
+    allocate(itmp(nnz))
+    allocate(jtmp(nnz))
+    allocate(rtmp(nnz))
+    !write(stream,*)'maxleadind:',maxleadind
+    allocate(btmp(maxleadind+1))
+    if (ol>0) then
+      A_ghost=SpMtx_newInit(a_ghostsz)
+    endif     
+              
+    ! start with the inner ones...
+    !do i=clrstarts(clr),clrstarts(clr+1)-1
+    do i=clrstarts(M%nnghbrs+1),clrstarts(M%nnghbrs+2)-1
+      node=clrorder(i)
+      if (sendnodes(node)==1) then ! node which will be sent, treat it as an
+                                   !   interface node
+        do j=A%M_bound(node),A%M_bound(node+1)-1
+          neigh=A%indj(j)
+          if (sendnodes(neigh)==1) then
+            bbe(1,1)=bbe(1,1)+1
+            btmp(node+1)=btmp(node+1)+1
+            itmp(bbe(1,1))=node
+            jtmp(bbe(1,1))=neigh
+            rtmp(bbe(1,1))=A%val(j)
+          elseif (M%eptnmap(neigh)==clr) then !!!! siin
+            bbe(1,2)=bbe(1,2)+1
+            btmp(node+1)=btmp(node+1)+1
+            itmp(bbe(1,2))=node
+            jtmp(bbe(1,2))=neigh
+            rtmp(bbe(1,2))=A%val(j)
+          elseif (ol==0) then ! this must be connection from outside
+            ol0cfo=ol0cfo+1
+            btmp(node+1)=btmp(node+1)+1
+            itmp(ol0cfo)=node
+            jtmp(ol0cfo)=neigh
+            rtmp(ol0cfo)=A%val(j)
+          else
+            bbe(1,2)=bbe(1,2)+1
+            btmp(node+1)=btmp(node+1)+1
+            itmp(bbe(1,2))=node
+            jtmp(bbe(1,2))=neigh
+            rtmp(bbe(1,2))=A%val(j)
+          endif
+        enddo
+      else
+        do j=A%M_bound(node),A%M_bound(node+1)-1
+          neigh=A%indj(j)
+          if (sendnodes(neigh)==1) then
+            bbe(2,1)=bbe(2,1)+1
+            btmp(node+1)=btmp(node+1)+1
+            itmp(bbe(2,1))=node
+            jtmp(bbe(2,1))=neigh
+            rtmp(bbe(2,1))=A%val(j)
+          elseif (M%eptnmap(neigh)==clr) then
+            bbe(2,2)=bbe(2,2)+1
+            btmp(node+1)=btmp(node+1)+1
+            itmp(bbe(2,2))=node
+            jtmp(bbe(2,2))=neigh
+            rtmp(bbe(2,2))=A%val(j)
+          endif
+        enddo
+      endif
+    enddo
+    ! now go outside:
+    do k=1,M%nnghbrs
+      !clrnode=M%nghbrs(k)+1
+      !do i=clrstarts(clrnode),clrstarts(clrnode+1)-1
+      do i=clrstarts(k),clrstarts(k+1)-1
+        node=clrorder(i)
+        layer=modulo(onfront(node),hl)
+        if (layer==lastlayer) then ! gets value from comm.
+          ! but we need to take it to the ghost matrix (if it is
+          !   within the domain with overlap)!
+          do j=A%M_bound(node),A%M_bound(node+1)-1
+            neigh=A%indj(j)
+            if (ol>0) then
+              if (modulo(onfront(neigh),hl)<=lastlayer) then 
+                a_gsz=a_gsz+1
+                A_ghost%indi(a_gsz)=node
+                A_ghost%indj(a_gsz)=neigh
+                A_ghost%val(a_gsz)=A%val(j)
+              endif
+            endif
+          enddo
+        elseif (layer<lastlayer) then
+          ! may still have conn. from internal node to be sent out
+          do j=A%M_bound(node),A%M_bound(node+1)-1
+            neigh=A%indj(j)
+            if (sendnodes(neigh)==1) then
+              bbe(2,1)=bbe(2,1)+1
+              btmp(node+1)=btmp(node+1)+1
+              itmp(bbe(2,1))=node
+              jtmp(bbe(2,1))=neigh
+              rtmp(bbe(2,1))=A%val(j)
+            elseif (modulo(onfront(neigh),hl)<=lastlayer) then 
+              bbe(2,2)=bbe(2,2)+1
+              btmp(node+1)=btmp(node+1)+1
+              itmp(bbe(2,2))=node
+              jtmp(bbe(2,2))=neigh
+              rtmp(bbe(2,2))=A%val(j)
+            endif!
+          enddo  !
+        endif
+      enddo
+    enddo
+    ! write(stream,*)'bbe(1,1),A%mtx_bbe(1,1):',bbe(1,1),A%mtx_bbe(1,1)
+    ! write(stream,*)'A%bbs(1,2):',A%mtx_bbs(1,2)
+    ! write(stream,*)'bbe(1,2),A%mtx_bbe(1,2):',bbe(1,2),A%mtx_bbe(1,2)
+    ! write(stream,*)'A%bbs(2,1):',A%mtx_bbs(2,1)
+    ! write(stream,*)'bbe(2,1),A%mtx_bbe(2,1):',bbe(2,1),A%mtx_bbe(2,1)
+    ! write(stream,*)'A%bbs(2,2):',A%mtx_bbs(2,2)
+    ! write(stream,*)'bbe(2,2),A%mtx_bbe(2,2):',bbe(2,2),A%mtx_bbe(2,2)
+    ! write(stream,*)'a_gsz,a_ghostsz:',a_gsz,a_ghostsz
+    if (bbe(1,1)/=A%mtx_bbe(1,1)) then
+      write(stream,*)'bbe(1,1),A%mtx_bbe(1,1):',bbe(1,1),A%mtx_bbe(1,1)
+      call DOUG_abort('SpMtx_build_ghost -- bbe(1,1) wrong!',67)
+    endif
+    if (bbe(1,2)/=A%mtx_bbe(1,2)) then
+      write(stream,*)'bbe(1,2),A%mtx_bbe(1,2):',bbe(1,2),A%mtx_bbe(1,2)
+      call DOUG_abort('SpMtx_build_ghost -- bbe(1,2) wrong!',67)
+    endif
+    if (bbe(2,1)/=A%mtx_bbe(2,1)) then
+      write(stream,*)'bbe(2,1),A%mtx_bbe(2,1):',bbe(2,1),A%mtx_bbe(2,1)
+      call DOUG_abort('SpMtx_build_ghost -- bbe(2,1) wrong!',67)
+    endif
+    if (bbe(2,2)/=A%mtx_bbe(2,2)) then
+      write(stream,*)'bbe(2,2),A%mtx_bbe(2,2):',bbe(2,2),A%mtx_bbe(2,2)
+      call DOUG_abort('SpMtx_build_ghost -- bbe(2,2) wrong!',67)
+    endif
+    if (ol==0) then
+      if (ol0cfo/=ol0connfrom_outside+A%mtx_bbe(2,2)) then
+        write(stream,*)'ol0cfo,ol0connfrom_outside+A%mtx_bbe(2,2):',a_gsz,a_ghostsz+A%mtx_bbe(2,2)
+        call DOUG_abort('SpMtx_build_ghost -- ol0cfo!',67)
+      endif
+    else
+      if (a_gsz/=a_ghostsz) then
+        write(stream,*)'a_gsz,a_ghostsz:',a_gsz,a_ghostsz
+        call DOUG_abort('SpMtx_build_ghost -- a_gsz wrong!',67)
+      endif
+    endif
+
+    ! Resize actually the matrix:
+    ! indi
+    deallocate(A%indi)
+    allocate(A%indi(1:A%nnz))
+    A%indi(1:A%nnz)=itmp(1:nnz)
+    deallocate(itmp)
+    ! indj
+    deallocate(A%indj)
+    allocate(A%indj(1:A%nnz))
+    A%indj(1:A%nnz)=jtmp(1:nnz)
+    deallocate(jtmp)
+    !M_bound
+    btmp(1)=1
+    do i=2,maxleadind+1
+      btmp(i)=btmp(i-1)+btmp(i)
+    enddo
+    deallocate(A%M_bound)
+    allocate(A%M_bound(maxleadind+1))
+    A%M_bound=btmp
+    deallocate(btmp)
+    ! val
+    deallocate(A%val)
+    allocate(A%val(1:A%nnz))
+    A%val(1:A%nnz)=rtmp(1:nnz)
+    deallocate(rtmp)
+
+    deallocate(frontend)
+    deallocate(frontstart)
+    deallocate(onfront)
+    deallocate(front)
+    deallocate(neighmap)
+  end subroutine SpMtx_build_ghost
+
+  subroutine SpMtx_build_ghost_v01(clr,ol,A,A_ghost,M,clrorder,clrstarts)
+    !use SpMtx_class, only: indlist
+    integer,intent(in)                 :: clr      !the color # we are keeping
+    integer,intent(in)                 :: ol       !overlap size
+    Type(SpMtx), intent(in out)        :: A        !Initial matrix
+    Type(SpMtx), intent(in out)        :: A_ghost  !matrix on ghost nodes
+    type(Mesh)                         :: M        !Mesh object
+    integer,dimension(:),pointer       :: clrorder
+     !order of matrix rows (columns) so that color i is found in rows (columns):
+                   !             clrorder(clrstarts(i):clrstarts(i+1)-1)
+    integer,dimension(:),pointer       :: clrstarts  !(allocated earlier)
+    !local:
+    integer :: i,j,jj,k,clrnode,clrneigh,nfront,layer,lastlayer,neigh,node,nnz
     integer :: maxleadind,sendcnt,nfront1,sendnodecnt,recvcnt
     integer,dimension(:),pointer :: neighmap,front
     integer,dimension(:),pointer :: onfront
@@ -2181,12 +2855,14 @@ endif
             ! will be communicated from my subdomain wherever (Ax op)
     integer,dimension(:),pointer :: frontstart,frontend
     integer,dimension(:,:),pointer :: neigfstart,neigfend
-    integer :: a_ghostsz,a_gsz
+    integer :: a_ghostsz,a_gsz,ol0connfrom_outside
+    integer :: ol0cfo,nol_on_neigh,nol_off_neigh
     integer,dimension(:),pointer :: itmp,jtmp,btmp
     float(kind=rk),dimension(:),pointer :: rtmp
     integer,dimension(:), pointer :: ndirectneigs
     integer,dimension(:,:), pointer :: directneigs
     integer,dimension(2,2) :: bbe
+    type(indlist),dimension(:),pointer :: ol_outer_on !(off-neigh)
 
     allocate(neighmap(numprocs))
     neighmap=0
@@ -2258,8 +2934,12 @@ endif
     M%ax_recvidx%ninds = 0
     allocate(M%ol_inner(M%nnghbrs))
     allocate(M%ol_outer(M%nnghbrs))
+    allocate(M%ol_solve(M%nnghbrs))
+    allocate(ol_outer_on(M%nnghbrs))
     M%ol_inner%ninds = 0
     M%ol_outer%ninds = 0
+    M%ol_solve%ninds = 0
+    ol_outer_on%ninds = 0
     M%nfreesend_map=0
     !write(stream,*)'My neighbours are: ',(M%nghbrs(i),i=1,M%nnghbrs)
  
@@ -2388,14 +3068,6 @@ endif
         M%ax_recvidx(k)%ninds=recvcnt
         allocate(M%ax_recvidx(k)%inds(recvcnt))
         recvcnt=0
-        M%ol_outer(k)%ninds=neigfend(lastlayer,k)-neigfstart(1,k)+1
-        allocate(M%ol_outer(k)%inds(M%ol_outer(k)%ninds))
-        M%ol_outer(k)%inds=front(neigfstart(1,k):neigfend(lastlayer,k))
-        call quicksort(M%ol_outer(k)%ninds,M%ol_outer(k)%inds)
-        if (sctls%verbose>3.and.A%nrows<200) then 
-          write(stream,*)myrank,'*** outer OL with: ',M%nghbrs(k),' is:',&
-            M%ol_outer(k)%inds(1:M%ol_outer(k)%ninds)
-        endif
         do i=neigfstart(1,k),neigfend(lastlayer,k)
           node=front(i)
           if (onfront(node)==numprocs+clrnode) then
@@ -2416,7 +3088,68 @@ endif
           write(stream,*)myrank,'*** Ax:Recving from ',M%nghbrs(k),' nodes:',&
             M%ax_recvidx(k)%inds(1:M%ax_recvidx(k)%ninds)
         endif
-      enddo ! loop over neighbours
+        nol_on_neigh=neigfend(lastlayer,k)-neigfstart(1,k)+1
+        M%ol_outer(k)%ninds=nol_on_neigh
+        allocate(M%ol_outer(k)%inds(M%ol_outer(k)%ninds))
+        M%ol_outer(k)%inds(1:nol_on_neigh)=front(neigfstart(1,k):neigfend(lastlayer,k))
+        call quicksort(M%ol_outer(k)%ninds,M%ol_outer(k)%inds)
+        if (sctls%verbose>3.and.A%nrows<200) then 
+          write(stream,*)myrank,'*** outer OL with: ',M%nghbrs(k),' is:',&
+            M%ol_outer(k)%inds(1:M%ol_outer(k)%ninds)
+!write(stream,*)'ooo2 onfront=',onfront
+        endif
+      enddo
+      if (ol>0) then ! expand the ol_outer:
+        nfront1=nfront
+        do k=1,M%nnghbrs
+!write(stream,*)'ooo onfront=',onfront
+          !TODO: ol_outer to get expanded to the ol_outer of the neigh. as well
+          !    for this we go through *from all nodes* of the neighbour with a
+          !    depth-first algorithm upto ol expansion
+          !    to mark the nodes that belong to some ol_outer of the current clr
+          !    -- for storage of such nodes we (re)use still free part of front 
+          !    -- everywhere on clr ol_outer - onfront>0
+          clrnode=M%nghbrs(k)+1
+          do i=clrstarts(clrnode),clrstarts(clrnode+1)-1
+            node=clrorder(i)
+            do j=A%M_bound(node),A%M_bound(node+1)-1
+              neigh=A%indj(j)
+              clrneigh=M%eptnmap(neigh)
+              if (clrneigh/=clr.and.clrneigh/=clrnode) then
+                if (onfront(neigh)>0) then ! node from the clr outer overlap
+                  if (onfront(neigh)/=2*numprocs+clrnode) then ! this node
+                                                  ! has not been included yet...
+                    nfront=nfront+1
+                    front(nfront)=neigh
+                    onfront(neigh)=2*numprocs+clrnode
+!write(stream,*) 'adding node neigh=',neigh,front(nfront),nfront
+!write(stream,*)'ooo3 onfront=',onfront
+                  endif
+                  if (ol>1) then
+                    write(stream,*)'warning: ol>1 not completed yet.'
+                    ! go on with successive neighbours recursively keeping to
+                    !   the colour clrneigh
+                  endif
+                endif
+              endif
+            enddo
+          enddo
+          !nol_on_neigh=neigfend(lastlayer,k)-neigfstart(1,k)+1
+          nol_off_neigh=nfront-nfront1
+          ol_outer_on(k)%ninds=nol_off_neigh
+          allocate(ol_outer_on(k)%inds(ol_outer_on(k)%ninds))
+          ol_outer_on(k)%inds(1:ol_outer_on(k)%ninds)=front(nfront1+1:nfront)
+          !call quicksort(ol_outer_on(k)%ninds,ol_outer_on(k)%inds)
+          if (sctls%verbose>3.and.A%nrows<200) then 
+            write(stream,*)myrank,'*** outer OL off-neigh: ',M%nghbrs(k),' is:',&
+              ol_outer_on(k)%inds(1:ol_outer_on(k)%ninds)
+!write(stream,*)'ooo2 onfront=',onfront
+          endif
+          nfront=nfront1
+        enddo ! loop over neighbours
+!call MPI_BARRIER(MPI_COMM_WORLD,i)
+!call DOUG_abort('[SpMtx_arrangement] : testing ol_outer', -1)
+      endif
     elseif (A%arrange_type==D_SpMtx_ARRNG_COLS) then
       !TODO
     endif
@@ -2544,14 +3277,31 @@ endif
         M%ax_sendidx(k)%ninds=sendcnt
         allocate(M%ax_sendidx(k)%inds(sendcnt))
         sendcnt=0
-        M%ol_inner(k)%ninds=frontend(-lastlayer)-frontstart(-1)+1
-        allocate(M%ol_inner(k)%inds(M%ol_inner(k)%ninds))
-        M%ol_inner(k)%ninds=frontend(-lastlayer)-frontstart(-1)+1
-        M%ol_inner(k)%inds=front(frontstart(-1):frontend(-lastlayer))
-        call quicksort(M%ol_inner(k)%ninds,M%ol_inner(k)%inds)
-        if (sctls%verbose>3.and.A%nrows<200) then 
-          write(stream,*)myrank,'*** inner OL with: ',M%nghbrs(k),' is:',&
-            M%ol_inner(k)%inds(1:M%ol_inner(k)%ninds)
+        if (ol>0) then
+          M%ol_inner(k)%ninds=frontend(-lastlayer)-frontstart(-1)+1
+          allocate(M%ol_inner(k)%inds(M%ol_inner(k)%ninds))
+          M%ol_inner(k)%inds=front(frontstart(-1):frontend(-lastlayer))
+          call quicksort(M%ol_inner(k)%ninds,M%ol_inner(k)%inds)
+          if (sctls%verbose>3.and.A%nrows<200) then 
+            write(stream,*)myrank,'*** inner OL with: ',M%nghbrs(k),' is:',&
+              M%ol_inner(k)%inds(1:M%ol_inner(k)%ninds)
+          endif
+          M%ol_solve(k)%ninds=M%ol_outer(k)%ninds+&
+                                ol_outer_on(k)%ninds+&
+                              M%ol_inner(k)%ninds
+          allocate(M%ol_solve(k)%inds(M%ol_solve(k)%ninds))
+          j=M%ol_outer(k)%ninds
+          M%ol_solve(k)%inds(1:j)=M%ol_outer(k)%inds(:)
+          jj=j+ol_outer_on(k)%ninds
+          M%ol_solve(k)%inds(j+1:jj)=ol_outer_on(k)%inds(:)
+          deallocate(ol_outer_on(k)%inds)
+          j=jj+M%ol_inner(k)%ninds
+          M%ol_solve(k)%inds(jj+1:j)=M%ol_inner(k)%inds(:)
+          call quicksort(M%ol_solve(k)%ninds,M%ol_solve(k)%inds)
+          if (sctls%verbose>3.and.A%nrows<200) then 
+            write(stream,*)myrank,'*** solve OL with: ',M%nghbrs(k),' is:',&
+              M%ol_solve(k)%inds(1:M%ol_solve(k)%ninds)
+          endif
         endif
         do i=frontstart(-1),frontend(-lastlayer)
           node=front(i)
@@ -2569,7 +3319,9 @@ endif
     elseif (A%arrange_type==D_SpMtx_ARRNG_COLS) then
       !TODO
     endif
-   
+    deallocate(ol_outer_on)
+    ! note: actually, interf/inner may contain also interf/receive_nodes
+    !         connections 
     !  --------- ----------
     ! | interf. | interf./ |
     ! |       11| inner  12|
@@ -2588,6 +3340,7 @@ endif
     A%mtx_bbe(2,2)=0
     a_ghostsz=0
     maxleadind=0
+    ol0connfrom_outside=0
     if (A%arrange_type==D_SpMtx_ARRNG_ROWS) then
       ! start with the inner ones...
       do i=clrstarts(clr),clrstarts(clr+1)-1
@@ -2601,7 +3354,17 @@ endif
                 maxleadind=node
               endif
               A%mtx_bbe(1,1)=A%mtx_bbe(1,1)+1
-            else
+            elseif (M%eptnmap(neigh)==clr) then
+              if (node>maxleadind) then
+                maxleadind=node
+              endif
+              A%mtx_bbe(1,2)=A%mtx_bbe(1,2)+1
+            elseif (ol==0) then ! this must be connection from outside
+              if (node>maxleadind) then
+                maxleadind=node
+              endif
+              ol0connfrom_outside=ol0connfrom_outside+1
+            else 
               if (node>maxleadind) then
                 maxleadind=node
               endif
@@ -2616,6 +3379,7 @@ endif
                 maxleadind=node
               endif
               A%mtx_bbe(2,1)=A%mtx_bbe(2,1)+1
+            !!elseif (M%eptnmap(neigh)==clr) then !!!! siin
             else
               if (node>maxleadind) then
                 maxleadind=node
@@ -2633,7 +3397,9 @@ endif
           !   within the domain with overlap)!
           do j=A%M_bound(node),A%M_bound(node+1)-1
             neigh=A%indj(j)
+            !if (ol>0.or.M%eptnmap(neigh)==clr) then
             if (ol>0) then
+              !!if (onfront(neigh)>numprocs) then 
               if (onfront(neigh)/=0) then 
                 a_ghostsz=a_ghostsz+1
               endif
@@ -2665,7 +3431,15 @@ endif
     A%mtx_bbe(2,1)=A%mtx_bbs(2,1)+A%mtx_bbe(2,1)-1
     A%mtx_bbs(2,2)=A%mtx_bbe(2,1)+1 
     A%mtx_bbe(2,2)=A%mtx_bbs(2,2)+A%mtx_bbe(2,2)-1
-    nnz=A%mtx_bbe(2,2)
+    if (ol==0) then ! We put the additional part of the matrix that does not
+                    !   participate in solves but still in the Ax-operation between 
+                    !   A%mtx_bbe(2,2) and A%nnz
+      nnz=A%mtx_bbe(2,2)+ol0connfrom_outside
+      ol0cfo=A%mtx_bbe(2,2)
+    else
+      nnz=A%mtx_bbe(2,2)
+      a_gsz=0 
+    endif
     bbe(1,1)=A%mtx_bbs(1,1)-1
     bbe(1,2)=A%mtx_bbs(1,2)-1
     bbe(2,1)=A%mtx_bbs(2,1)-1
@@ -2679,7 +3453,6 @@ endif
     if (ol>0) then
       A_ghost=SpMtx_newInit(a_ghostsz)
     endif     
-    a_gsz=0 
               
     if (A%arrange_type==D_SpMtx_ARRNG_ROWS) then
       ! start with the inner ones...
@@ -2695,6 +3468,18 @@ endif
               itmp(bbe(1,1))=node
               jtmp(bbe(1,1))=neigh
               rtmp(bbe(1,1))=A%val(j)
+            elseif (M%eptnmap(neigh)==clr) then !!!! siin
+              bbe(1,2)=bbe(1,2)+1
+              btmp(node+1)=btmp(node+1)+1
+              itmp(bbe(1,2))=node
+              jtmp(bbe(1,2))=neigh
+              rtmp(bbe(1,2))=A%val(j)
+            elseif (ol==0) then ! this must be connection from outside
+              ol0cfo=ol0cfo+1
+              btmp(node+1)=btmp(node+1)+1
+              itmp(ol0cfo)=node
+              jtmp(ol0cfo)=neigh
+              rtmp(ol0cfo)=A%val(j)
             else
               bbe(1,2)=bbe(1,2)+1
               btmp(node+1)=btmp(node+1)+1
@@ -2712,7 +3497,7 @@ endif
               itmp(bbe(2,1))=node
               jtmp(bbe(2,1))=neigh
               rtmp(bbe(2,1))=A%val(j)
-            else
+            elseif (M%eptnmap(neigh)==clr) then !!!! siin
               bbe(2,2)=bbe(2,2)+1
               btmp(node+1)=btmp(node+1)+1
               itmp(bbe(2,2))=node
@@ -2730,13 +3515,23 @@ endif
           !   within the domain with overlap)!
           do j=A%M_bound(node),A%M_bound(node+1)-1
             neigh=A%indj(j)
+            !!!!if (ol>0.or.M%eptnmap(neigh)==clr) then
             if (ol>0) then
+              !!if (onfront(neigh)>numprocs) then
               if (onfront(neigh)/=0) then
                 a_gsz=a_gsz+1
                 A_ghost%indi(a_gsz)=node
                 A_ghost%indj(a_gsz)=neigh
                 A_ghost%val(a_gsz)=A%val(j)
               endif
+            !elseif (M%eptnmap(neigh)==clr) then
+            !  if (onfront(neigh)/=0) then
+            !    a_gsz=a_gsz+1
+            !    btmp(node+1)=btmp(node+1)+1
+            !    itmp(a_gsz)=node
+            !    jtmp(a_gsz)=neigh
+            !    rtmp(a_gsz)=A%val(j)
+            !  endif
             endif
           enddo
         else ! ordinary node
@@ -2784,9 +3579,16 @@ endif
       write(stream,*)'bbe(2,2),A%mtx_bbe(2,2):',bbe(2,2),A%mtx_bbe(2,2)
       call DOUG_abort('SpMtx_build_ghost -- bbe(2,2) wrong!',67)
     endif
-    if (a_gsz/=a_ghostsz) then
-      write(stream,*)'a_gsz,a_ghostsz:',a_gsz,a_ghostsz
-      call DOUG_abort('SpMtx_build_ghost -- a_gsz wrong!',67)
+    if (ol==0) then
+      if (ol0cfo/=ol0connfrom_outside+A%mtx_bbe(2,2)) then
+        write(stream,*)'ol0cfo,ol0connfrom_outside+A%mtx_bbe(2,2):',a_gsz,a_ghostsz+A%mtx_bbe(2,2)
+        call DOUG_abort('SpMtx_build_ghost -- ol0cfo!',67)
+      endif
+    else
+      if (a_gsz/=a_ghostsz) then
+        write(stream,*)'a_gsz,a_ghostsz:',a_gsz,a_ghostsz
+        call DOUG_abort('SpMtx_build_ghost -- a_gsz wrong!',67)
+      endif
     endif
 
     ! Resize actually the matrix:
@@ -2824,25 +3626,7 @@ endif
     deallocate(onfront)
     deallocate(front)
     deallocate(neighmap)
-    !!testing quicksort...
-    !if (myrank==0) then
-    !  j=10000000
-    !  i=16
-    !  do while(i<=j)
-    !    allocate(front(i))
-    !    allocate(rtmp(i))
-    !    call random_number(rtmp)
-    !    rtmp=i*rtmp
-    !    !write(stream,*)'rtmp=',rtmp,int(rtmp)
-    !    front=int(rtmp)
-    !    call quicksort(i,front)
-    !    write(stream,*)i,' sorted=',front(1:5),front(i-5:i)
-    !    deallocate(rtmp)
-    !    deallocate(front)
-    !    i=i*2
-    !  enddo
-    !endif
-  end subroutine SpMtx_build_ghost
+  end subroutine SpMtx_build_ghost_v01
 
   subroutine SpMtx_buildAdjncy(A,nedges,xadj,adjncy)
     use globals, only : stream, D_MSGLVL

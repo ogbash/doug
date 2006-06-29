@@ -345,32 +345,59 @@ contains
     ! Workers
     else
        ! nlf
-       call MPI_ISEND(M%nlf, 1, MPI_INTEGER, &
+       !!call MPI_ISEND(M%nlf, 1, MPI_INTEGER, &
+       call MPI_ISEND(M%ninner, 1, MPI_INTEGER, &
             root, D_TAG_NLF, MPI_COMM_WORLD, request, ierr)
        ! Freedoms' global indexes
-       call MPI_ISEND(M%lg_fmap, M%nlf, MPI_INTEGER, &
+       !!call MPI_ISEND(M%lg_fmap, M%nlf, MPI_INTEGER, &
+       call MPI_ISEND(M%lg_fmap, M%ninner, MPI_INTEGER, &
             root, D_TAG_FMAP, MPI_COMM_WORLD, request, ierr)
        ! Local vector to send
-       call MPI_ISEND(xl, M%nlf, MPI_fkind, &
+       !!call MPI_ISEND(xl, M%nlf, MPI_fkind, &
+       call MPI_ISEND(xl, M%ninner, MPI_fkind, &
             root, D_TAG_FDATA, MPI_COMM_WORLD, request, ierr)
        call MPI_WAIT(request,status,ierr)
        !write(stream,*) 'WARNING: must wait for this send request to complete!'
     end if
   end subroutine Vect_Gather
 
-  subroutine Print_Glob_Vect(x,M,text)
+  subroutine Print_Glob_Vect(x,M,text,rows)
     float(kind=rk),dimension(:),intent(in) :: x
     type(Mesh),intent(in) :: M ! Mesh
     character*(*),intent(in) :: text
+    logical,intent(in),optional :: rows
+    logical :: rw
     float(kind=rk),dimension(:),pointer :: x_glob
-    if (ismaster()) then
-      allocate(x_glob(M%ngf))
-    end if
+    integer :: i,ierr
+    allocate(x_glob(M%ngf))
     call Vect_Gather(x,x_glob,M)
+    if (present(rows).and.rows) then
+      rw=.true.
+    else
+      rw=.false.
+    endif
     if (ismaster()) then
-      write(stream,*) text,x_glob
-      deallocate(x_glob)
+      if (rw) then
+        write(stream,*) text
+        do i=1,M%ngf
+          write(stream,*)i,':',x_glob(i)
+        enddo
+      else
+        write(stream,*) text,x_glob
+      endif
     end if
+    ! Perform also integrity check on the overlap:
+    call MPI_BCAST(x_glob,M%ngf,MPI_fkind,D_MASTER,MPI_COMM_WORLD,ierr)
+    do i=1,size(M%gl_fmap)
+      if (M%gl_fmap(i)/=0) then
+        if (abs(x(M%gl_fmap(i))-x_glob(i))>1d-14) then
+          write (*,*)'!!!!!### value mismatch on subd.',myrank,' globind=',i,&
+          ' loc:',x(M%gl_fmap(i)),' glob:',x_glob(i)
+          !call DOUG_abort('value mismatch'i,36)
+        endif
+      endif
+    enddo
+    deallocate(x_glob)
   end subroutine Print_Glob_Vect
 
   !--------------------------------------------------------------------
