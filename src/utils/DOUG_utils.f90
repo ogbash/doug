@@ -857,6 +857,13 @@ contains
           read(word2, '(l1)') sctls%symmnumeric
        endif
 
+    elseif (ctl_num.eq.DCTL_interpolation_type) then
+       if (sctls%interpolation_type.ne.-1) then
+          write(6,200) trim(word1), trim(word2)
+       else
+          read(word2, '(i10)') sctls%interpolation_type
+       endif
+
     ! end: SHARED DATA
 
     ! begin: MASTER DATA
@@ -946,6 +953,38 @@ contains
           write(6,200) trim(word1), trim(word2)
        else
           read(word2, '(i10)') mctls%solution_format
+       endif
+    
+    ! maxcie
+    elseif (ctl_num.eq.DCTL_maxcie) then
+       if (mctls%maxcie.ne.-1) then
+          write(6,200) trim(word1), trim(word2)
+       else
+          read(word2, '(i10)') mctls%maxcie
+       endif
+
+    ! maxnd
+    elseif (ctl_num.eq.DCTL_maxnd) then
+       if (mctls%maxnd.ne.-1) then
+          write(6,200) trim(word1), trim(word2)
+       else
+          read(word2, '(i10)') mctls%maxnd
+       endif
+
+    ! cutbal
+    elseif (ctl_num.eq.DCTL_cutbal) then
+       if (mctls%cutbal.ne.-1) then
+          write(6,200) trim(word1), trim(word2)
+       else
+          read(word2, '(i10)') mctls%cutbal
+       endif
+
+    ! center_type
+    elseif (ctl_num.eq.DCTL_center_type) then
+       if (mctls%center_type.ne.-1) then
+          write(6,200) trim(word1), trim(word2)
+       else
+          read(word2, '(i10)') mctls%center_type
        endif
 
     ! end: MASTER DATA
@@ -1067,6 +1106,10 @@ contains
     write(stream,fmti) &
          ctl_words(DCTL_initial_guess) &
          (1:length(ctl_words(DCTL_initial_guess))), sctls%initial_guess
+    write(stream,fmti) &
+         ctl_words(DCTL_interpolation_type)&
+             (1:length(ctl_words(DCTL_interpolation_type))), &
+         sctls%interpolation_type
     call flush(stream)
 
   end subroutine SharedCtrlData_print
@@ -1145,6 +1188,20 @@ contains
            ctl_words(DCTL_start_vec_file) &
            (1:length(ctl_words(DCTL_start_vec_file))), &
            trim(mctls%start_vec_file)
+
+      write(stream,fmti) &
+         ctl_words(DCTL_maxcie) &
+         (1:length(ctl_words(DCTL_maxcie))), mctls%maxcie
+      write(stream,fmti) &
+         ctl_words(DCTL_maxnd) &
+         (1:length(ctl_words(DCTL_maxnd))), mctls%maxnd
+      write(stream,fmti) &
+         ctl_words(DCTL_cutbal) &
+         (1:length(ctl_words(DCTL_cutbal))), mctls%cutbal
+
+
+
+
     endif
     call flush(stream)
 
@@ -1174,7 +1231,7 @@ contains
     use globals, only: sctls, D_MPI_SCTLS_TYPE, MPI_rkind
     implicit none
 
-    integer, parameter          :: nblocks = 24  ! Number of type components
+    integer, parameter          :: nblocks = 25  ! Number of type components
     integer, dimension(nblocks) :: types,        &
                                    blocklengths, &
                                    addresses,    &
@@ -1189,10 +1246,11 @@ contains
          MPI_INTEGER, &
          MPI_INTEGER, MPI_rkind, MPI_rkind, MPI_rkind, &
          MPI_INTEGER, MPI_LOGICAL, &
-         MPI_LOGICAL/)
+         MPI_LOGICAL, &
+         MPI_INTEGER/)
 
     blocklengths = (/1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, &
-                     1, 1, 1, 1, 1, 1 /)
+                     1, 1, 1, 1, 1, 1, 1 /)
 
     call MPI_ADDRESS(sctls%solver,           addresses( 1), ierr)
     call MPI_ADDRESS(sctls%method,           addresses( 2), ierr)
@@ -1218,6 +1276,7 @@ contains
     call MPI_ADDRESS(sctls%solve_maxiters,   addresses(22), ierr)
     call MPI_ADDRESS(sctls%symmstruct,       addresses(23), ierr)
     call MPI_ADDRESS(sctls%symmnumeric,      addresses(24), ierr)
+    call MPI_ADDRESS(sctls%interpolation_type, addresses(25), ierr)
 
     do i = 1,nblocks
        displacements(i) = addresses(i) - addresses(1)

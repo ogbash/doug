@@ -7,16 +7,17 @@ module CoarseCreateRestrict
 #define float real
 #endif
     ! For now
-    real(kind=xyzk), parameter :: eps=0.00000001_xyzk
     real(kind=xyzk), parameter :: invdistpow=0.5_xyzk
 
 contains
 
     !! Create the Restriction matrix
-    subroutine CreateRestrict(C,M,CGC)
+    subroutine CreateRestrict(C,M)
         use CoarseGrid_class
+        use GeomInterp
         use SpMtx_class
         use CoarseMtx_mod
+        use globals
  
         implicit none
 
@@ -24,28 +25,27 @@ contains
         type(CoarseGrid), intent(inout) :: C
         !! Fine Mesh for which to build
         type(Mesh), intent(in) :: M
-        !! Coarse Grid control data
-        type(CoarseGridCtrl), intent(in) :: CGC 
   
         ! We can add a choice here to do different things
 
-        select case(CGC%interpolation_type)
+        select case(sctls%interpolation_type)
         
         case (COARSE_INTERPOLATION_INVDIST)
-        call CreatePathRestrict(C,M,Restrict,CGC,genNoData,&
+        call CreatePathRestrict(C,M,Restrict,genNoData,&
                                 getInvDistVals,getSizeOne)
 
         case (COARSE_INTERPOLATION_RANDOM)
-        call CreatePathRestrict(C,M,Restrict,CGC,genNoData,&
+        call CreatePathRestrict(C,M,Restrict,genNoData,&
                                 getRandomVals,getSizeOne)
  
         case (COARSE_INTERPOLATION_KRIGING)
-        call CreatePathRestrict(C,M,Restrict,CGC,genKrigingData,&
+        call CreatePathRestrict(C,M,Restrict,genKrigingData,&
                                 getKrigingVals,getKrigingSize)
                                 
         case (COARSE_INTERPOLATION_MULTLIN)
-        call CreatePathRestrict(C,M,Restrict,CGC,genMultiLinearData,&
-                                getMultiLinearVals,getMultiLinearSize)
+        !call CreatePathRestrict(C,M,Restrict,genMultiLinearData,&
+        !                        getMultiLinearVals,getMultiLinearSize)
+        call CreateGeneralRestrict(C,M,Restrict,CalcMlinearInterp)
 
         end select
 
@@ -53,11 +53,12 @@ contains
 
     !! Calculates the node prolongation matrix taking the coarse element path
     !!   down to the fine node. Later rebuilds it into a freedom restrict mat.
-    subroutine CreatePathRestrict(C,M,R,CGC,gendata,getvals,getsize)
+    subroutine CreatePathRestrict(C,M,R,gendata,getvals,getsize)
         use RealKind
         use CoarseGrid_class
         use SpMtx_class
-        use globals, only:stream
+        use SpMtx_util
+        use globals
         
         implicit none
 
@@ -67,8 +68,6 @@ contains
         type(Mesh), intent(in) :: M
         !! The restriction matrix to be created
         type(SpMtx), intent(out) :: R
-
-        type(CoarseGridCtrl), intent(in) :: CGC
   
         !! gendata is used to create aux data of size getsize 
         !!  for interpolation from points in pts
@@ -133,7 +132,7 @@ contains
         
         ! Increment by initial grid
         do i=1, C%elnum
-            cnt=tnsd*C%els(i)%nfs
+            cnt=cnt+tnsd*C%els(i)%nfs
         enddo
 
         ! Increment by refinements
@@ -197,8 +196,10 @@ contains
                     pn=C%elmap(j) ! The index of the fine node
 
                     ! Evaluate the functions in the point
-                    call getvals(pts,tnsd,M%nsd,raux,iaux,M%coords(:,pn), &
+                    call getvals(pts,tnsd,M%nsd,raux,iaux,M%lcoords(:,pn), &
                              NP%val(NP%M_bound(pn):NP%M_bound(pn+1)-1))
+
+!                    write(stream,*) "NP",pn,M%lnnode,NP%M_bound(pn),NP%nnz
                 
                     ! Set appropriate indi and indj
                     NP%indi(NP%M_bound(pn):NP%M_bound(pn+1)-1)=pn
@@ -238,6 +239,8 @@ contains
         enddo
 
         deallocate(raux,iaux)
+        
+!        call SpMtx_printRaw(NP)
 
         !****************************************************
         ! Create the reverse of freemap
@@ -330,6 +333,7 @@ contains
     !! Get the interpolation values by using inverse distances method
     subroutine getInvDistVals(cpts,csz,nsd,rinp,iinp,pt,outp)
         use RealKind
+        use globals, only: eps
         real(kind=xyzk), intent(in) :: cpts(:,:) ! pts(nsd,csz)
         integer :: csz, nsd
         real(kind=xyzk), intent(in) :: rinp(:) ! rinp(1)
@@ -490,13 +494,13 @@ contains
         if (nsd==2) then
            aux(1)=product(pt)     ! 1
            aux(2:3)= -aux(1)/pt   ! x/y
-           aux(4)=1.0_xyzk          ! xy
+           aux(4)=1.0_xyzk        ! xy
         ! Trilinear interpolation
         else if (nsd==3) then
            aux(1)=product(pt)     ! 1
            aux(2:4)= -aux(1)/pt   ! x/y/z
            aux(5:7)=pt            ! yz/xz/xy
-           aux(8)=-1.0_xyzk         ! xyz
+           aux(8)=-1.0_xyzk       ! xyz
         endif
 
         ! Find the factor to get the correct sign
@@ -630,5 +634,69 @@ contains
         call random_number(outp(1:csz))
         
     end subroutine getRandomVals
+
+    !! Strip the restriction matrix
+    !! useful for multiple processor case, where 
+    !! the stripped variant is used for vector restrict/interpolate
+    subroutine stripRestrict(M, R, Ra)
+        use Mesh_class
+        use SpMtx_class
+        use globals, only : stream
+
+        type(Mesh), intent(in) :: M
+        type(SpMtx), intent(inout) :: R
+        type(SpMtx), intent(out) :: Ra
+
+        integer :: i,j,cnt
+        integer :: unq(M%nlf)
+
+        ! Calculate unq (has 1 if that node is "unique"
+        ! a.k.a. this is the lowest ranked process which has it)
+        unq=0; cnt=0
+        do i=1,M%nell
+           if (M%eptnmap(i)<=myrank) then ! lower ranked
+           do j=1,M%nfrelt(i)  
+                if (M%gl_fmap(M%mhead(j,i))/=0) & ! non-unique
+                        unq(M%gl_fmap(M%mhead(j,i)))=-1
+           enddo
+           elseif (M%eptnmap(i)==myrank+1) then ! my nodes
+           do j=1,M%nfrelt(i)
+                if (unq(M%gl_fmap(M%mhead(j,i)))==0) & ! untagged
+                        unq(M%gl_fmap(M%mhead(j,i)))=1
+           enddo
+           endif
+        enddo
+        
+        ! Count the nnz in the stripped restrict matrix
+        cnt=0
+        if (R%arrange_type==D_SpMtx_ARRNG_COLS) then ! can use M_bound
+            do i=1,R%ncols
+                if (unq(i)==1) cnt=cnt+R%M_bound(i+1)-R%M_bound(i)
+            enddo
+        else ! count the matrix elements one by one
+            do i=1,R%nnz
+                if (unq(R%indj(i))==1) cnt=cnt+1
+            enddo
+        endif
+
+        ! Initalize Ra       
+        Ra=SpMtx_newInit(nnz=cnt,nrows=R%nrows,ncols=R%ncols)
+
+        ! if we have something to actually do
+        if (cnt/=0) then
+            ! Fille Ra with its elements
+            j=1
+            do i=1,R%nnz
+                if (unq(R%indj(i))==1) then ! it stays
+                    Ra%indi(j)=R%indi(i)
+                    Ra%indj(j)=R%indj(i)
+                    Ra%val(j)=R%val(i)
+                    j=j+1
+!                else 
+!                    write(stream,*) M%lg_fmap(R%indj(i)),"not unique"
+                endif
+            enddo
+        endif
+    end subroutine stripRestrict
  
 end module CoarseCreateRestrict

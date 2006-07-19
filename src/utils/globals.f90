@@ -13,6 +13,8 @@ module globals
 
   include 'mpif.h'
 
+  real(kind=xyzk), parameter :: eps=0.000000001_xyzk
+
   ! Stdout control
   integer :: D_MSGLVL   = 2 ! messaging level
   integer :: D_DEBUGLVL = 0 ! debugging output
@@ -75,6 +77,8 @@ module globals
      integer       :: solve_maxiters   = -1
      logical       :: symmstruct       = .false.
      logical       :: symmnumeric      = .false.
+
+     integer       :: interpolation_type  = -1 ! bilinear
   end type SharedCtrlData
   !
   ! global variable:
@@ -99,6 +103,12 @@ module globals
      character(L) :: solution_file      = ''
      integer      :: start_vec_type     = -1
      integer      :: solution_format    = -1
+
+     ! Geom. Coarse grid parameters
+     integer       :: maxcie           = -1
+     integer       :: maxnd            = -1
+     integer       :: cutbal           = -1
+     integer       :: center_type      = -1
   end type MasterCtrlData
   !
   ! global variable:

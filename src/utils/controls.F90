@@ -1,7 +1,7 @@
 ! Definitions for control file parameters
 
 !integer, parameter :: DCTL_NWORDS = 29
-integer, parameter :: DCTL_NWORDS = 35
+integer, parameter :: DCTL_NWORDS = 40
 character*(50)     :: ctl_words(DCTL_NWORDS)
 
 integer, parameter ::  &
@@ -39,7 +39,12 @@ DCTL_start_vec_type     = 31, &
 DCTL_start_vec_file     = 32, &
 DCTL_symmstruct         = 33, &
 DCTL_symmnumeric        = 34, &
-DCTL_solve_maxiters     = 35
+DCTL_solve_maxiters     = 35, &
+DCTL_maxcie             = 36, &
+DCTL_maxnd              = 37, &
+DCTL_cutbal             = 38, &
+DCTL_center_type        = 39, &
+DCTL_interpolation_type = 40
 
 !!$DCTL_matrix_file           =
 !!$DCTL_rhs_file              =
@@ -75,6 +80,11 @@ ctl_words(DCTL_freedom_mask_file)  = 'freedom_mask_file'  ! block system
 ctl_words(DCTL_start_vec_type)     = 'start_vec_type'
 ctl_words(DCTL_start_vec_file)     = 'start_vec_file'     ! initial estimate
 
+ctl_words(DCTL_maxcie)             = 'maxcie'   ! Max num of initial coarse els
+ctl_words(DCTL_maxnd)              = 'maxnd'    ! Max num of coarse nodes
+ctl_words(DCTL_cutbal)             = 'cutbal'   ! Max num of nodes per coarse el
+ctl_words(DCTL_center_type)        = 'center_type' ! Center choosing algorithm
+
 !!$ctl_words(DCTL_mass_matrix_file)      = 'mass_matrix_file'
 !!$ctl_words(DCTL_skew_symm_matrix_file) = 'skew-symm_matrix_file'
 !!$ctl_words(DCTL_matrix_file)           = 'matrix_file' ! fdata ! assembled
@@ -106,6 +116,8 @@ ctl_words(DCTL_initial_guess)    = 'initial_guess'
 ctl_words(DCTL_symmstruct)       = 'symmstruct'
 ctl_words(DCTL_symmnumeric)      = 'symmnumeric'
 ctl_words(DCTL_solve_maxiters)   = 'solve_maxiters'
+
+ctl_words(DCTL_interpolation_type) = 'interpolation_type'
 
 !!$ctl_words(23)='sigma'
 !!$ctl_words(24)='theta'

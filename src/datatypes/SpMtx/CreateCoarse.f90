@@ -1,15 +1,16 @@
 module CreateCoarseGrid
 use RealKind
 
-real(kind=xyzk), parameter :: meanpow=1.0_xyzk ! Arithmetic
+    real(kind=xyzk), parameter :: meanpow=1.0_xyzk
 
+    private :: CreateHangingNodes, CreateCoarseMesh, CreateFreemap
 contains
 
 !! Create the Coarse Mesh 
-subroutine CreateCoarse(M,C,CGC)
+subroutine CreateCoarse(M,C)
         use RealKind
         use CoarseGrid_class
-        use globals, only: stream
+        use globals 
         
         implicit none
 
@@ -17,29 +18,28 @@ subroutine CreateCoarse(M,C,CGC)
         type(CoarseGrid), intent(inout) :: C
         !! The fine mesh for which it is made
         type(Mesh), intent(in) :: M
-        !! Restrictions and cutoff conditions
-        type(CoarseGridCtrl), intent(in) :: CGC
 
         ! Make a choice between different possibilities
-        selectcase(CGC%center_type)
+        selectcase(mctls%center_type)
             case (COARSE_CENTER_GEOM)
-                call CreateCoarseMesh(M,C,CGC, chooseGeometricCenter)
+                call CreateCoarseMesh(M,C,chooseGeometricCenter)
             case (COARSE_CENTER_MEAN)
-                call CreateCoarseMesh(M,C,CGC, chooseMeanCenter)
+                call CreateCoarseMesh(M,C,chooseMeanCenter)
             case (COARSE_CENTER_MERID)
-                call CreateCoarseMesh(M,C,CGC, chooseMeridianCenter) 
+                call CreateCoarseMesh(M,C,chooseMeridianCenter) 
             case default
                 ! some error message?
         endselect
 
         ! Create the freemap
-        call CreateCoarseFreemap(C,M,CGC)
+        call CreateCoarseFreemap(C,M)
 end subroutine CreateCoarse
 
 !! Create the Coarse Mesh structure (nodes, elements)
-subroutine CreateCoarseMesh(M, C, CGC, choosecenter)
+subroutine CreateCoarseMesh(M, C, choosecenter)
         use RealKind
         use CoarseGrid_class
+        use globals
         
         implicit none
 
@@ -47,11 +47,9 @@ subroutine CreateCoarseMesh(M, C, CGC, choosecenter)
         type(CoarseGrid), intent(inout) :: C
         !! The fine mesh for which it is made
         type(Mesh), intent(in) :: M
-        !! Restrictions and cutoff conditions
-        type(CoarseGridCtrl), intent(in) :: CGC
         !! The function to choose midpoints in subdividing coarse grid
         interface
-            subroutine ChooseCenter(pt,cpt,pts,elmap,el,refels,flags,h0)
+            subroutine ChooseCenter(pt,cpt,pts,elmap,el,refels,flags,minv,maxv)
                 use RealKind
                 use CoarseGrid_class
                 real(kind=xyzk), intent(out) :: pt(:) ! the new center to output
@@ -61,14 +59,14 @@ subroutine CreateCoarseMesh(M, C, CGC, choosecenter)
                 integer, intent(in) :: el ! index of the element being divided
                 type(RefinedElem), intent(in) :: refels(:) ! refined elements 
                 integer, intent(in) :: flags ! flags saying which dir to div
-                real(kind=xyzk), intent(in) :: h0(:) ! step sizes for coarse grid
+                real(kind=xyzk), intent(in) :: minv(:), maxv(:)  ! elem bounds
            end subroutine ChooseCenter
         end interface
         
-        real(kind=xyzk) :: minv(M%nsd), maxv(M%nsd)
+        real(kind=xyzk) :: minv(M%nsd), maxv(M%nsd), ln(M%nsd)
         
-        real(kind=xyzk) :: buf, multbuf, ln
-        integer :: i, j, k, nd, nb, refpt, par
+        real(kind=xyzk) :: buf, multbuf
+        integer :: i, j, k, nd, nb, refpt, hangpt, par
         integer ::  el, flags, pcnt
         
         integer :: counts(2**M%nsd), cnt
@@ -79,112 +77,68 @@ subroutine CreateCoarseMesh(M, C, CGC, choosecenter)
         type(RefinedElem), pointer :: cur, new
 
         logical :: inuse(M%nnode)
+        integer, allocatable :: nsame(:)
+        integer, allocatable :: ctiremap(:)
 
         ! Allocate memory for the basic structures 
         call CoarseGrid_allocate(C,M%nsd)
-
-        ! Init the varibles for inital grid generation
-        C%h0=0.0_xyzk
-        C%maxvg=M%coords(:,M%freemap(M%mhead(1,1)))
-        C%minvg=C%maxvg
 
         !***********************************************************
         ! Find the minimum and maximum coordinates
         !***********************************************************
 
-        do i=1,M%nell
-            nd=M%freemap(M%mhead(1,i))
-             
-            ! Find the local minimum and maximum for this element
-            minv=M%coords(:,nd)
-            maxv=minv
-
-            do j=2,M%nfrelt(i)
-                nd=M%freemap(M%mhead(j,i))
-
-                do k=1,M%nsd
-                    if (maxv(k)<M%coords(k,nd)) then; maxv(k)=M%coords(k,nd)
-                    else; if (minv(k)>M%coords(k,nd)) minv(k)=M%coords(k,nd)
-                    endif
-                enddo
-            enddo 
-
-            ! Adjust the global mins/maxs as appropriate
-            do j=1,M%nsd
-                ! This is that my idea - use average width instead of max
-                C%h0(j)=C%h0(j)+maxv(j)-minv(j)
-                !if ( maxv(j)-minv(j) > C%h0(j) ) C%h0(j)=maxv(j)-minv(j)
-                if ( maxv(j) > C%maxvg(j) ) C%maxvg(j)=maxv(j)
-                if ( minv(j) < C%minvg(j) ) C%minvg(j)=minv(j)
-            enddo
+        ! Find which nodes we actually need to consider
+        inuse=.false.
+        do i=1,M%ngf
+           inuse(M%freemap(i))=.true.
         enddo
 
-        !***********************************************************
-        ! Stretch the mins and maxes a little outward
-        !***********************************************************
-        cnt=0; multbuf=1.0_xyzk
         do i=1,M%nsd
-            C%h0(i)=C%h0(i)/M%nell ! This is that my idea again
-            
-            ln=(C%maxvg(i)-C%minvg(i))
-            C%minvg(i)=C%minvg(i)-ln*0.0005_xyzk
-            C%maxvg(i)=C%maxvg(i)+ln*0.0005_xyzk
+            ! Find the extremes
+            C%minvg(i)=minval(M%coords(i,:),MASK=inuse)
+            C%maxvg(i)=maxval(M%coords(i,:),MASK=inuse)
 
-            if (C%h0(i) == 0) then; C%h0(i)=ln/100.0_xyzk ! one-hundredth
-            else; C%h0(i)=C%h0(i)*1.02_xyzk; endif
-
-            ! Normalize the h0-s that are over the full width of the axis
-            if ( ln < C%h0(i) ) then
-                C%h0(i)=ln
-            endif
+            ! And stretch them a little outward
+            ln(i)=(C%maxvg(i)-C%minvg(i))
+            C%minvg(i)=C%minvg(i)-ln(i)*0.005_xyzk
+            C%maxvg(i)=C%maxvg(i)+ln(i)*0.005_xyzk
+            ln(i)=ln(i)*1.01_xyzk
         enddo
-
-
+ 
         !***********************************************************
         ! Find the appropriate size for the initial grid elements
         !***********************************************************
 
-        ! A small heuristic to reduce the number of iterations next loop makes
-        ! prod((maxvg-minvg)/(x*h0))=elnum<maxinit => x > (......)^(1/nsd)
-        ! In reality, the inside of the prod is floored but disregard that atm
-        C%h0=C%h0*((product((C%maxvg-C%minvg)/C%h0)/CGC%maxinit)**(1/M%nsd))
-        
-        ! Make the grid elements bigger
-        do
-            ! Count the number of elements and nodes in the Coarse Grid
-            C%ncti=1; C%elnum=1
-            do i=1,M%nsd
-                C%nc(i)=anint((C%maxvg(i)-C%minvg(i))/C%h0(i))+1
-                C%ncti=C%ncti*C%nc(i)
-                C%elnum=C%elnum*(C%nc(i)-1)
-            enddo
+        ! Find how many to use
+        ! Should give quite good approximations to squares for coarse elements
+        ! (Currently, C%nc(i) means number of elements in that direction)
+        ! Uses formulae derived by solving prod(C%nc(:))=mctls%maxcie
+        ! and C%nc(i)/C%nc(j) = ln(i)/ln(j) for i.neq.j; 1<=i,j<=M%nsd
+        ! and then truncating C%nc(i) thus obtaining whole number ratios
+        if (M%nsd==2) then
+            C%nc(1)=aint((mctls%maxcie*(ln(1)/ln(2)))**(1/2.0_xyzk )) 
+            C%nc(2)=aint((mctls%maxcie*(ln(2)/ln(1)))**(1/2.0_xyzk ))
+        else if (M%nsd==3) then
+            C%nc(1)=aint((mctls%maxcie*ln(1)*ln(1)/(ln(2)*ln(3)) )**(1/3_xyzk ))
+            C%nc(2)=aint((mctls%maxcie*ln(2)*ln(2)/(ln(1)*ln(3)) )**(1/3_xyzk ))
+            C%nc(3)=aint((mctls%maxcie*ln(3)*ln(3)/(ln(1)*ln(2)) )**(1/3_xyzk ))
+        endif
+        C%nc=max(C%nc,1)
+!        write(stream,*) "NC: ",C%nc
+        C%h0=ln/C%nc
+        C%elnum=product(C%nc)
 
-            ! Check if we are within the bounds already
-            if (C%ncti <= CGC%maxinit .and. C%elnum <= CGC%maxce ) exit
-            
-            ! And increase the grid step sizes
-            do i=1,M%nsd
-                if (C%h0(i) < C%maxvg(i)-C%minvg(i)) then
-                   C%h0(i)=C%h0(i)*1.25_xyzk
-
-                   ln=C%maxvg(i)-C%minvg(i)
-
-                   if ( C%h0(i) > ln ) then 
-                       C%h0(i)=ln
-                   else 
-                       C%h0(i)=ln/aint(ln/C%h0(i))
-                   endif
-                endif
-            enddo
-        enddo
+        ! Change nc from number of elements to number of nodes
+        C%nc=C%nc+1
+        C%ncti=product(C%nc)
 
         !***********************************************************
         ! Create the actual initial grid
         !***********************************************************
 
-        ! Calcluate the number of refined elements and adjust nct accordingly
-        C%refnum=CGC%maxce-C%elnum
-        C%nct=C%ncti+C%refnum
+        ! Calcluate the number of refined elements and set nct
+        C%refnum=max(mctls%maxnd-C%ncti,0)
+        C%nct=max(mctls%maxnd,C%ncti)
  
         ! Allocate memory for the grid nodes and elements
         call CoarseGrid_allocate(C,M%nsd,nnode=M%nnode, &
@@ -249,18 +203,22 @@ subroutine CreateCoarseMesh(M, C, CGC, choosecenter)
         ! Create the elmap for quick retrieval of fine nodes
         !***********************************************************
 
-        ! Find which nodes we actually need to consider
-        inuse=.false.
-        do i=1,M%ngf
-           inuse(M%freemap(i))=.true.
-        enddo
- 
         ! Allocate nodes into the elements
         do nd=1,M%nnode
             if (inuse(nd)) then
                 ! Get the coarse element containing it
+!                write(stream,*) "H0: ",C%h0
+!                write(stream,*) "C: ",(M%coords(:,nd)-C%minvg)
+!                write(stream,*) "NC: ",C%nc
+
                 el=getelem(M%coords(:,nd),C%minvg,C%h0,C%nc)
+!                write(stream,*) "E:",el
                 C%els(el)%nfs=C%els(el)%nfs+1
+!                write(stream,*) "-------------------------------------"
+!                write(stream,*) "C: ",M%coords(:,nd)
+
+!                write(stream,*) "C1:", C%coords(:,C%els(el)%n(1))
+!                write(stream,*) "C2:", C%coords(:,C%els(el)%n(4))
             endif
         enddo
 
@@ -284,27 +242,30 @@ subroutine CreateCoarseMesh(M, C, CGC, choosecenter)
         enddo
 
         ! Init the priority queue (MaxHeap)
-        call BHeap_init(queue,CGC%maxce)
+        call BHeap_init(queue,C%elnum+C%refnum)
 
         ! Recalculate the counts and fill the priority queue
         C%els(1)%lbeg=1; buf=sqrt(real(M%nsd,kind=xyzk))
-        call BHeap_insert(queue,nint(buf*C%els(1)%nfs),1)
+        if (C%els(1)%nfs>0) call BHeap_insert(queue,nint(buf*C%els(1)%nfs),1)
         
         do i=2, C%elnum
-            C%els(i)%lbeg=C%els(i-1)%lbeg+C%els(i-1)%nfs
-            call BHeap_insert(queue,nint(buf*C%els(i)%nfs),i)
+           C%els(i)%lbeg=C%els(i-1)%lbeg+C%els(i-1)%nfs
+           if (C%els(i)%nfs>0) call BHeap_insert(queue,nint(buf*C%els(i)%nfs),i)
         enddo
         
         !***********************************************************
         ! Refine the initial elements
         !***********************************************************
+
+        ! Allocate the array nsame for a linking same level refinements
+        allocate(nsame(C%refnum))
        
-        ! Set the initial refinement to 0
-        C%mlvl=0
+        ! Set the initial mlvl to 1
+        C%mlvl=1
        
         ! Refine the elements while we can
-        refpt=1
-        do while (refpt<=C%refnum)
+        refpt=1; hangpt=C%nct
+        do while (C%ncti+refpt<=hangpt)!(refpt<=C%refnum)
             ! Get the least balanced element number and its imbalance
             el=BHeap_maxi(queue)
             pcnt=BHeap_maxv(queue)
@@ -313,7 +274,7 @@ subroutine CreateCoarseMesh(M, C, CGC, choosecenter)
             call BHeap_delmax(queue)
 
             ! If the largest imbalance is smaller than cutoff, stop refinement
-            if (pcnt<=CGC%cutbal) exit
+            if (pcnt<=2*mctls%cutbal) exit
 
             ! Otherwise refine
             if (el<=C%elnum) then ! We need to refine an initial grid element
@@ -323,13 +284,14 @@ subroutine CreateCoarseMesh(M, C, CGC, choosecenter)
                 ! Create the refined element
                 new%level=1
                 new%node=C%ncti+refpt
-                new%parent=-nd
+                new%parent=-el
                 new%next=-1
 
                 ! Set beg and end to cover the initial grid element
                 new%lbeg=C%els(el)%lbeg
                 new%lend=C%els(el)%lbeg+C%els(el)%nfs-1
                 new%lstop=new%lend
+                nsame(refpt)=0
 
                 ! Create the geometric center for passing to chooser
                 pt2=C%coords(:,C%els(el)%n(1))+C%h0/2.0_xyzk
@@ -337,7 +299,9 @@ subroutine CreateCoarseMesh(M, C, CGC, choosecenter)
                 ! Choose the appropriate center for the element
                 call ChooseCenter(pt, pt2, &
                         M%coords,C%elmap(new%lbeg:new%lend), &
-                        new%parent,C%refels,-1,C%h0)
+                        new%parent,C%refels,-1, &
+                        C%coords(:,C%els(el)%n(1)), & ! mins
+                        C%coords(:,C%els(el)%n(2**M%nsd))) ! maxs
      
                 ! Set it as center
                 C%coords(:, new%node ) = pt
@@ -350,8 +314,11 @@ subroutine CreateCoarseMesh(M, C, CGC, choosecenter)
                 call BHeap_insert(queue, &
                         C%els(el)%nfs,C%elnum+refpt)
 
-                ! Check if it is the first refinement
-                if (C%mlvl<1) C%mlvl=1
+                ! Try to create the associated hanging nodes
+                call CreateHangingNodes(refpt,hangpt,M%nsd,nsame, &
+                        C%coords(:,C%els(el)%n(1)), & ! mins
+                        C%coords(:,C%els(el)%n(2**M%nsd)),C) 
+! nullify(new%hnds)
 
                 refpt=refpt+1
             else ! We need to refine an already refined element
@@ -367,14 +334,14 @@ subroutine CreateCoarseMesh(M, C, CGC, choosecenter)
                 new%level=cur%level+1
                 new%node=C%ncti+refpt
                 new%parent=el
- 
-                ! Add the element to the refined linked list after its parent
-                new%next=cur%next
-                cur%next=refpt
-             
+            
                 ! Get the center and reach of the divisible element
                 pt=C%coords(:,cur%node)
-                
+                call getRefBounds(el,C,M%nsd,minv,maxv)
+!                write(stream,*) "-----------------------"
+!                write(stream,*) "Min: ",minv
+!                write(stream,*) "Max: ",maxv
+             
                 ! Count the surrounding nodes to see which to subdivide
                 counts=0
 
@@ -384,45 +351,32 @@ subroutine CreateCoarseMesh(M, C, CGC, choosecenter)
                     ! Therefor omitted
                     
                     pt2=M%coords(:,C%elmap(i))-pt
-                    
+
                     ! Determine which region the node belongs to
-                    flags=1
-                    if (pt2(1)<0) flags=flags+1
-                    if (pt2(2)<0) flags=flags+2
-                    if (M%nsd==3)  then
-                        if (pt2(3)<0) flags=flags+4
-                    endif
+                    flags=getDir(pt2,M%nsd)                    
                     counts(flags)=counts(flags)+1
                 enddo
 
                 ! Find which area has the most nodes and how many that is
-                flags=maxloc(counts,dim=1)-1
-                cnt=counts(flags+1)
+                flags=maxloc(counts,dim=1)
+                cnt=counts(flags)
 
-                ! Determine the relative signs
-                i=flags
-                h1=1.0_xyzk
-                if (i>=4) then 
-                    h1(3)=-1.0_xyzk; i=i-4;
-                endif
-                if (i>=2) then
-                    h1(2)=-1.0_xyzk; i=i-2;
-                endif
-                if (i>=1) h1(1)=-1.0_xyzk
-               
-                ! Now rearrange the parents fine node list
+                ! If the new node would be finer than the minimum, end refine
+                if (cnt<=mctls%cutbal) exit
+
+                ! Rearrange the parents fine node list
                 !  and take a part of it for the new node
-                ! Use the method generally used in QuickSort
+                ! Use the method generally used inside QuickSort
                 i=cur%lbeg; k=cur%lend
                 do
                     ! Find one in the first part that is in our region
                     do i=i,k  
-                    if (all( ( M%coords(:,C%elmap(i))-pt) * h1 >= 0._xyzk )) exit
+                    if (getDir(M%coords(:,C%elmap(i))-pt,M%nsd)==flags ) exit
                     enddo
 
                     ! Find one in the second part that is not
                     do k=k,i,-1  
-                    if (any( ( M%coords(:,C%elmap(k))-pt) * h1 <  0._xyzk )) exit
+                    if (getDir(M%coords(:,C%elmap(k))-pt,M%nsd)/=flags ) exit
                     enddo
 
                     ! If the ends meet, stop
@@ -436,14 +390,28 @@ subroutine CreateCoarseMesh(M, C, CGC, choosecenter)
                 new%lbeg=i
                 new%lend=cur%lend
                 new%lstop=new%lend
+ 
+                ! Add the element to the refined linked list after its parent
+                new%next=cur%next
+                cur%next=refpt
+
+                ! Add the element to the nsame linked list
+                nsame(refpt)=0
+                if (new%next>0) then
+                if (C%refels(new%next)%level==new%level) then
+                        nsame(refpt)=new%next
+                endif;  endif
                 
                 ! Cut it away from its previous owner
                 cur%lend=i-1
 
                 ! Choose the appropriate center for the element
+                pt2=M%coords(:,C%elmap(new%lbeg))
+                call adjustBounds(pt,pt2,M%nsd, &
+                                        minv,maxv)
                 call ChooseCenter(pt, C%coords(:,cur%node), &
                         M%coords,C%elmap(new%lbeg:new%lend), &
-                        el,C%refels,flags,C%h0)
+                        el,C%refels,flags,minv,maxv)
 
                 ! Set it as the center
                 C%coords(:,new%node)=pt
@@ -468,30 +436,84 @@ subroutine CreateCoarseMesh(M, C, CGC, choosecenter)
                 ! Update the max lvl if neccessary
                 if (C%mlvl<new%level) C%mlvl=new%level
 
+                ! And try to create the associated hanging nodes
+                call CreateHangingNodes(refpt,hangpt,M%nsd,nsame,minv,maxv,C)
+!         nullify(new%hnds)
+       
                 ! Increase the pointer
                 refpt=refpt+1
             endif
         enddo
         
-        ! Change the refined element count to reflect reality
-        C%refnum=refpt-1
+        ! Change the counts to reflect reality
+        C%refnum=refpt-1; C%nhn=C%nct-hangpt; C%nct=C%ncti+C%refnum+C%nhn
 
         ! Free the memory
-        call BHeap_destroy(queue)
+        call BHeap_destroy(queue); deallocate(nsame)
 
         !************************************************************
-        ! Pack the coordinates of the coarse grid elements together
+        ! Create a new coords array
         !************************************************************
-        
-        ! this is done here to avoid later remaping of freedoms
-        ! also calculates nrefs
-        
-        ! Allocate new coords array
+
+        ! Locate the unused initial grid nodes by marking all the used ones
+        allocate(ctiremap(0:C%ncti)); ctiremap=0
+        do i=1,C%elnum
+        if (C%els(i)%nfs/=0) then
+            do k=1,2**M%nsd
+                ctiremap(C%els(i)%n(k))=1
+            enddo
+        endif
+        enddo
+
+        ! Calculate new size of coords and allocate a new array for it
+        pcnt=count(ctiremap==0)-1; C%nct=C%nct-pcnt
         allocate(ncoords(M%nsd,C%nct))
 
-        ! Move the initial grid nodes as they are
-        ncoords(:,1:C%ncti)=C%coords(:,1:C%ncti)
+        if (pcnt>0) then
 
+            ! Create the remap and fill the initial node part of ncoords
+            do i=1,C%ncti
+            if (ctiremap(i)==1) then
+                ctiremap(i)=ctiremap(i-1)+1
+                ncoords(:,ctiremap(i))=C%coords(:,i)
+            else
+                ctiremap(i)=ctiremap(i-1)
+            endif
+            enddo
+
+            ! Change the initial element count accordingly
+            C%ncti=C%ncti-pcnt
+
+            ! Walk the elements and change their indices as required
+            do i=1,C%elnum
+            if (C%els(i)%nfs>0) then
+                C%els(i)%n=ctiremap(C%els(i)%n(:))
+            else
+                C%els(i)%n=0 ! To make it explicitly seem useless
+            endif
+            enddo
+
+       else
+            ! Simply copy initial nodes over
+            ncoords(:,1:C%ncti)=C%coords(:,1:C%ncti)
+        endif
+
+        ! Deallocate ctiremap
+        deallocate(ctiremap)
+
+        ! Move the hanging nodes over as they are
+        ncoords(:,C%nct-C%nhn+1:C%nct)=C%coords(:,hangpt+1:C%nct)
+
+        ! Walk the hanging nodes through if needed
+        if (hangpt/=C%ncti+C%refnum) then
+        pcnt=hangpt-(C%ncti+C%refnum)
+        do i=1,C%refnum
+            if (associated(C%refels(i)%hnds)) then
+                C%refels(i)%hnds=max(0,C%refels(i)%hnds-pcnt)
+            endif
+        enddo
+        endif
+ 
         ! Walk the initial grid elements and add their refined elems
         k=C%ncti+1
         do i=1, C%elnum
@@ -516,8 +538,127 @@ subroutine CreateCoarseMesh(M, C, CGC, choosecenter)
  
 end subroutine CreateCoarseMesh
 
+subroutine CreateHangingNodes(refpt,coordpt,nsd,nsame,minv,maxv,C)
+    use CoarseGrid_class
+    implicit none
+    integer, intent(in) :: refpt
+    integer, intent(inout) :: coordpt
+    integer, intent(in) :: nsd
+    integer, intent(in) :: nsame(:)
+    real(kind=xyzk),intent(in) :: minv(:),maxv(:)
+    type(CoarseGrid), intent(inout) :: C
+
+    integer :: i,j,k,nb
+    type(RefinedElem),pointer :: new, cur
+    real(kind=xyzk),pointer :: pt(:)
+    real(kind=xyzk) :: pt2(nsd)
+
+    new=>C%refels(refpt); pt=>C%coords(:,new%node)
+    k=1; nullify(new%hnds)
+    do i=1,nsd
+        !************************************
+        ! Positive direction
+        !************************************
+
+        ! Check if we have the room                    
+        if (C%ncti+refpt>=coordpt) exit
+
+        ! Locate the neighbour in positive direction
+        nb=getNeighbourEl(refpt,k,nsd,nsame,C)
+        !write(stream,*) i,"> ",refpt,nb
+                    
+        ! Create the new nodes coordinates
+        j=-1
+        if (nb>0) then ! use the average of the two centers
+            if (C%refels(nb)%level==new%level)then ! assuming we can
+               pt2=(C%coords(:,C%refels(nb)%node)+pt)/2.0_xyzk; j=nb
+            endif
+        else if (nb==0) then
+            j=0; pt2=pt ! and use the current element center
+        endif                     
+        pt2(i)=maxv(i) ! put it on the dividing line ( moreorless)
+                    
+        if (j>=0) then ! we do actually need to add one
+            ! Add the node to coordinates list
+            C%coords(:,coordpt)=pt2
+
+            ! Allocate memory for the adressing
+            if (.not.associated(new%hnds)) then
+                allocate(new%hnds(2*nsd)); new%hnds=0
+            endif
+
+            ! And add this node to the map
+            new%hnds(i)=coordpt
+
+            ! Same stuff for the other node aswell
+            if (j>0) then
+                cur=>C%refels(j)
+                if (.not.associated(cur%hnds)) then
+                    allocate(cur%hnds(2*nsd)); cur%hnds=0
+                endif
+                cur%hnds(nsd+i)=coordpt
+            endif
+
+            ! Decrease the coordinate adress
+            coordpt=coordpt-1
+!            write(stream,*) "added one"
+        endif
+
+        !************************************
+        ! Negative direction - completely analogous
+        !************************************
+
+        ! Check if we have the room                    
+        if (C%ncti+refpt>=coordpt) exit
+
+        ! Locate the neighbour in negative direction
+        nb=getNeighbourEl(refpt,-k,nsd,nsame,C)
+                    
+        ! Create the new nodes coordinates
+        j=-1
+        if (nb>0) then ! use the average of the two centers
+            if (C%refels(nb)%level==new%level)then ! assuming we can
+               pt2=(C%coords(:,C%refels(nb)%node)+pt)/2.0_xyzk; j=nb
+            endif
+        else if (nb==0) then
+            j=0; pt2=pt ! and use the current element center
+        endif                    
+        pt2(i)=minv(i) ! put it on the dividing line ( moreorless)
+                    
+        if (j>=0) then ! we do actually need to add one
+            ! Add the node to coordinates list
+            C%coords(:,coordpt)=pt2
+
+            ! Allocate memory for the adressing
+            if (.not.associated(new%hnds)) then
+                allocate(new%hnds(2*nsd)); new%hnds=0
+            endif
+
+            ! And add this node to the map
+            new%hnds(nsd+i)=coordpt
+
+            ! Same stuff for the other node aswell
+            if (j>0) then
+                cur=>C%refels(j)
+                if (.not.associated(cur%hnds)) then
+                    allocate(cur%hnds(2*nsd)); cur%hnds=0
+                endif
+                cur%hnds(i)=coordpt
+            endif
+
+            ! decrease the coordinate adress
+            coordpt=coordpt-1
+!            write(stream,*) "added one"
+
+        endif
+
+        k=2*k
+    enddo
+
+end subroutine CreateHangingNodes
+
 !! Generate the coarse freedom map
-subroutine CreateCoarseFreemap(C,M,CGC)
+subroutine CreateCoarseFreemap(C,M)
         use RealKind
         use CoarseGrid_class
         
@@ -527,8 +668,6 @@ subroutine CreateCoarseFreemap(C,M,CGC)
         type(CoarseGrid), intent(inout) :: C
         !! The fine mesh for which it is made
         type(Mesh), intent(in) :: M
-        !! Restrictions and cutoff conditions
-        type(CoarseGridCtrl), intent(in) :: CGC
 
         integer :: i
 
@@ -546,7 +685,7 @@ end subroutine CreateCoarseFreemap
 ! Some choices for choosing the center
 
 !! Choose the geometric centers of the elements (to be used consistently!!)
-subroutine ChooseGeometricCenter(pt,cpt,pts,elmap,el,refels,flags,h0)
+subroutine ChooseGeometricCenter(pt,cpt,pts,elmap,el,refels,flags,minv,maxv)
     use RealKind
     use CoarseGrid_class
 
@@ -559,19 +698,19 @@ subroutine ChooseGeometricCenter(pt,cpt,pts,elmap,el,refels,flags,h0)
     integer, intent(in) :: el ! index of the element being divided
     type(RefinedElem), intent(in) :: refels(:) ! refined elements 
     integer, intent(in) :: flags ! flags saying which dir to div
-    real(kind=xyzk), intent(in) :: h0(:) ! the step sizes for coarse grid
+    real(kind=xyzk), intent(in) :: minv(:),maxv(:) ! elem bounds
 
-    real(kind=xyzk) :: h(size(h0))
+    real(kind=xyzk) :: h(size(minv))
     integer :: i, fl
 
     if (el<0) then ! Initial division
         pt=cpt; ! Set the center of the current element as the div pt
     else ! Deeper division
         ! Set h to right absolute values  
-        h=h0/(2.0_xyzk**(refels(el)%level+1))
+        h=(maxv-minv)/(2.0_xyzk)
 
         ! Find the proper signs for it from "flags"
-        fl=flags
+        fl=flags-1
         if (fl>=4) then
              h(3)=-h(3); fl=fl-4
         endif
@@ -587,7 +726,7 @@ subroutine ChooseGeometricCenter(pt,cpt,pts,elmap,el,refels,flags,h0)
 end subroutine ChooseGeometricCenter
 
 !! Choose the center using some mean of the fine node coordinates
-subroutine ChooseMeanCenter(pt,cpt,pts,elmap,el,refels,flags,h0)
+subroutine ChooseMeanCenter(pt,cpt,pts,elmap,el,refels,flags,minv,maxv)
     use RealKind
     use CoarseGrid_class
 
@@ -600,9 +739,10 @@ subroutine ChooseMeanCenter(pt,cpt,pts,elmap,el,refels,flags,h0)
     integer, intent(in) :: el ! index of the element being divided
     type(RefinedElem), intent(in) :: refels(:) ! refined elements 
     integer, intent(in) :: flags ! flags saying which dir to div
-    real(kind=xyzk), intent(in) :: h0(:) ! the step sizes for coarse grid
+    real(kind=xyzk), intent(in) :: minv(:),maxv(:)
 
-    integer :: i
+    integer :: i,j
+    real(kind=xyzk) :: bval
 
     if (meanpow==0.0_xyzk) then ! Geometric mean
         pt=1.0_xyzk
@@ -626,9 +766,18 @@ subroutine ChooseMeanCenter(pt,cpt,pts,elmap,el,refels,flags,h0)
         pt=(pt/size(elmap))**(1.0_xyzk/meanpow)
 
     endif
+
+    ! Degeneracy avoidance (until a better way of doing this is found)
+    do i=1,size(pt)
+        bval=0.25_xyzk*(maxv(i)-minv(i))
+        if (pt(i)>maxv(i)-bval) then; pt(i)=maxv(i)-bval
+        elseif (pt(i)<minv(i)+bval) then; pt(i)=minv(i)+bval
+        endif
+    enddo
+ 
 end subroutine ChooseMeanCenter
 
-subroutine ChooseMeridianCenter(pt,cpt,pts,elmap,el,refels,flags,h0)
+subroutine ChooseMeridianCenter(pt,cpt,pts,elmap,el,refels,flags,minv,maxv)
     use RealKind
     use CoarseGrid_class
 
@@ -641,7 +790,7 @@ subroutine ChooseMeridianCenter(pt,cpt,pts,elmap,el,refels,flags,h0)
     integer, intent(in) :: el ! index of the element being divided
     type(RefinedElem), intent(in) :: refels(:) ! refined elements 
     integer, intent(in) :: flags ! flags saying which dir to div
-    real(kind=xyzk), intent(in) :: h0(:) ! the step sizes for coarse grid
+    real(kind=xyzk), intent(in) :: minv(:),maxv(:)
 
     integer :: i,k,j,c,frml,tol
     real(kind=xyzk) :: bval
@@ -655,6 +804,9 @@ subroutine ChooseMeridianCenter(pt,cpt,pts,elmap,el,refels,flags,h0)
     do c=1,size(pt)
     
     frml=1; tol=sz
+
+    if (sz==0) call DOUG_abort("Coarse grid too fine, adjust parameters")
+
     do while (frml<tol)
         ! Choose a pivot at random
         call random_number(bval)
@@ -680,10 +832,16 @@ subroutine ChooseMeridianCenter(pt,cpt,pts,elmap,el,refels,flags,h0)
             ! Otherwise switch them
             j=ar(k); ar(k)=ar(i); ar(i)=j
         enddo
+!        write (stream,*) "B:",frml,tol,i,k
 
+   
         ! Set the new bounds
-        if (get>=i) then
-            frml=i
+        if (get==i) then
+            exit
+        else if (get>i) then
+            do frml=i,get
+               if (pts(c,ar(frml))/=pts(c,ar(frml+1))) exit
+            enddo
         else
             tol=i-1
         endif
@@ -693,7 +851,16 @@ subroutine ChooseMeridianCenter(pt,cpt,pts,elmap,el,refels,flags,h0)
     pt(c)=pts(c,ar(frml))
     
     enddo
-
+    
+    ! Degeneracy avoidance (until a better way of doing this is found)
+    do i=1,size(pt)
+        bval=0.25_xyzk*(maxv(i)-minv(i))
+        if (pt(i)>maxv(i)-bval) then; pt(i)=maxv(i)-bval
+        elseif (pt(i)<minv(i)+bval) then; pt(i)=minv(i)+bval
+        endif
+    enddo
+    
+!    write(stream,*) "done"
 end subroutine ChooseMeridianCenter
 
 end module CreateCoarseGrid

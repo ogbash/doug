@@ -341,6 +341,8 @@ contains
     A%val => M%val
     A%nnz = N
 
+    if (A%mtx_bbe(2,2)>N) A%mtx_bbe(2,2)=N
+
   End subroutine SpMtx_Resize
 
   subroutine ReadInSparseAssembled(A,filename)

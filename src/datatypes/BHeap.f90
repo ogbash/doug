@@ -150,8 +150,8 @@ contains
             if (r<=B%size) then
                  if ( B%by(bt)<B%by(l) ) bt=l
                  if ( B%by(bt)<B%by(r) ) bt=r
-            else 
-                if (l<=B%size .and. B%by(bt)<B%by(l)) bt=l
+            elseif (l<B%size) then
+                if (B%by(bt)<B%by(l)) bt=l
             endif
 
             ! If current is the largest, we have a heap
@@ -209,7 +209,7 @@ contains
             ! Move the last element to first
             B%by(1)=B%by(B%size); B%inds(1)=B%inds(B%size)
             B%size=B%size-1
-            ! And real it upwards
+            ! And reel it upwards
             call BHeap_heapify(B,1)
         endif
     end subroutine BHeap_delmax

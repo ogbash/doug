@@ -658,4 +658,22 @@ contains
     call flush(stream)
   end subroutine I1Vect_Print
 
+  !! Remap x to y
+  subroutine Vect_remap(x,y,map,dozero)
+     use RealKind
+     
+     float(kind=rk), intent(in) :: x(:)
+     float(kind=rk), intent(out) :: y(:)
+     integer, intent(in) :: map(:)
+     logical, optional :: dozero
+     
+     integer :: i
+
+     if (present(dozero)) y=0.0_rk
+     
+     do i=lbound(x,1),ubound(x,1)
+        if (map(i)/=0) y(map(i))=x(i)
+     enddo
+  end subroutine Vect_remap
+
 end module Vect_mod

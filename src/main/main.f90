@@ -9,6 +9,7 @@ program main
   use solvers_mod
   use CoarseGrid_class
   use TransmitCoarse
+  use CoarseAllgathers
   use CreateCoarseGrid
   use CoarseCreateRestrict
   use CoarseMtx_mod
@@ -21,7 +22,7 @@ program main
 #define float real
 #endif
 
-  type(Mesh)     :: M  ! Mesh
+  type(Mesh), target     :: M  ! Mesh
 
   type(SpMtx)    :: A, A_interf  ! System matrix (parallel sparse matrix)
   type(SpMtx)    :: AC  ! Coarse matrix
@@ -41,11 +42,15 @@ program main
   integer :: i,it
   real(kind=rk) :: res_norm,cond_num
   real(kind=rk), dimension(:), pointer :: r, y
+  float(kind=rk), dimension(:), pointer :: yc, gyc, ybuf
+
   ! Aggregation
   integer :: nagrs
   integer, dimension(:), allocatable :: aggrnum
   type(CoarseGrid) :: LC,C
-  type(CoarseGridCtrl) :: CGC
+  integer, pointer :: glg_cfmap(:)
+  integer, allocatable :: cdisps(:),sends(:)
+  type(CoarseData) :: cdat
 
   ! Init DOUG
   call DOUG_Init()
@@ -71,48 +76,70 @@ program main
      call DOUG_abort('[DOUG main] : Unrecognised input type.', -1)
   end select
 
-  !coarse grid processing (geometric version)
+  ! Geometric coarse grid processing
   if (sctls%method==2) then
-    CGC%maxce=9
-    CGC%maxinit=4
-    CGC%cutbal=2
-    CGC%center_type=COARSE_CENTER_GEOM
-    CGC%meanpow=1.0_xyzk
-    CGC%interpolation_type=COARSE_INTERPOLATION_INVDIST
-    CGC%invdistpow=2.0_xyzk
-    CGC%eps=0.00001_xyzk
+    ! Init some mandatory values if they arent given
+    if (mctls%cutbal==-1) mctls%cutbal=5
+    if (mctls%maxnd==-1) mctls%maxnd=500
+    if (mctls%maxcie==-1) mctls%maxcie=75
+    if (mctls%center_type==-1) mctls%center_type=1 ! geometric
+    if (sctls%interpolation_type==-1) sctls%interpolation_type=3 ! multilinear
+    sctls%smoothers=0 ! only way it works
+    sctls%levels=2
 
     if (ismaster()) then
       write (stream,*) "Building coarse grid"
-      call CreateCoarse(M,C,CGC)
+      call CreateCoarse(M,C)
 
 !      call Mesh_pl2D_plotMesh(M,D_PLPLOT_INIT)
-!      write (stream,*) "Sending parts of the coarse grid to other threads"   
-!      call CoarseGrid_pl2D_plotMesh(C)
-!      call SendCoarse(C,M)
+!      call CoarseGrid_pl2D_plotMesh(C)!,D_PLPLOT_END)
+
+      write (stream,*) "Sending parts of the coarse grid to other threads"   
+      call SendCoarse(C,M)
 
       write (stream,*) "Creating a local coarse grid"
       call CreateLocalCoarse(C,M,LC)
 
-      write (stream,*) "Creating Restriction matrix"
-      call CreateRestrict(C,M,CGC)
-
-      write (stream,*) "Restrict is ",Restrict%nrows," by ",Restrict%ncols
-
 !      call SpMtx_printMat(Restrict) ! should have col. sums near 1.0 
 
-      write (stream,*) "Creating the Coarse Matrix"
-      call CoarseMtxBuild(A,AC)
-
-!      call Mesh_pl2D_plotMesh(M,D_PLPLOT_INIT)
-!      call CoarseGrid_pl2D_plotMesh(LC, D_PLPLOT_END)
-!    else
-!      write (stream,*) "Recieving coarse grid data"
-!      call  ReceiveCoarse(LC, M)
-!      call CoarseGrid_pl2D_plotMesh(LC)
+    else
+      write (stream,*) "Recieving coarse grid data"
+      call  ReceiveCoarse(LC, M)
     endif
+!      call CoarseGrid_pl2D_plotMesh(LC)
 
-    !call CreateRestrict(LC,M,CGC)
+      write (stream,*) "Creating Restriction matrix"
+      call CreateRestrict(LC,M)
+
+!      write (stream,*) "Restrict is ",Restrict%nrows," by ",Restrict%ncols," with ",Restrict%nnz," elems and an ubound of ",ubound(Restrict%val)
+
+      call CleanCoarse(LC,Restrict,M)
+
+!      do; enddo
+      call StripRestrict(M,Restrict,Res_aux)
+
+!      Restrict%indj=M%lg_fmap(Restrict%indj)
+!      call SpMtx_printRaw(Restrict)
+
+!      write (stream,*) "Creating the Coarse Matrix"
+
+      write (stream,*) "Cleaning unused coarse freedoms"
+      call CoarseMtxBuild(A,cdat%LAC)  
+      
+
+      write (stream,*) "Sending local-to-global maps around"
+
+      allocate(cdat%cdisps(M%nparts+1))
+      cdat%send=SendData_New(M%nparts)
+      cdat%lg_cfmap=>LC%lg_fmap
+      cdat%gl_cfmap=>LC%gl_fmap
+      cdat%nprocs=M%nparts
+      cdat%ngfc=LC%ngfc
+ 
+      call AllSendCoarselgmap(LC%lg_fmap,M%nparts,&
+                              cdat%cdisps,cdat%glg_cfmap,cdat%send)
+      call AllRecvCoarselgmap(cdat%send)
+
   endif
 
   ! Solve the system
@@ -134,10 +161,12 @@ program main
      if (sctls%method==2 .and. & ! in assembled case it would mess somehting up
           sctls%input_type/=DCTL_INPUT_TYPE_ASSEMBLED) then
              call pcg_weigs(A=A,b=b,x=xl,Msh=M,it=it,cond_num=cond_num, &
-                    A_interf_=A_interf,CoarseMtx_=AC,refactor_=.true.)
+                    A_interf_=A_interf,CoarseMtx_=AC,refactor_=.true., &
+                    cdat_=cdat)
      else
      !call pcg(A, b, xl, M)
 !b=1.0_rk
+
 !write(stream,*),'b=======',b
      call pcg_weigs(A=A,b=b,x=xl,Msh=M,it=it,cond_num=cond_num, &
                     A_interf_=A_interf,refactor_=.true.) !,        &
@@ -194,6 +223,19 @@ program main
   ! Destroy objects
   call Mesh_Destroy(M)
   call SpMtx_Destroy(A)
+
+  if (sctls%method==2) then
+      call SpMtx_Destroy(AC)
+      call SpMtx_Destroy(Restrict)
+      call SpMtx_Destroy(Res_aux)
+      call SendData_Destroy(cdat%send)
+
+      if (ismaster()) then
+          call CoarseGrid_Destroy(C)
+      endif
+      call CoarseGrid_Destroy(LC)
+  endif
+
   call ConvInf_Destroy(resStat)
   call Vect_cleanUp()
   deallocate(b, xl)

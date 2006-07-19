@@ -188,6 +188,41 @@ CONTAINS
   end subroutine SpMtx_arrange
 
 !------------------------------------------------------
+! Matrix consolidation:
+!   find duplicate elements and add them together
+!------------------------------------------------------
+  subroutine SpMtx_consolidate(M)
+    Implicit None
+    Type(SpMtx), intent(inout)        :: M        !Initial matrix
+    integer :: i, k
+    
+    ! Sort the matrix by indices (I pray it works for duplicates too)
+    call SpMtx_arrange(M,sort=.true.)
+
+    ! Consolidate it in one pass
+    k=1; 
+    do i=2,M%nnz
+        if (M%indi(i)==M%indi(k) .and. M%indj(i)==M%indj(k)) then
+            M%val(k)=M%val(k)+M%val(i);
+        else
+            k=k+1;
+            if (k/=i) then
+                M%indi(k)=M%indi(i)
+                M%indj(k)=M%indj(i)
+                M%val(k)=M%val(i)
+            endif
+        endif
+    enddo
+
+    ! Remove arrangement indications (they could remain valid with extra work)
+    M%arrange_type=D_SpMtx_ARRNG_NO
+    deallocate(M%M_bound)
+
+    ! And resize it
+    call SpMtx_resize(M,k)
+  end subroutine SpMtx_consolidate
+
+!------------------------------------------------------
 ! Diagonal scaling of matrix:
 !   diagonal value is stored in diag
 !------------------------------------------------------

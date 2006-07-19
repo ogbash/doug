@@ -22,7 +22,9 @@ SRC = \
         CoarseGrid.f90        \
         CreateRestrict.f90    \
         CreateCoarse.f90      \
-        TransmitCoarse.f90
+        TransmitCoarse.f90    \
+        CoarseAllgathers.f90  \
+        GeomInterp.f90
 
 OBJS = ${SRC:.f90=.o}
 LOCAL_LIB   = ../datatypes.a

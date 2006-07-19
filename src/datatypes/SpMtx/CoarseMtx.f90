@@ -8,6 +8,9 @@ module CoarseMtx_mod
   use SpMtx_op_Ax
   use globals
 
+
+  use Mesh_class
+
   implicit none
 
 #ifdef D_COMPLEX
@@ -17,6 +20,8 @@ module CoarseMtx_mod
 #endif
 
   Type(SpMtx), save :: Restrict !,Interp
+  Type(SpMtx), save :: Res_Aux !! see CreateRestrict.f90 at splitRestrict
+
 
 contains
 
@@ -343,7 +348,7 @@ contains
     real(kind=rk), dimension(:), pointer :: xc,x,y1,y2,zc1,zc2
 
     !Check, wheather Restrict matrix exists:
-    if (Restrict%nnz<=0) then
+    if (Restrict%nnz<0) then
       call IntRestBuild(A)
     endif
 
@@ -359,7 +364,6 @@ contains
                  B=Restrict, &
                 AT=.false.,  &
                 BT=.true.)
-
 
 !! !Testing the coarse matrix:
 !! !allocate(xc(AC%nrows))
