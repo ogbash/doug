@@ -22,6 +22,8 @@ program main
 
   type(SpMtx)    :: A,A_interf,A_ghost  ! System matrix (parallel sparse matrix)
   type(SpMtx)    :: AC  ! coarse matrix
+  type(SpMtx)    :: Restrict ! Restriction matrix
+
   float(kind=rk), dimension(:), pointer :: b  ! local RHS
   float(kind=rk), dimension(:), pointer :: xl ! local solution vector
   float(kind=rk), dimension(:), pointer :: x  ! global solution on master
@@ -129,7 +131,8 @@ if (numprocs==1) then !todo remove
   ! .. Testing aggregationAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 
   ! Testing coarse matrix and aggregation through it:
-  call CoarseMtxBuild(A,AC)
+  call IntRestBuild(A,Restrict)
+  call CoarseMtxBuild(A,AC,Restrict)
 
   if (sctls%strong2>0) then
     strong_conn2=sctls%strong2
@@ -235,7 +238,7 @@ xchk=xchk/dsqrt(nrm)
      t1 = MPI_WTIME()
      if (sctls%levels>=1) then
        call pcg_weigs(A=A,b=b,x=xl,Msh=M,it=it,cond_num=cond_num, &
-          CoarseMtx_=AC,refactor_=.true.)
+          CoarseMtx_=AC,Restrict=Restrict,refactor_=.true.)
      else
        if (numprocs>1.and.max(sctls%overlap,sctls%smoothers)>0) then
        !!!if (numprocs>1) then

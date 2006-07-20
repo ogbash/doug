@@ -221,7 +221,9 @@ contains
        ! Sorry about the next part. I thought a half an hour about how
        ! to do it better but nothing occured to me.
        if (nsd==2) then
-       if (ct(1)<=pt(1) .and. ct(2)<=pt(2)) then ! ne part
+
+       ! NE part
+       if (ct(1)<=pt(1) .and. ct(2)<=pt(2)) then
           cfout(1,1:csz)=coefs(1,1:csz) 
           cfout(4,1:csz)=0.0_xyzk; nc(1)=4; ni(1)=ci
 
@@ -234,8 +236,9 @@ contains
               cfout(3,1:csz)=0.0_xyzk; ncnt=ncnt+1; nc(ncnt)=3; ni(ncnt)=hnds(2)
           else; cfout(3,1:csz)=m(2)*coefs(3,1:csz)+(1-m(2))*coefs(1,1:csz)
           endif
-          
-       else if (ct(1)<=pt(1) .and. ct(2)>pt(2)) then ! se part
+
+       ! SE part
+       else if (ct(1)<=pt(1) .and. ct(2)>pt(2)) then
           cfout(3,1:csz)=coefs(3,1:csz) 
           cfout(2,1:csz)=0.0_xyzk; nc(1)=2; ni(1)=ci
 
@@ -249,7 +252,8 @@ contains
           else; cfout(1,1:csz)=m(2)*coefs(3,1:csz)+(1-m(2))*coefs(1,1:csz)
           endif
 
-       else if (ct(1)>pt(1) .and. ct(2)<=pt(2)) then ! nw part
+       ! NW part
+       else if (ct(1)>pt(1) .and. ct(2)<=pt(2)) then
           cfout(2,1:csz)=coefs(2,1:csz)
           cfout(3,1:csz)=0.0_xyzk; nc(1)=3; ni(1)=ci
 
@@ -263,7 +267,8 @@ contains
           else; cfout(4,1:csz)=m(2)*coefs(4,1:csz)+(1-m(2))*coefs(2,1:csz)
           endif
 
-       else if (ct(1)>pt(1) .and. ct(2)>pt(2)) then ! sw part
+       ! SW part
+       else if (ct(1)>pt(1) .and. ct(2)>pt(2)) then
           cfout(4,1:csz)=coefs(4,1:csz)
           cfout(1,1:csz)=0.0_xyzk; nc(1)=1; ni(1)=ci
 

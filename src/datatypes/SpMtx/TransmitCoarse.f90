@@ -1322,12 +1322,13 @@ contains
         !! Fine Mesh for which to build
         type(Mesh), intent(in) :: M
         !! The restriction matrix for finding useless freedoms
-        type(SpMtx), intent(in) :: R
+        type(SpMtx), intent(inout) :: R
 
         integer :: used(C%nlfc)
         integer :: disps(M%nparts),cnts(M%nparts),remap(0:C%ngfc)
         integer, allocatable :: lunused(:), unused(:)
         integer, allocatable :: ldisagree(:), disagree(:)
+        integer, pointer :: lg_fmap(:)
         integer :: i, k, cnt, tcnt, dcnt, ierr
         
         !--------------------------------------------
@@ -1445,6 +1446,8 @@ contains
                 remap(i)=remap(i-1)+1
             endif
         enddo
+        C%ngfc=C%ngfc-cnt
+        write (*,*) myrank," thinks ngfc is ",C%ngfc," but acts as it is ",remap(C%ngfc)
 !        write (stream,*) "CNT:",cnt
 
         ! remap the gl and lg_fmap
@@ -1452,11 +1455,17 @@ contains
         do i=1,C%nlfc
             if (used(i)) then
                 C%lg_fmap(k)=remap(C%lg_fmap(i))
-                C%gl_fmap(C%lg_fmap(k))=k; k=k+1
+                C%gl_fmap(C%lg_fmap(k))=k
+                used(i)=k ! create the local remap into used
+                k=k+1
             endif
         enddo
 !        write(stream,*) "DIFF:", C%nlfc-k+1
         C%nlfc=k-1
+
+        ! Remap R
+        R%indi(:)=used(R%indi(:))
+        R%nrows=C%nlfc        
 
     end subroutine CleanCoarse 
 

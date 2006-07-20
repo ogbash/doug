@@ -220,7 +220,7 @@ contains
   !-------------------------------
   ! Setup preconditioner
   !-------------------------------
-  subroutine setup_preconditioner(sol,A,rhs,CoarseMtx_)
+  subroutine setup_preconditioner(sol,A,rhs,CoarseMtx_, Restrict)
     use subsolvers
     use CoarseMtx_mod
     implicit none
@@ -228,6 +228,8 @@ contains
     type(SpMtx),           intent(in)  :: A
     real(kind=rk),dimension(:),pointer :: rhs
     type(SpMtx),optional               :: CoarseMtx_ ! Coarse matrix
+    type(SpMtx),optional               :: Restrict ! Restriction matrix
+
     ! ----- local: ------
     real(kind=rk),dimension(:),pointer :: csol,crhs,tmpsol
     ! ----------------------------
@@ -275,7 +277,7 @@ contains
   !-------------------------------
   ! Make preconditioner
   !-------------------------------
-  subroutine preconditioner(sol,A,rhs,A_interf_,CoarseMtx_,refactor_,cdat)
+  subroutine preconditioner(sol,A,rhs,A_interf_,CoarseMtx_,Restrict,refactor_,cdat)
     use subsolvers
     use CoarseMtx_mod
     use CoarseAllgathers
@@ -286,6 +288,7 @@ contains
     real(kind=rk),dimension(:),pointer :: rhs
     type(SpMtx),optional               :: A_interf_  ! matr@interf.
     type(SpMtx),optional               :: CoarseMtx_ ! Coarse matrix
+    type(SpMtx),optional               :: Restrict ! Restriction matrix
     logical,intent(in),optional :: refactor_
     type(CoarseData),intent(inout),optional :: cdat
     ! ----- local: ------
@@ -303,6 +306,8 @@ contains
     sol=0.0_rk
     if (present(CoarseMtx_)) then !{
 
+        if (.not.present(Restrict)) call DOUG_abort("Restriction matrix needs to be passed along with the coarse matrix!")
+        
     if (present(cdat)) then
 
 !do i=1,MG%nlf
@@ -313,7 +318,7 @@ contains
 
         ! Not the first iteration, so send the coarse vector here
         if (.not.(present(refactor_).and.refactor_)) then
-         call SpMtx_Ax(clrhs,Res_aux,rhs,dozero=.true.) ! restrict <RA>
+         call SpMtx_Ax(clrhs,Restrict,rhs,dozero=.true.) ! restrict <RA>
 !         call Vect_print(rhs,"RHS")
 
          ! And send
@@ -348,7 +353,7 @@ contains
               write(stream,*) "Got Matrix!"
 
               allocate(clrhs(Restrict%nrows)) ! allocate memory for vector      
-              call SpMtx_Ax(clrhs,Res_aux,rhs,dozero=.true.) ! restrict <RA>
+              call SpMtx_Ax(clrhs,Restrict,rhs,dozero=.true.) ! restrict <RA>
 
               ! And send
               call AllSendCoarseVector(clrhs,cdat%nprocs,cdat%cdisps,cdat%send)
@@ -416,7 +421,7 @@ contains
 !            write(stream,*) "Cres:",dsqrt(dot_product(ctmp,ctmp))
             call Vect_remap(csol,clrhs,cdat%gl_cfmap,dozero=.true.)
             
-            call SpMtx_Ax(tmpsol,Res_aux,clrhs,dozero=.true.,transp=.true.) ! RB
+            call SpMtx_Ax(tmpsol,Restrict,clrhs,dozero=.true.,transp=.true.) ! RB
           else
           if (sctls%smoothers==-1) then
             call SpMtx_Ax(tmpsol2,Restrict,csol,dozero=.true.,transp=.true.) ! interpolation
@@ -453,7 +458,7 @@ contains
  
             call Vect_remap(csol,clrhs,cdat%gl_cfmap,dozero=.true.)
 
-            call SpMtx_Ax(tmpsol,Res_aux,clrhs,dozero=.true.,transp=.true.) ! RB
+            call SpMtx_Ax(tmpsol,Restrict,clrhs,dozero=.true.,transp=.true.) ! RB
           else
           if (sctls%smoothers==-1) then
             call SpMtx_Ax(tmpsol2,Restrict,csol,dozero=.true.,transp=.true.) ! interpolation
@@ -462,7 +467,6 @@ contains
           else
             call SpMtx_Ax(tmpsol,Restrict,csol,dozero=.true.,transp=.true.) ! interpolation
 !            call Vect_print(tmpsol,"csol")
-
           endif
           endif
         endif
@@ -559,7 +563,7 @@ contains
   end subroutine msolve
 
   subroutine pcg_weigs (A,b,x,Msh,it,cond_num,A_interf_,tol_,maxit_, &
-       x0_,solinf,resvects_,CoarseMtx_,refactor_,cdat_)
+       x0_,solinf,resvects_,CoarseMtx_,Restrict,refactor_,cdat_)
     use CoarseAllgathers
 
     implicit none
@@ -584,7 +588,9 @@ contains
     type(ConvInf),            intent(in out), optional :: solinf
     ! Fill in the 'resvect' or not
     logical,                      intent(in), optional :: resvects_
-    type(SpMtx),optional                         :: CoarseMtx_ ! Coarse matrix
+    type(SpMtx),optional :: CoarseMtx_ ! Coarse matrix
+    type(SpMtx),optional :: Restrict ! Restriction mtx
+
     logical,intent(in),optional :: refactor_
     logical :: refactor
     type(CoarseData),intent(inout), optional :: cdat_
@@ -679,6 +685,7 @@ contains
                           rhs=r,          &
                     A_interf_=A_interf_,  &
                    CoarseMtx_=CoarseMtx_, &
+                    Restrict=Restrict,    &
                     refactor_=refactor,   &
                          cdat=cdat_)
       refactor=.false.

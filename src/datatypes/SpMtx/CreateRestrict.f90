@@ -12,7 +12,7 @@ module CoarseCreateRestrict
 contains
 
     !! Create the Restriction matrix
-    subroutine CreateRestrict(C,M)
+    subroutine CreateRestrict(C,M,R)
         use CoarseGrid_class
         use GeomInterp
         use SpMtx_class
@@ -25,27 +25,30 @@ contains
         type(CoarseGrid), intent(inout) :: C
         !! Fine Mesh for which to build
         type(Mesh), intent(in) :: M
+        !! Restriction matrix to create
+        type(SpMtx), intent(out) :: R
+
   
         ! We can add a choice here to do different things
 
         select case(sctls%interpolation_type)
         
         case (COARSE_INTERPOLATION_INVDIST)
-        call CreatePathRestrict(C,M,Restrict,genNoData,&
+        call CreatePathRestrict(C,M,R,genNoData,&
                                 getInvDistVals,getSizeOne)
 
         case (COARSE_INTERPOLATION_RANDOM)
-        call CreatePathRestrict(C,M,Restrict,genNoData,&
+        call CreatePathRestrict(C,M,R,genNoData,&
                                 getRandomVals,getSizeOne)
  
         case (COARSE_INTERPOLATION_KRIGING)
-        call CreatePathRestrict(C,M,Restrict,genKrigingData,&
+        call CreatePathRestrict(C,M,R,genKrigingData,&
                                 getKrigingVals,getKrigingSize)
                                 
         case (COARSE_INTERPOLATION_MULTLIN)
         !call CreatePathRestrict(C,M,Restrict,genMultiLinearData,&
         !                        getMultiLinearVals,getMultiLinearSize)
-        call CreateGeneralRestrict(C,M,Restrict,CalcMlinearInterp)
+        call CreateGeneralRestrict(C,M,R,CalcMlinearInterp)
 
         end select
 
@@ -638,14 +641,14 @@ contains
     !! Strip the restriction matrix
     !! useful for multiple processor case, where 
     !! the stripped variant is used for vector restrict/interpolate
-    subroutine stripRestrict(M, R, Ra)
+    subroutine stripRestrict(M, R)
         use Mesh_class
         use SpMtx_class
         use globals, only : stream
 
         type(Mesh), intent(in) :: M
         type(SpMtx), intent(inout) :: R
-        type(SpMtx), intent(out) :: Ra
+!        type(SpMtx), intent(out) :: Ra
 
         integer :: i,j,cnt
         integer :: unq(M%nlf)
@@ -668,35 +671,39 @@ contains
         enddo
         
         ! Count the nnz in the stripped restrict matrix
-        cnt=0
-        if (R%arrange_type==D_SpMtx_ARRNG_COLS) then ! can use M_bound
-            do i=1,R%ncols
-                if (unq(i)==1) cnt=cnt+R%M_bound(i+1)-R%M_bound(i)
-            enddo
-        else ! count the matrix elements one by one
-            do i=1,R%nnz
-                if (unq(R%indj(i))==1) cnt=cnt+1
-            enddo
-        endif
+!        cnt=0
+!        if (R%arrange_type==D_SpMtx_ARRNG_COLS) then ! can use M_bound
+!            do i=1,R%ncols
+!                if (unq(i)==1) cnt=cnt+R%M_bound(i+1)-R%M_bound(i)
+!            enddo
+!        else ! count the matrix elements one by one
+!            do i=1,R%nnz
+!                if (unq(R%indj(i))==1) cnt=cnt+1
+!            enddo
+!        endif
 
-        ! Initalize Ra       
-        Ra=SpMtx_newInit(nnz=cnt,nrows=R%nrows,ncols=R%ncols)
+!        ! Initalize Ra       
+!        Ra=SpMtx_newInit(nnz=cnt,nrows=R%nrows,ncols=R%ncols)
 
         ! if we have something to actually do
-        if (cnt/=0) then
+!        if (cnt/=0) then
             ! Fille Ra with its elements
             j=1
             do i=1,R%nnz
                 if (unq(R%indj(i))==1) then ! it stays
-                    Ra%indi(j)=R%indi(i)
-                    Ra%indj(j)=R%indj(i)
-                    Ra%val(j)=R%val(i)
+                    R%indi(j)=R%indi(i)
+                    R%indj(j)=R%indj(i)
+                    R%val(j)=R%val(i)
                     j=j+1
 !                else 
 !                    write(stream,*) M%lg_fmap(R%indj(i)),"not unique"
                 endif
             enddo
-        endif
+!        endif
+
+        call SpMtx_resize(R,j-1)
+        R%arrange_type=D_SpMtx_ARRNG_NO
+        deallocate(R%M_bound)
     end subroutine stripRestrict
  
 end module CoarseCreateRestrict

@@ -957,12 +957,14 @@ write(stream,*)'################### nselind,snnz:',nselind,snnz
 
   ! Some testcode follows:
 
-  subroutine CoarseMtxBuild2(A,AC)
+  subroutine CoarseMtxBuild2(A,AC,Restrict)
     !use subsolvers
     use CoarseMtx_mod
     implicit none
     Type(SpMtx),intent(inout) :: A ! the fine level matrix
     Type(SpMtx),intent(inout) :: AC ! coarse level matrix
+    Type(SpMtx),intent(inout) :: Restrict ! restriction mtx
+
     ! Timing:
     !real(kind=rk) :: t1, t2
     ! testing:
@@ -970,9 +972,10 @@ write(stream,*)'################### nselind,snnz:',nselind,snnz
     integer,dimension(:),pointer :: indi,indj,bound
     real(kind=rk),dimension(:),pointer :: xc,x2,x,y,yc,val
 
-    if (Restrict%nnz<=0) then
-      call IntRestBuild2(A)
-    endif
+!    if (Restrict%nnz<=0) then
+!      call IntRestBuild2(A,Restrict)
+!    endif
+
     n=A%nrows
     nc=Restrict%nrows
     mnz=nc*nc
@@ -1050,11 +1053,13 @@ write(stream,*)'################### nselind,snnz:',nselind,snnz
     !call SpMtx_SymmTest(AC,eps=1.0E-12_rk)
   end subroutine CoarseMtxBuild2
 
-  subroutine IntRestBuild2(A)
+  subroutine IntRestBuild2(A,Restrict)
     !use subsolvers
     use CoarseMtx_mod
     implicit none
     Type(SpMtx), intent(in) :: A ! our fine level matrix
+    Type(SpMtx), intent(out) :: Restrict ! restriction matrix
+
     integer :: nagr,nz,nagrnodes ! # aggregated nodes (there can be some isol.)
     integer, dimension(:), allocatable :: indi,indj
     integer :: i,j,k

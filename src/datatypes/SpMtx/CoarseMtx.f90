@@ -19,15 +19,15 @@ module CoarseMtx_mod
 #define float real
 #endif
 
-  Type(SpMtx), save :: Restrict !,Interp
-  Type(SpMtx), save :: Res_Aux !! see CreateRestrict.f90 at splitRestrict
-
+!  Type(SpMtx), save :: Restrict !,Interp
 
 contains
 
-  subroutine IntRestBuild(A)
+  ! Build the restriction matrix for the aggregation method
+  subroutine IntRestBuild(A, Restrict)
     implicit none
     Type(SpMtx), intent(in) :: A ! our fine level matrix
+    Type(SpMtx), intent(out) :: Restrict ! Our restriction matrix
     integer :: nagr,nz,nagrnodes ! # aggregated nodes (there can be some isol.)
     integer, dimension(:), allocatable :: indi,indj
     integer :: i,j,k
@@ -337,9 +337,10 @@ contains
     endif
   end subroutine IntRestBuild
 
-  subroutine CoarseMtxBuild(A,AC)
+  subroutine CoarseMtxBuild(A,AC,Restrict)
     Type(SpMtx),intent(inout) :: A ! the fine level matrix
     Type(SpMtx),intent(inout) :: AC ! coarse level matrix
+    Type(SpMtx), intent(inout) :: Restrict ! the restriction matrix
     Type(SpMtx) :: T,TT !temporary matrix
     ! Timing:
     !real(kind=rk) :: t1, t2
@@ -347,10 +348,14 @@ contains
     integer :: i
     real(kind=rk), dimension(:), pointer :: xc,x,y1,y2,zc1,zc2
 
+
+    ! SORRY but as the author of geometric coarse grid code,
+    !   it seems somewhat unfair to me to have this used implicitly
+    !  Made its use explicit in aggr.f90
     !Check, wheather Restrict matrix exists:
-    if (Restrict%nnz<0) then
-      call IntRestBuild(A)
-    endif
+    !if (Restrict%nnz<0) then
+    !  call IntRestBuild(A,Restrict)
+    !endif
 
     ! Testing how fast the mutiplication works...:
     !TT=SpMtx_Copy(A)
@@ -427,8 +432,8 @@ contains
 
   end subroutine CoarseMtxBuild
 
-  subroutine IntRest_Destroy()
-    call SpMtx_Destroy(Restrict)
-  end subroutine IntRest_Destroy
+!  subroutine IntRest_Destroy()
+!    call SpMtx_Destroy(Restrict)
+!  end subroutine IntRest_Destroy
 
 end module CoarseMtx_mod

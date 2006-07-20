@@ -26,6 +26,7 @@ program main
 
   type(SpMtx)    :: A, A_interf  ! System matrix (parallel sparse matrix)
   type(SpMtx)    :: AC  ! Coarse matrix
+  type(SpMtx)    :: Restrict ! Restriction matrix
 
   float(kind=rk), dimension(:), pointer :: b  ! local RHS
   float(kind=rk), dimension(:), pointer :: xl ! local solution vector
@@ -100,6 +101,10 @@ program main
       write (stream,*) "Creating a local coarse grid"
       call CreateLocalCoarse(C,M,LC)
 
+      ! deallocating coarse grid
+      nullify(C%coords) ! as LC uses that
+      call CoarseGrid_Destroy(C)
+
 !      call SpMtx_printMat(Restrict) ! should have col. sums near 1.0 
 
     else
@@ -109,14 +114,12 @@ program main
 !      call CoarseGrid_pl2D_plotMesh(LC)
 
       write (stream,*) "Creating Restriction matrix"
-      call CreateRestrict(LC,M)
+      call CreateRestrict(LC,M,Restrict)
 
 !      write (stream,*) "Restrict is ",Restrict%nrows," by ",Restrict%ncols," with ",Restrict%nnz," elems and an ubound of ",ubound(Restrict%val)
 
       call CleanCoarse(LC,Restrict,M)
 
-!      do; enddo
-      call StripRestrict(M,Restrict,Res_aux)
 
 !      Restrict%indj=M%lg_fmap(Restrict%indj)
 !      call SpMtx_printRaw(Restrict)
@@ -124,8 +127,10 @@ program main
 !      write (stream,*) "Creating the Coarse Matrix"
 
       write (stream,*) "Cleaning unused coarse freedoms"
-      call CoarseMtxBuild(A,cdat%LAC)  
-      
+      call CoarseMtxBuild(A,cdat%LAC,Restrict)  
+
+      write (stream, *) "Stripping the restriction matrix"
+      call StripRestrict(M,Restrict)
 
       write (stream,*) "Sending local-to-global maps around"
 
@@ -136,7 +141,7 @@ program main
       cdat%nprocs=M%nparts
       cdat%ngfc=LC%ngfc
  
-      call AllSendCoarselgmap(LC%lg_fmap,M%nparts,&
+      call AllSendCoarselgmap(LC%lg_fmap,LC%nlfc,M%nparts,&
                               cdat%cdisps,cdat%glg_cfmap,cdat%send)
       call AllRecvCoarselgmap(cdat%send)
 
@@ -161,8 +166,8 @@ program main
      if (sctls%method==2 .and. & ! in assembled case it would mess somehting up
           sctls%input_type/=DCTL_INPUT_TYPE_ASSEMBLED) then
              call pcg_weigs(A=A,b=b,x=xl,Msh=M,it=it,cond_num=cond_num, &
-                    A_interf_=A_interf,CoarseMtx_=AC,refactor_=.true., &
-                    cdat_=cdat)
+                    A_interf_=A_interf,CoarseMtx_=AC,Restrict=Restrict, &
+                    refactor_=.true., cdat_=cdat)
      else
      !call pcg(A, b, xl, M)
 !b=1.0_rk
@@ -227,12 +232,9 @@ program main
   if (sctls%method==2) then
       call SpMtx_Destroy(AC)
       call SpMtx_Destroy(Restrict)
-      call SpMtx_Destroy(Res_aux)
+!      call SpMtx_Destroy(Res_aux)
       call SendData_Destroy(cdat%send)
 
-      if (ismaster()) then
-          call CoarseGrid_Destroy(C)
-      endif
       call CoarseGrid_Destroy(LC)
   endif
 

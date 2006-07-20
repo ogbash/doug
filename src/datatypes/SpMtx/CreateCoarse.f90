@@ -116,12 +116,12 @@ subroutine CreateCoarseMesh(M, C, choosecenter)
         ! and C%nc(i)/C%nc(j) = ln(i)/ln(j) for i.neq.j; 1<=i,j<=M%nsd
         ! and then truncating C%nc(i) thus obtaining whole number ratios
         if (M%nsd==2) then
-            C%nc(1)=aint((mctls%maxcie*(ln(1)/ln(2)))**(1/2.0_xyzk )) 
-            C%nc(2)=aint((mctls%maxcie*(ln(2)/ln(1)))**(1/2.0_xyzk ))
+            C%nc(1)=anint((mctls%maxcie*(ln(1)/ln(2)))**(1/2.0_xyzk )) 
+            C%nc(2)=anint((mctls%maxcie*(ln(2)/ln(1)))**(1/2.0_xyzk ))
         else if (M%nsd==3) then
-            C%nc(1)=aint((mctls%maxcie*ln(1)*ln(1)/(ln(2)*ln(3)) )**(1/3_xyzk ))
-            C%nc(2)=aint((mctls%maxcie*ln(2)*ln(2)/(ln(1)*ln(3)) )**(1/3_xyzk ))
-            C%nc(3)=aint((mctls%maxcie*ln(3)*ln(3)/(ln(1)*ln(2)) )**(1/3_xyzk ))
+            C%nc(1)=anint((mctls%maxcie*ln(1)*ln(1)/(ln(2)*ln(3)))**(1/3_xyzk ))
+            C%nc(2)=anint((mctls%maxcie*ln(2)*ln(2)/(ln(1)*ln(3)))**(1/3_xyzk ))
+            C%nc(3)=anint((mctls%maxcie*ln(3)*ln(3)/(ln(1)*ln(2)))**(1/3_xyzk ))
         endif
         C%nc=max(C%nc,1)
 !        write(stream,*) "NC: ",C%nc
