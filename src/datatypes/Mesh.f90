@@ -389,7 +389,7 @@ contains
        end if
     end if
     if (present(fnCoords).and.&
-         (sctls%plotting == D_PLOT_YES .or. sctls%method == 2)) then
+         (sctls%plotting == D_PLOT_YES .or. sctls%levels == 2 )) then
        ! Load nodes coordinates only if we want to plot a mesh.
        ! NB! We would need them also for geometric multilevel methods at
        !     construction of coarse meshes.

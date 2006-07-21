@@ -642,30 +642,4 @@ contains
 
    end subroutine
 
-    !**************************************************************
-    ! Bi/Trilinear interpolation - only for CreatePathProlong!!
-    !**************************************************************
-
-    !! Calculate the multilinear interpolation value for a fine-coarse pair
-    function calcblin(pt,nsd,aux) result(res)
-        use RealKind
-        real(kind=xyzk), intent(in) :: pt(:)
-        integer, intent(in) :: nsd
-        real(kind=xyzk), intent(in) :: aux(:)
-        real(kind=xyzk) :: res
-       
-        ! Bilinear interpolation
-        if (nsd==2) then
-           res=aux(1)+ & ! 1
-               aux(2)*pt(1)+aux(3)*pt(2)+ & ! x/y
-               aux(4)*pt(1)*pt(2) ! xy
-        ! Trilinear interpolation
-        else if (nsd==3) then
-           res=aux(1)+ & ! 1
-               aux(2)*pt(1)+aux(3)*pt(2)+aux(4)*pt(3)+ & ! x/y/z
-               aux(5)*pt(2)*pt(3)+aux(6)*pt(1)*pt(3)+aux(7)*pt(1)*pt(2)+ &
-               aux(8)*pt(1)*pt(2)*pt(3) ! xyz
-        endif
-    end function calcblin
-
 end module GeomInterp

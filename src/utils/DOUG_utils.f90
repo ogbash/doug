@@ -987,6 +987,15 @@ contains
           read(word2, '(i10)') mctls%center_type
        endif
 
+    ! hanging_nodes
+    elseif (ctl_num.eq.DCTL_hanging_nodes) then
+       if (mctls%hanging_nodes.neqv.(.false.)) then
+          write(6,200) trim(word1), trim(word2)
+       else
+          read(word2, '(l1)') mctls%hanging_nodes
+       endif
+
+
     ! end: MASTER DATA
 
     ! nothing was recognised

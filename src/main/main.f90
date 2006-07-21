@@ -78,7 +78,7 @@ program main
   end select
 
   ! Geometric coarse grid processing
-  if (sctls%method==2) then
+  if (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL .and. sctls%levels==2) then
     ! Init some mandatory values if they arent given
     if (mctls%cutbal==-1) mctls%cutbal=5
     if (mctls%maxnd==-1) mctls%maxnd=500
@@ -86,7 +86,6 @@ program main
     if (mctls%center_type==-1) mctls%center_type=1 ! geometric
     if (sctls%interpolation_type==-1) sctls%interpolation_type=3 ! multilinear
     sctls%smoothers=0 ! only way it works
-    sctls%levels=2
 
     if (ismaster()) then
       write (stream,*) "Building coarse grid"
@@ -163,8 +162,8 @@ program main
 
      t1 = MPI_WTIME()
 
-     if (sctls%method==2 .and. & ! in assembled case it would mess somehting up
-          sctls%input_type/=DCTL_INPUT_TYPE_ASSEMBLED) then
+     if (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL .and. &
+                        sctls%levels==2) then
              call pcg_weigs(A=A,b=b,x=xl,Msh=M,it=it,cond_num=cond_num, &
                     A_interf_=A_interf,CoarseMtx_=AC,Restrict=Restrict, &
                     refactor_=.true., cdat_=cdat)
@@ -229,7 +228,7 @@ program main
   call Mesh_Destroy(M)
   call SpMtx_Destroy(A)
 
-  if (sctls%method==2) then
+  if (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL .and. sctls%levels==2) then
       call SpMtx_Destroy(AC)
       call SpMtx_Destroy(Restrict)
 !      call SpMtx_Destroy(Res_aux)

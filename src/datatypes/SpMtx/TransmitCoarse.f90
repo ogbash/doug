@@ -8,6 +8,11 @@ module TransmitCoarse
 #endif
  
 contains
+!! TODO: remove the cycle walking all the elements 
+!! Replace with a list of elements for each node generated with one pass
+!! Try to remove as many O(C%ngfc) operations as possible
+!! 
+
 
     !! Map out and send the coarse grid around
     !! It sends relatively little data but has quite a large memory and
@@ -31,15 +36,20 @@ contains
         integer :: ndtoel(M%nnode) ! Map fine nodes to coarse elements
         logical :: ispresf(M%ngf) ! Mark down freedoms present in partition
 
+        integer :: fels(M%nell) ! List of fine elements for each process
+        integer :: finds(M%nparts+1) ! Indices into it
+
         integer :: elcnt ! Count of elements to be sent
         logical :: elmask(C%elnum) ! Mark down elements needed for sending
         integer :: ellist(C%ncti) ! The list of element inds to be sent
 
         integer :: lnnode ! local number of fine nodes
         integer :: gl_nodemap(M%nnode) ! map of global node inds to local
+        integer :: lg_nodemap(M%nnode) ! and vice-versa
 
         integer :: ndcnt ! local number of coarse grid nodes
         integer :: gl_cnodemap(C%nct) ! map of global coarse mesh nds to local
+        integer :: lg_cnodemap(C%nct) ! and vice-versa ! TODO: USE IT!
 
         integer :: nlf ! local number of fine freedoms
         integer :: lfreemap(M%ngf) ! local freemap
@@ -88,6 +98,36 @@ contains
         enddo
 
         !************************************************************
+        ! Create the list of fine elements per each part
+        !************************************************************
+
+        ! Count the number of elements each has
+        finds=0
+        do i=1,M%nell
+            finds(M%eptnmap(i))=finds(M%eptnmap(i))+1
+        enddo
+
+        ! Add them up to get indices shifted to left
+        do i=2,M%nparts+1
+           finds(i)=finds(i-1)+finds(i)
+        enddo
+
+        !  Create the elements list and slide indices slowly to place
+        do i=1,M%nell
+            p=M%eptnmap(i)
+            fels(finds(p))=i
+            finds(p)=finds(p)-1
+        enddo
+        finds=finds+1
+
+        !********************************************************
+        ! Clear the arrays for the first time
+        !********************************************************
+        ispresf=.false.; elmask=.false.;
+        gl_nodemap=0; gl_cnodemap=0
+ 
+
+        !************************************************************
         ! Divide up the data
         !************************************************************
 
@@ -98,26 +138,26 @@ contains
         do p=0, M%nparts-1
             ! Pass up the sending to master
             if (p==myrank) cycle
-            
+
             !********************************************************
-            ! Clear the arrays
+            ! Reset the variables
             !********************************************************
-            ispresf=.false.; elmask=.false.;  gl_nodemap=0; gl_cnodemap=0
             lnnode=0; nlf=0; elcnt=0; hcnt=0;
                 
             !********************************************************
             ! Find what to send
             !********************************************************
-            do i=1,M%nell
-            if (M%eptnmap(i)-1==p) then ! If this element belongs to this part
-                do j=1,M%nfrelt(i)
-                    f=M%mhead(j, i)
+            do i=finds(p+1),finds(p+2)-1
+                el=fels(i)
+                do j=1,M%nfrelt(el)
+                    f=M%mhead(j, el)
                     
                     ! Mark this node as present
                     if (gl_nodemap(M%freemap(f))==0) then
                         lnnode=lnnode+1
                         fcoords(:,lnnode)=M%coords(:,M%freemap(f))
                         gl_nodemap(M%freemap(f))=lnnode
+                        lg_nodemap(lnnode)=M%freemap(f)
                     endif
                         
                     ! Mark this freedom as present
@@ -135,7 +175,6 @@ contains
                         elmask(ndtoel(M%freemap(f)))=.true.
                     endif
                 enddo
-            endif
             enddo
 
             !********************************************************
@@ -251,7 +290,6 @@ contains
             endif
             
             allocate(buffer(szs))
-
 
             !********************************************************
             ! Pack the buffer and send it (non-blocking)
@@ -461,6 +499,16 @@ contains
             ! Send the data
             call MPI_ISEND(buffer(1),pt,MPI_PACKED,p,0,MPI_COMM_WORLD,req,ierr)
 
+            !********************************************************
+            ! Clear the arrays
+            !********************************************************
+
+            ! Asymptotically less expensive than full zeroing each time
+            ispresf(fremap(1:nlf))=.false.
+            elmask(ellist(1:elcnt))=.false.
+            gl_nodemap(lg_nodemap(1:lnnode))=0
+            
+            gl_cnodemap=0 ! TODO: use a less costly way
         enddo
 
         deallocate (fcoords,ccoords,hcoords)
@@ -824,19 +872,6 @@ contains
        deallocate(buffer)
        if (C%refnum/=0) deallocate(lends,levels,pstack)
 
-!       write (stream,*) "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-!       do i=1,C%ngfc
-!          if (C%gl_fmap(i)/=0) write (stream,*) i,C%coords(:,C%cfreemap(C%gl_fmap(i)))
-!       enddo
-!       write (stream,*) "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-
-!       write (stream,*) "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-!       do i=1,M%ngf
-!          if (M%gl_fmap(i)/=0) write (stream,*) i,M%lg_fmap(M%gl_fmap(i)),M%lcoords(:,M%lfreemap(M%gl_fmap(i)))
-!       enddo
-!       write (stream,*) "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-
-
     end subroutine ReceiveCoarse
  
     !! Map out a local coarse grid structure (for use on master)
@@ -1075,22 +1110,7 @@ contains
                 endif
             enddo
 
-!       write (stream,*) "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-!       do i=1,LC%ngfc
-!          if (LC%gl_fmap(i)/=0) write (stream,*) i,LC%coords(:,LC%cfreemap(LC%gl_fmap(i)))
-!       enddo
-!       write (stream,*) "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-!       write (stream,*) "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-!       do i=1,M%ngf
-!          if (M%gl_fmap(i)/=0) write (stream,*) i,M%lg_fmap(M%gl_fmap(i)),M%lcoords(:,M%lfreemap(M%gl_fmap(i)))
-!       enddo
-!       write (stream,*) "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-
-
-
     end subroutine CreateLocalCoarse
-
-
 
     !! Map out a local coarse grid structure (for use on master)
     !! Some of its fields point to the original C (to conserve memory)
@@ -1302,171 +1322,6 @@ contains
                 new%next=-1
                 endif
             enddo
-
-    end subroutine CreateLocalCoarseOld
-
-   ! Used for cleaning up coarse freedoms which are unused
-   ! It needs to be done, since without it, singularities 
-   ! can and do occur in the coarse matrix
-   subroutine CleanCoarse(C,R,M)
-        use RealKind
-        use CoarseGrid_class
-        use SpMtx_class
-        use SpMtx_util
-        use globals
-        
-        implicit none
-
-        !! Coarse Grid whose structure to modify
-        type(CoarseGrid), intent(inout) :: C
-        !! Fine Mesh for which to build
-        type(Mesh), intent(in) :: M
-        !! The restriction matrix for finding useless freedoms
-        type(SpMtx), intent(inout) :: R
-
-        integer :: used(C%nlfc)
-        integer :: disps(M%nparts),cnts(M%nparts),remap(0:C%ngfc)
-        integer, allocatable :: lunused(:), unused(:)
-        integer, allocatable :: ldisagree(:), disagree(:)
-        integer, pointer :: lg_fmap(:)
-        integer :: i, k, cnt, tcnt, dcnt, ierr
-        
-        !--------------------------------------------
-        ! Locate seemingly unused nodes
-        !--------------------------------------------
-
-        used=0
-
-        ! Find the used ones and unused count
-        cnt=C%nlfc
-        do i=1,R%nnz
-            if (used(R%indi(i))==0) then
-                used(R%indi(i))=1
-                cnt=cnt-1
-            endif
-        enddo
-
-        ! Get the counts of others
-        call MPI_ALLGATHER(cnt, 1,MPI_INTEGER, &
-                           cnts,1,MPI_INTEGER,MPI_COMM_WORLD,ierr)
-
-        ! Calculate the displacements
-        disps(1)=0 
-        do i=1,M%nparts-1
-            disps(i+1)=disps(i)+cnts(i)
-        enddo
-        tcnt=disps(M%nparts)+cnts(M%nparts)
-!        write(stream,*) "TCNT:",tcnt
-
-        ! Allocate memory
-        allocate(lunused(cnt),unused(tcnt))
-        
-        ! Mark down the unused ones
-        k=1
-        do i=1,C%nlfc
-           if (used(i)==0) then
-               lunused(k)=C%lg_fmap(i); k=k+1
-           endif
-        enddo
-
-        ! Get that info from others as well
-        call MPI_Allgatherv(lunused,cnt,MPI_INTEGER, &
-                      unused,cnts,disps,MPI_INTEGER,MPI_COMM_WORLD,ierr)
-
-        deallocate(lunused)
-
-        !--------------------------------------------
-        ! Find freedoms we disagree on about use status
-        !--------------------------------------------
-
-        ! Find the count of the freedoms we disagree on
-        cnt=0
-        do i=1,tcnt
-            if (C%gl_fmap(unused(i))/=0) then
-            if (used(C%gl_fmap(unused(i)))==1) then 
-                cnt=cnt+1; used(C%gl_fmap(unused(i)))=2
-            endif; endif
-        enddo
-
-        ! Get the counts of others
-        call MPI_ALLGATHER(cnt, 1,MPI_INTEGER, &
-                           cnts,1,MPI_INTEGER,MPI_COMM_WORLD,ierr)
-
-        ! Calculate the displacements
-        disps(1)=0 
-        do i=1,M%nparts-1
-            disps(i+1)=disps(i)+cnts(i)
-        enddo
-        dcnt=disps(M%nparts)+cnts(M%nparts)
-!        write(stream,*) "DCNT:",dcnt
-
-        ! Allocate memory
-        allocate(ldisagree(cnt), disagree(dcnt))
-        
-        ! Mark down the disagreed ones
-        k=1
-        do i=1,C%nlfc
-           if (used(i)==2) then
-               ldisagree(k)=C%lg_fmap(i); k=k+1
-           endif
-        enddo
-
-        ! Get disagreement info from others as well
-        call MPI_Allgatherv(ldisagree,cnt,MPI_INTEGER, &
-                      disagree,cnts,disps,MPI_INTEGER,MPI_COMM_WORLD,ierr)
-
-        deallocate(ldisagree)
-
-        !--------------------------------------------
-        ! Remap the coarse freedoms
-        !--------------------------------------------
-
-        ! Create the remap (maps old coarse nodes to new ones)
-        remap=0;
-        do i=1,tcnt ! Flip the ones that seem unused
-            remap(unused(i))=1
-            if (C%gl_fmap(unused(i))/=0) &
-                used(C%gl_fmap(unused(i)))=0
- 
-        enddo
-        do i=1,dcnt ! Flip the ones that arent back
-            remap(disagree(i))=0
-            if (C%gl_fmap(disagree(i))/=0) &
-                used(C%gl_fmap(disagree(i)))=1
-        enddo
-        
-        deallocate(unused,disagree)
-
-        cnt=0
-        do i=1,C%ngfc
-            if (remap(i)==1) then
-                remap(i)=remap(i-1)
-                cnt=cnt+1
-            else 
-                remap(i)=remap(i-1)+1
-            endif
-        enddo
-        C%ngfc=C%ngfc-cnt
-        write (*,*) myrank," thinks ngfc is ",C%ngfc," but acts as it is ",remap(C%ngfc)
-!        write (stream,*) "CNT:",cnt
-
-        ! remap the gl and lg_fmap
-        cnt=0; k=1; C%gl_fmap=0 
-        do i=1,C%nlfc
-            if (used(i)) then
-                C%lg_fmap(k)=remap(C%lg_fmap(i))
-                C%gl_fmap(C%lg_fmap(k))=k
-                used(i)=k ! create the local remap into used
-                k=k+1
-            endif
-        enddo
-!        write(stream,*) "DIFF:", C%nlfc-k+1
-        C%nlfc=k-1
-
-        ! Remap R
-        R%indi(:)=used(R%indi(:))
-        R%nrows=C%nlfc        
-
-    end subroutine CleanCoarse 
-
+     end subroutine CreateLocalCoarseOld
+      
 end module TransmitCoarse

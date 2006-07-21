@@ -315,10 +315,13 @@ subroutine CreateCoarseMesh(M, C, choosecenter)
                         C%els(el)%nfs,C%elnum+refpt)
 
                 ! Try to create the associated hanging nodes
+                if (mctls%hanging_nodes) then
                 call CreateHangingNodes(refpt,hangpt,M%nsd,nsame, &
                         C%coords(:,C%els(el)%n(1)), & ! mins
                         C%coords(:,C%els(el)%n(2**M%nsd)),C) 
-! nullify(new%hnds)
+                else
+                    nullify(new%hnds)
+                endif
 
                 refpt=refpt+1
             else ! We need to refine an already refined element
@@ -437,8 +440,11 @@ subroutine CreateCoarseMesh(M, C, choosecenter)
                 if (C%mlvl<new%level) C%mlvl=new%level
 
                 ! And try to create the associated hanging nodes
+                if (mctls%hanging_nodes) then
                 call CreateHangingNodes(refpt,hangpt,M%nsd,nsame,minv,maxv,C)
-!         nullify(new%hnds)
+                else
+                    nullify(new%hnds)
+                endif
        
                 ! Increase the pointer
                 refpt=refpt+1

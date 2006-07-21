@@ -109,6 +109,7 @@ module globals
      integer       :: maxnd            = -1
      integer       :: cutbal           = -1
      integer       :: center_type      = -1
+     logical       :: hanging_nodes    = .false.
   end type MasterCtrlData
   !
   ! global variable:

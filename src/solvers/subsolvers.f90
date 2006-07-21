@@ -883,11 +883,10 @@ write(stream,*)'################### nselind,snnz:',nselind,snnz
     call factorise_and_solve(id,sol,rhs,nfreds,nnz,indi,indj,val)
   end subroutine sparse_singlesolve
 
-  subroutine factorise_and_solve(id,sol,rhs,nfreds,nnz,indi,indj,val)
+  subroutine factorise(id,nfreds,nnz,indi,indj,val)
     ! For adding a new factorised matrix id must be 0.
     !   id > 0 will be returned as a handle for the factors
-    integer,intent(inout) :: id
-    real(kind=rk),dimension(:),pointer :: sol,rhs
+    integer,intent(out) :: id
     integer,intent(in) :: nfreds
     integer,intent(in),optional :: nnz
     integer,dimension(:),intent(inout),optional :: indi,indj
@@ -899,7 +898,8 @@ write(stream,*)'################### nselind,snnz:',nselind,snnz
     type(Fact),dimension(:),pointer :: fakts_temp
     real(kind=rk) :: t1
 
-    if (id<=0) then
+    id=-1
+
       if (present(nnz)) then
         nz=nnz
       elseif (present(val)) then
@@ -934,7 +934,27 @@ write(stream,*)'################### nselind,snnz:',nselind,snnz
       t1=MPI_WTIME()      
       fakts(id)=Fact_New(subsolver, n, nz, indi, indj, val)
       factorisation_time=factorisation_time + MPI_WTIME()-t1
-    endif
+  end subroutine factorise
+
+
+  subroutine factorise_and_solve(id,sol,rhs,nfreds,nnz,indi,indj,val)
+    ! For adding a new factorised matrix id must be 0.
+    !   id > 0 will be returned as a handle for the factors
+    integer,intent(inout) :: id
+    real(kind=rk),dimension(:),pointer :: sol,rhs
+    integer,intent(in) :: nfreds
+    integer,intent(in),optional :: nnz
+    integer,dimension(:),intent(inout),optional :: indi,indj
+    real(kind=rk),dimension(:),intent(in),optional :: val
+
+    ! ---- local -----
+    integer :: i,nz,n
+    integer :: fakts_size
+    type(Fact),dimension(:),pointer :: fakts_temp
+    real(kind=rk) :: t1
+
+    if (id<=0) call factorise(id,nfreds,nnz,indi,indj,val)
+
     t1=MPI_WTIME()      
     call Fact_Solve(fakts(id), rhs, sol)
     backsolve_time=backsolve_time + MPI_WTIME()-t1

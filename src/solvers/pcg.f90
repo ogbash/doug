@@ -332,7 +332,7 @@ contains
         endif
       endif
 
-      if (sctls%method==2) then
+      if (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL) then
           call sparse_multisolve(sol=sol,A=a,rhs=rhs, &
                         A_interf_=A_interf_, &
                         refactor=refactor_) !fine solves 
@@ -396,7 +396,16 @@ contains
 
           !! TODO: force it to do it AFTER factorization, but before solve
           if (present(cdat)) then
-!            write(stream,*) "Waiting for vector!"
+            ! Factorise the matrix
+            call factorise(CoarseMtx_%subsolve_ids(1), &
+                 nfreds=CoarseMtx_%nrows,   &
+                 nnz=CoarseMtx_%nnz,        &
+                 indi=CoarseMtx_%indi,      &
+                 indj=CoarseMtx_%indj,      &
+                 val=CoarseMtx_%val)
+
+ 
+            ! Recieve the vector for solve
             call AllRecvCoarseVector(crhs,cdat%nprocs,cdat%cdisps,&
                                           cdat%glg_cfmap,cdat%send)
 !            write(stream,*) "Got vector!"

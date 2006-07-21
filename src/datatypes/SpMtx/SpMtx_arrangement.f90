@@ -1,7 +1,8 @@
+Module SpMtx_arrangement
 !!--------------------------------------------------------
 !!Arrange elements in sparse matrix
 !!--------------------------------------------------------
-Module SpMtx_arrangement
+
   use RealKind
   use SpMtx_class
   use SpMtx_util
@@ -66,6 +67,7 @@ CONTAINS
       endif
     endif
     M%arrange_type=at
+
     !===== allocate memory and control arrange_type
     if (columnwise) then !!!columns
       allocate(el(M%ncols))
@@ -74,7 +76,10 @@ CONTAINS
       allocate(el(M%nrows))
       allocate(M%M_bound(M%nrows+1))
     end if
-    !===== 1.find how many elements are every row/col 
+
+
+    !===== 1.find how many elements are every row/col
+ 
     if (M%mtx_bbe(2,2)>0) then
       nnz=M%mtx_bbe(2,2)
     else
