@@ -88,16 +88,20 @@ program main
     sctls%smoothers=0 ! only way it works
 
     if (ismaster()) then
-      write (stream,*) "Building coarse grid"
+      if (sctls%verbose>0) write (stream,*) "Building coarse grid"
+
       call CreateCoarse(M,C)
 
-!      call Mesh_pl2D_plotMesh(M,D_PLPLOT_INIT)
-!      call CoarseGrid_pl2D_plotMesh(C)!,D_PLPLOT_END)
+      if (sctls%plotting>0) then
+          call Mesh_pl2D_plotMesh(M,D_PLPLOT_INIT)
+          call CoarseGrid_pl2D_plotMesh(C,D_PLPLOT_END)
+      endif
 
-      write (stream,*) "Sending parts of the coarse grid to other threads"   
+      if (sctls%verbose>1) &
+           write (stream,*) "Sending parts of the coarse grid to other threads"   
       call SendCoarse(C,M)
 
-      write (stream,*) "Creating a local coarse grid"
+      if (sctls%verbose>1) write (stream,*) "Creating a local coarse grid"
       call CreateLocalCoarse(C,M,LC)
 
       ! deallocating coarse grid
@@ -107,16 +111,17 @@ program main
 !      call SpMtx_printMat(Restrict) ! should have col. sums near 1.0 
 
     else
-      write (stream,*) "Recieving coarse grid data"
+      if (sctls%verbose>0) write (stream,*) "Recieving coarse grid data"
       call  ReceiveCoarse(LC, M)
-    endif
-!      call CoarseGrid_pl2D_plotMesh(LC)
+    endif       
+      if (sctls%plotting>1) call CoarseGrid_pl2D_plotMesh(LC)
 
-      write (stream,*) "Creating Restriction matrix"
+      if (sctls%verbose>0) write (stream,*) "Creating Restriction matrix"
       call CreateRestrict(LC,M,Restrict)
 
 !      write (stream,*) "Restrict is ",Restrict%nrows," by ",Restrict%ncols," with ",Restrict%nnz," elems and an ubound of ",ubound(Restrict%val)
 
+      if (sctls%verbose>1) write (stream,*) "Cleaning Restriction matrix"
       call CleanCoarse(LC,Restrict,M)
 
 
@@ -125,13 +130,13 @@ program main
 
 !      write (stream,*) "Creating the Coarse Matrix"
 
-      write (stream,*) "Cleaning unused coarse freedoms"
+      if (sctls%verbose>0)  write (stream,*) "Building coarse matrix"
       call CoarseMtxBuild(A,cdat%LAC,Restrict)  
 
-      write (stream, *) "Stripping the restriction matrix"
+      if (sctls%verbose>1) write (stream, *) "Stripping the restriction matrix"
       call StripRestrict(M,Restrict)
 
-      write (stream,*) "Sending local-to-global maps around"
+      if (sctls%verbose>0) write (stream,*) "Transmitting local-to-global maps"
 
       allocate(cdat%cdisps(M%nparts+1))
       cdat%send=SendData_New(M%nparts)

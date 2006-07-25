@@ -3,7 +3,7 @@ use RealKind
 
     real(kind=xyzk), parameter :: meanpow=1.0_xyzk
 
-    private :: CreateHangingNodes, CreateCoarseMesh, CreateFreemap
+    private :: CreateHangingNodes, CreateCoarseMesh, CreateCoarseFreemap
 contains
 
 !! Create the Coarse Mesh 
@@ -127,6 +127,9 @@ subroutine CreateCoarseMesh(M, C, choosecenter)
 !        write(stream,*) "NC: ",C%nc
         C%h0=ln/C%nc
         C%elnum=product(C%nc)
+
+        if (sctls%verbose>3) &
+                write (stream,*) "Initial coarse grid has dimensions ",C%nc," with a total of ",C%elnum," elements"
 
         ! Change nc from number of elements to number of nodes
         C%nc=C%nc+1
@@ -473,6 +476,10 @@ subroutine CreateCoarseMesh(M, C, choosecenter)
 
         ! Calculate new size of coords and allocate a new array for it
         pcnt=count(ctiremap==0)-1; C%nct=C%nct-pcnt
+
+        if (sctls%verbose>3) &
+                write (stream,*) "Removing ",pcnt," empty coarse elements"
+
         allocate(ncoords(M%nsd,C%nct))
 
         if (pcnt>0) then
@@ -542,6 +549,13 @@ subroutine CreateCoarseMesh(M, C, choosecenter)
         ! Put in the new ones
         C%coords=>ncoords
  
+        if (sctls%verbose>3) then
+                write (stream,*) "Global coarse mesh has: "
+                write (stream,*) "Grid nodes:   ",C%nct
+                write (stream,*) "Refinements:  ",C%refnum
+                write (stream,*) "Hanging nodes:",C%nhn
+        endif
+
 end subroutine CreateCoarseMesh
 
 subroutine CreateHangingNodes(refpt,coordpt,nsd,nsame,minv,maxv,C)

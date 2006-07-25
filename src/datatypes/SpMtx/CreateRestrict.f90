@@ -310,6 +310,9 @@ contains
         ! Give back the unneeded memory in P
         if (R%nnz>f-1) call SpMtx_resize(R,f-1)
         
+        if (sctls%verbose>3) &
+             write (stream,*) "Restriction matrix has ",f-1," elements"
+
    end subroutine CreatePathRestrict
 
     !************************************************
@@ -704,6 +707,10 @@ contains
         call SpMtx_resize(R,j-1)
         R%arrange_type=D_SpMtx_ARRNG_NO
         deallocate(R%M_bound)
+
+        if (sctls%verbose>3) &
+             write (stream,*) "Stripped restriction matrix has ",j-1," elements"
+
     end subroutine stripRestrict
  
 end module CoarseCreateRestrict

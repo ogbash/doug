@@ -335,6 +335,8 @@ contains
         if (tcnt==0) return
 
 !        write(stream,*) "TCNT:",tcnt
+        if (sctls%verbose>5) &
+               write(stream,*) "Total number of obsoletion candidates recieved:",tcnt 
 
         ! Allocate memory
         allocate(lunused(cnt),unused(tcnt))
@@ -376,7 +378,8 @@ contains
             disps(i+1)=disps(i)+cnts(i)
         enddo
         dcnt=disps(M%nparts)+cnts(M%nparts)
-!        write(stream,*) "DCNT:",dcnt
+        if (sctls%verbose>5) &
+               write(stream,*) "Total number of disagreements recieved:",dcnt
 
         ! Allocate memory
         allocate(ldisagree(cnt), disagree(dcnt))
@@ -439,7 +442,10 @@ contains
                 k=k+1
             endif
         enddo
-!        write(stream,*) "DIFF:", C%nlfc-k+1
+
+        if (sctls%verbose>3) &
+               write(stream,*) "Cleaned ",C%nlfc-k+1," coarse freedoms"
+
         C%nlfc=k-1
 
         ! Remap R

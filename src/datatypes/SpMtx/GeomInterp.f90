@@ -171,6 +171,9 @@ contains
         ! Give back the unneeded memory in P
         if (R%nnz>f-1) call SpMtx_resize(R,f-1)
 
+        if (sctls%verbose>3) &
+             write (stream,*) "Restriction matrix has ",f-1," elements"
+
 !        write(stream,*) "Restriction matrix"
 !        do i=1,R%nnz
 !           write(stream,*) i,C%lg_fmap(R%indi(i)),M%lg_fmap(R%indj(i)),R%val(i)
@@ -201,6 +204,8 @@ contains
        integer :: i, k, cdir, ncnt
        integer :: ni(2*nsd+1), nc(2*nsd+1) ! new node indices and corners
        real(kind=xyzk) :: m(nsd) ! interpolation multipliers
+
+       integer :: dir,dh(nsd),drev,rev(nsd)
        
        if (.not.associated(hnds)) then
            allocate(hnds(2*nsd)); hnds=0
@@ -218,76 +223,113 @@ contains
        ! Fill the outbound structures with initial values
        ncsz=csz; ciout(1:csz)=cinds(1:csz)
 
-       ! Sorry about the next part. I thought a half an hour about how
-       ! to do it better but nothing occured to me.
-       if (nsd==2) then
+!----------------------------------------------------------------------
+
+       ! Find the direction of the element and the array to reverse it
+       dir=1; drev=1; k=1
+       do i=1,nsd
+       if (pt(i)<ct(i)) then
+           dir=dir+k; rev(i)=-k; dh(i)=nsd+i
+       else
+           drev=drev+k; rev(i)=k; dh(i)=i
+       endif
+           k=2*k
+       enddo
+       ! drev = <index of opposite corner to dir> = dir+sum(rev)
+
+       ! The fixed point
+       cfout(dir,1:csz)=coefs(dir,1:csz)
+
+       ! The new center of refinement used
+       cfout(drev,1:csz)=0.0_xyzk; nc(1)=drev; ni(1)=ci ! Add the new center
+
+       ! Turn the rev around so instead of reverting in the given direction, 
+       ! it reverts in all directions except it
+       ! this simple trick works only in the 2d case
+       rev=drev-dir-rev
+
+       ! The nodes directly connected to the new center
+       ! To do it for 3d case, one should use bilinear interpolation
+       !  on the faces of the cube
+       do i=1,nsd
+           if (hnds(dh(i))>0) then
+               cfout(dir+rev(i),1:csz)=0.0_xyzk; ncnt=ncnt+1
+               nc(ncnt)=dir+rev(i); ni(ncnt)=hnds(dh(i))
+           else
+               if (rev(i)>0) then ! Fixed node is max
+                   cfout(dir+rev(i),1:csz)=m(i)*coefs(dir+rev(i),1:csz)+ &
+                                       (1-m(i))*coefs(dir,1:csz)
+               else ! Fixed node is min
+                   cfout(dir+rev(i),1:csz)=m(i)*coefs(dir,1:csz)+ &
+                                       (1-m(i))*coefs(dir+rev(i),1:csz)
+               endif
+           endif
+       enddo
+
+!----------------------------------------------------------------------
 
        ! NE part
-       if (ct(1)<=pt(1) .and. ct(2)<=pt(2)) then
-          cfout(1,1:csz)=coefs(1,1:csz) 
-          cfout(4,1:csz)=0.0_xyzk; nc(1)=4; ni(1)=ci
+!       if (ct(1)<=pt(1) .and. ct(2)<=pt(2)) then
+!          cfout(1,1:csz)=coefs(1,1:csz) 
+!          cfout(4,1:csz)=0.0_xyzk; nc(1)=4; ni(1)=ci
 
-          if (hnds(1)>0) then
-              cfout(2,1:csz)=0.0_xyzk; ncnt=ncnt+1; nc(ncnt)=2; ni(ncnt)=hnds(1)
-          else; cfout(2,1:csz)=m(1)*coefs(2,1:csz)+(1-m(1))*coefs(1,1:csz)
-          endif
+!          if (hnds(2)>0) then
+!              cfout(2,1:csz)=0.0_xyzk; ncnt=ncnt+1; nc(ncnt)=2; ni(ncnt)=hnds(2)
+!          else; cfout(2,1:csz)=m(1)*coefs(2,1:csz)+(1-m(1))*coefs(1,1:csz)
+!          endif
 
-          if (hnds(2)>0) then
-              cfout(3,1:csz)=0.0_xyzk; ncnt=ncnt+1; nc(ncnt)=3; ni(ncnt)=hnds(2)
-          else; cfout(3,1:csz)=m(2)*coefs(3,1:csz)+(1-m(2))*coefs(1,1:csz)
-          endif
+!          if (hnds(1)>0) then
+!              cfout(3,1:csz)=0.0_xyzk; ncnt=ncnt+1; nc(ncnt)=3; ni(ncnt)=hnds(1)
+!          else; cfout(3,1:csz)=m(2)*coefs(3,1:csz)+(1-m(2))*coefs(1,1:csz)
+!          endif
 
        ! SE part
-       else if (ct(1)<=pt(1) .and. ct(2)>pt(2)) then
-          cfout(3,1:csz)=coefs(3,1:csz) 
-          cfout(2,1:csz)=0.0_xyzk; nc(1)=2; ni(1)=ci
+!       else if (ct(1)<=pt(1) .and. ct(2)>pt(2)) then
+!          cfout(3,1:csz)=coefs(3,1:csz) 
+!          cfout(2,1:csz)=0.0_xyzk; nc(1)=2; ni(1)=ci
 
-          if (hnds(4)>0) then
-              cfout(4,1:csz)=0.0_xyzk; ncnt=ncnt+1; nc(ncnt)=4; ni(ncnt)=hnds(4)
-          else; cfout(4,1:csz)=m(1)*coefs(4,1:csz)+(1-m(1))*coefs(3,1:csz)
-          endif
+!          if (hnds(4)>0) then
+!              cfout(4,1:csz)=0.0_xyzk; ncnt=ncnt+1; nc(ncnt)=4; ni(ncnt)=hnds(4)
+!          else; cfout(4,1:csz)=m(1)*coefs(4,1:csz)+(1-m(1))*coefs(3,1:csz)
+!          endif
 
-          if (hnds(1)>0) then
-              cfout(1,1:csz)=0.0_xyzk; ncnt=ncnt+1; nc(ncnt)=1; ni(ncnt)=hnds(1)
-          else; cfout(1,1:csz)=m(2)*coefs(3,1:csz)+(1-m(2))*coefs(1,1:csz)
-          endif
+!          if (hnds(1)>0) then
+!              cfout(1,1:csz)=0.0_xyzk; ncnt=ncnt+1; nc(ncnt)=1; ni(ncnt)=hnds(1)
+!          else; cfout(1,1:csz)=m(2)*coefs(3,1:csz)+(1-m(2))*coefs(1,1:csz)
+!          endif
 
        ! NW part
-       else if (ct(1)>pt(1) .and. ct(2)<=pt(2)) then
-          cfout(2,1:csz)=coefs(2,1:csz)
-          cfout(3,1:csz)=0.0_xyzk; nc(1)=3; ni(1)=ci
+!       else if (ct(1)>pt(1) .and. ct(2)<=pt(2)) then
+!          cfout(2,1:csz)=coefs(2,1:csz)
+!          cfout(3,1:csz)=0.0_xyzk; nc(1)=3; ni(1)=ci
 
-          if (hnds(2)>0) then
-              cfout(1,1:csz)=0.0_xyzk; ncnt=ncnt+1; nc(ncnt)=1; ni(ncnt)=hnds(2)
-          else; cfout(1,1:csz)=m(1)*coefs(2,1:csz)+(1-m(1))*coefs(1,1:csz)
-          endif
+!          if (hnds(2)>0) then
+!              cfout(1,1:csz)=0.0_xyzk; ncnt=ncnt+1; nc(ncnt)=1; ni(ncnt)=hnds(2)
+!          else; cfout(1,1:csz)=m(1)*coefs(2,1:csz)+(1-m(1))*coefs(1,1:csz)
+!          endif
 
-          if (hnds(3)>0) then
-              cfout(4,1:csz)=0.0_xyzk; ncnt=ncnt+1; nc(ncnt)=4; ni(ncnt)=hnds(3)
-          else; cfout(4,1:csz)=m(2)*coefs(4,1:csz)+(1-m(2))*coefs(2,1:csz)
-          endif
+!          if (hnds(3)>0) then
+!              cfout(4,1:csz)=0.0_xyzk; ncnt=ncnt+1; nc(ncnt)=4; ni(ncnt)=hnds(3)
+!          else; cfout(4,1:csz)=m(2)*coefs(4,1:csz)+(1-m(2))*coefs(2,1:csz)
+!          endif
 
        ! SW part
-       else if (ct(1)>pt(1) .and. ct(2)>pt(2)) then
-          cfout(4,1:csz)=coefs(4,1:csz)
-          cfout(1,1:csz)=0.0_xyzk; nc(1)=1; ni(1)=ci
+!       else if (ct(1)>pt(1) .and. ct(2)>pt(2)) then
+!          cfout(4,1:csz)=coefs(4,1:csz)
+!          cfout(1,1:csz)=0.0_xyzk; nc(1)=1; ni(1)=ci
 
-          if (hnds(4)>0) then
-              cfout(3,1:csz)=0.0_xyzk; ncnt=ncnt+1; nc(ncnt)=3; ni(ncnt)=hnds(4)
-          else; cfout(3,1:csz)=m(1)*coefs(4,1:csz)+(1-m(1))*coefs(3,1:csz)
-          endif
+!          if (hnds(4)>0) then
+!              cfout(3,1:csz)=0.0_xyzk; ncnt=ncnt+1; nc(ncnt)=3; ni(ncnt)=hnds(4)
+!          else; cfout(3,1:csz)=m(1)*coefs(4,1:csz)+(1-m(1))*coefs(3,1:csz)
+!          endif
 
-          if (hnds(3)>0) then
-              cfout(2,1:csz)=0.0_xyzk; ncnt=ncnt+1; nc(ncnt)=2; ni(ncnt)=hnds(3)
-          else; cfout(2,1:csz)=m(2)*coefs(4,1:csz)+(1-m(2))*coefs(2,1:csz)
-          endif
+!          if (hnds(3)>0) then
+!              cfout(2,1:csz)=0.0_xyzk; ncnt=ncnt+1; nc(ncnt)=2; ni(ncnt)=hnds(3)
+!          else; cfout(2,1:csz)=m(2)*coefs(4,1:csz)+(1-m(2))*coefs(2,1:csz)
+!          endif
 
-       endif
-!       else
-!        call DOUG_abort("3D trilinear interpolation not implemented yet!")
-        ! Would go the same way, just with more lines, and an occasional
-        ! m(1)(1-m(2)) type thing for bilinear interpolation
-       endif
+!       endif
+!----------------------------------------------------------------------
 
        ! Add new nodes to the gaps and thus remove the gaps
        i=ncsz
