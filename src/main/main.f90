@@ -99,10 +99,11 @@ program main
 
       if (sctls%verbose>1) &
            write (stream,*) "Sending parts of the coarse grid to other threads"   
-      call SendCoarse(C,M)
+      call SendCoarse(C,M,LC)
 
-      if (sctls%verbose>1) write (stream,*) "Creating a local coarse grid"
-      call CreateLocalCoarse(C,M,LC)
+!      if (sctls%verbose>1) write (stream,*) "Creating a local coarse grid"
+!      call CoarseGrid_Destroy(LC)
+!      call CreateLocalCoarse(C,M,LC)
 
       ! deallocating coarse grid
       nullify(C%coords) ! as LC uses that
@@ -114,7 +115,7 @@ program main
       if (sctls%verbose>0) write (stream,*) "Recieving coarse grid data"
       call  ReceiveCoarse(LC, M)
     endif       
-      if (sctls%plotting>1) call CoarseGrid_pl2D_plotMesh(LC)
+      if (sctls%plotting>1 .and. ismaster()) call CoarseGrid_pl2D_plotMesh(LC)
 
       if (sctls%verbose>0) write (stream,*) "Creating Restriction matrix"
       call CreateRestrict(LC,M,Restrict)
@@ -132,6 +133,10 @@ program main
 
       if (sctls%verbose>0)  write (stream,*) "Building coarse matrix"
       call CoarseMtxBuild(A,cdat%LAC,Restrict)  
+
+!      cdat%LAC%indi=>cdat%LAC%indj
+
+!      call CleanCoarse(LC,cdat%LAC,M)
 
       if (sctls%verbose>1) write (stream, *) "Stripping the restriction matrix"
       call StripRestrict(M,Restrict)

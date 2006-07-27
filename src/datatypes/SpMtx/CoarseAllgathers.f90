@@ -282,6 +282,8 @@ contains
    ! Used for cleaning up coarse freedoms which are unused
    ! It needs to be done, since without it, singularities 
    ! can and do occur in the coarse matrix
+   ! TODO:  for current implementation which needs glg map,
+   !  this could be done in that function
    subroutine CleanCoarse(C,R,M)
         use RealKind
         use CoarseGrid_class
@@ -308,7 +310,6 @@ contains
         !--------------------------------------------
         ! Locate seemingly unused nodes
         !--------------------------------------------
-
         used=0
 
         ! Find the used ones and unused count
@@ -435,7 +436,7 @@ contains
         ! remap the gl and lg_fmap
         cnt=0; k=1; C%gl_fmap=0 
         do i=1,C%nlfc
-            if (used(i)) then
+            if (used(i)/=0) then
                 C%lg_fmap(k)=remap(C%lg_fmap(i))
                 C%gl_fmap(C%lg_fmap(k))=k
                 used(i)=k ! create the local remap into used
@@ -446,12 +447,24 @@ contains
         if (sctls%verbose>3) &
                write(stream,*) "Cleaned ",C%nlfc-k+1," coarse freedoms"
 
-        C%nlfc=k-1
-
         ! Remap R
         R%indi(:)=used(R%indi(:))
-        R%nrows=C%nlfc        
+       
+        ! Restore M_bound if needed
+        if (R%arrange_type==D_SpMtx_ARRNG_ROWS) then
+            do i=1,C%nlfc
+                if (used(i)/=0) &
+                    R%M_bound(used(i))=R%M_bound(i)
+            enddo 
+            R%M_bound(k)=R%M_bound(C%nlfc+1)
+        endif
 
+!        R%arrange_type=D_SpMtx_ARRNG_NO
+        C%nlfc=k-1
+
+        R%nrows=C%nlfc
+
+!        call SpMtx_printRaw(R)
     end subroutine CleanCoarse 
 
 end module CoarseAllgathers

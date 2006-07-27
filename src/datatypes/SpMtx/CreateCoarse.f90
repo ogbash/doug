@@ -89,9 +89,18 @@ subroutine CreateCoarseMesh(M, C, choosecenter)
 
         ! Find which nodes we actually need to consider
         inuse=.false.
-        do i=1,M%ngf
-           inuse(M%freemap(i))=.true.
+        
+        do i=1,M%nell
+            if (M%eptnmap(i)<=M%nparts .and. M%eptnmap(i)>0) then 
+            do j=1,M%nfrelt(i)
+                inuse(M%freemap(M%mhead(j, i)))=.true.
+            enddo
+            endif
         enddo
+ 
+!        do i=1,M%ngf
+!           inuse(M%freemap(i))=.true.
+!        enddo
 
         do i=1,M%nsd
             ! Find the extremes
@@ -110,18 +119,18 @@ subroutine CreateCoarseMesh(M, C, choosecenter)
         !***********************************************************
 
         ! Find how many to use
-        ! Should give quite good approximations to squares for coarse elements
+        ! Should give quite good approximations to squares for el. shapes
         ! (Currently, C%nc(i) means number of elements in that direction)
         ! Uses formulae derived by solving prod(C%nc(:))=mctls%maxcie
         ! and C%nc(i)/C%nc(j) = ln(i)/ln(j) for i.neq.j; 1<=i,j<=M%nsd
         ! and then truncating C%nc(i) thus obtaining whole number ratios
         if (M%nsd==2) then
-            C%nc(1)=anint((mctls%maxcie*(ln(1)/ln(2)))**(1/2.0_xyzk )) 
-            C%nc(2)=anint((mctls%maxcie*(ln(2)/ln(1)))**(1/2.0_xyzk ))
+            C%nc(1)=anint((mctls%maxcie*(ln(1)/ln(2)))**(0.5_xyzk)) 
+            C%nc(2)=anint((mctls%maxcie*(ln(2)/ln(1)))**(0.5_xyzk))
         else if (M%nsd==3) then
-            C%nc(1)=anint((mctls%maxcie*ln(1)*ln(1)/(ln(2)*ln(3)))**(1/3_xyzk ))
-            C%nc(2)=anint((mctls%maxcie*ln(2)*ln(2)/(ln(1)*ln(3)))**(1/3_xyzk ))
-            C%nc(3)=anint((mctls%maxcie*ln(3)*ln(3)/(ln(1)*ln(2)))**(1/3_xyzk ))
+            C%nc(1)=anint((mctls%maxcie*ln(1)*ln(1)/(ln(2)*ln(3)))**(0.33_xyzk))
+            C%nc(2)=anint((mctls%maxcie*ln(2)*ln(2)/(ln(1)*ln(3)))**(0.33_xyzk))
+            C%nc(3)=anint((mctls%maxcie*ln(3)*ln(3)/(ln(1)*ln(2)))**(0.33_xyzk))
         endif
         C%nc=max(C%nc,1)
 !        write(stream,*) "NC: ",C%nc
@@ -150,16 +159,16 @@ subroutine CreateCoarseMesh(M, C, choosecenter)
         ! Create initial coarse grid nodes
         nd=1
         if (M%nsd==3) then ! 3D
-            do i=1,C%nc(1); do j=1,C%nc(2); do k=1,C%nc(3)
-                C%coords(1,nd)=(i-1)*C%h0(1)+C%minvg(1)
-                C%coords(2,nd)=(j-1)*C%h0(2)+C%minvg(2)
-                C%coords(3,nd)=(k-1)*C%h0(3)+C%minvg(3)
+            do i=0,C%nc(1)-1; do j=0,C%nc(2)-1; do k=0,C%nc(3)-1
+                C%coords(1,nd)=i*C%h0(1)+C%minvg(1)
+                C%coords(2,nd)=j*C%h0(2)+C%minvg(2)
+                C%coords(3,nd)=k*C%h0(3)+C%minvg(3)
                 nd=nd+1
             enddo; enddo; enddo
         else ! 2D
-            do i=1,C%nc(1); do j=1,C%nc(2)
-                C%coords(1,nd)=(i-1)*C%h0(1)+C%minvg(1)
-                C%coords(2,nd)=(j-1)*C%h0(2)+C%minvg(2)
+            do i=0,C%nc(1)-1; do j=0,C%nc(2)-1
+                C%coords(1,nd)=i*C%h0(1)+C%minvg(1)
+                C%coords(2,nd)=j*C%h0(2)+C%minvg(2)
                 nd=nd+1
             enddo; enddo
         endif
@@ -318,13 +327,11 @@ subroutine CreateCoarseMesh(M, C, choosecenter)
                         C%els(el)%nfs,C%elnum+refpt)
 
                 ! Try to create the associated hanging nodes
-                if (mctls%hanging_nodes) then
+                nullify(new%hnds)
+                if (mctls%hanging_nodes) &
                 call CreateHangingNodes(refpt,hangpt,M%nsd,nsame, &
                         C%coords(:,C%els(el)%n(1)), & ! mins
                         C%coords(:,C%els(el)%n(2**M%nsd)),C) 
-                else
-                    nullify(new%hnds)
-                endif
 
                 refpt=refpt+1
             else ! We need to refine an already refined element
@@ -443,11 +450,9 @@ subroutine CreateCoarseMesh(M, C, choosecenter)
                 if (C%mlvl<new%level) C%mlvl=new%level
 
                 ! And try to create the associated hanging nodes
-                if (mctls%hanging_nodes) then
+                nullify(new%hnds)
+                if (mctls%hanging_nodes) &
                 call CreateHangingNodes(refpt,hangpt,M%nsd,nsame,minv,maxv,C)
-                else
-                    nullify(new%hnds)
-                endif
        
                 ! Increase the pointer
                 refpt=refpt+1
@@ -551,7 +556,7 @@ subroutine CreateCoarseMesh(M, C, choosecenter)
  
         if (sctls%verbose>3) then
                 write (stream,*) "Global coarse mesh has: "
-                write (stream,*) "Grid nodes:   ",C%nct
+                write (stream,*) "Grid nodes:   ",C%ncti
                 write (stream,*) "Refinements:  ",C%refnum
                 write (stream,*) "Hanging nodes:",C%nhn
         endif
@@ -573,8 +578,7 @@ subroutine CreateHangingNodes(refpt,coordpt,nsd,nsame,minv,maxv,C)
     real(kind=xyzk),pointer :: pt(:)
     real(kind=xyzk) :: pt2(nsd)
 
-    new=>C%refels(refpt); pt=>C%coords(:,new%node)
-    k=1; nullify(new%hnds)
+    new=>C%refels(refpt); pt=>C%coords(:,new%node); k=1
     do i=1,nsd
         !************************************
         ! Positive direction
@@ -616,6 +620,7 @@ subroutine CreateHangingNodes(refpt,coordpt,nsd,nsame,minv,maxv,C)
                 if (.not.associated(cur%hnds)) then
                     allocate(cur%hnds(2*nsd)); cur%hnds=0
                 endif
+
                 cur%hnds(nsd+i)=coordpt
             endif
 

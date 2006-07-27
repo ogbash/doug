@@ -59,8 +59,8 @@ contains
         ! Create the Node Prolongation matrix structure
         !****************************************************
 
-        ! Calculate nnz
-        
+        ! Calculate nnz        
+
         cnt=0
         
         ! Increment by initial grid
@@ -148,6 +148,7 @@ contains
         do i=1,M%nlf    
             nd=M%lfreemap(i)
             R%M_bound(i)=f
+            if (nd/=0) then
 !            write(stream,*) nd
             do j=lbounds(nd),ubounds(nd)
                 do k=fbeg(NP%indj(j)),fbeg(NP%indj(j)+1)-1
@@ -159,9 +160,10 @@ contains
                 endif
                 enddo
             enddo
+            endif
         enddo
         R%M_bound(M%nlf+1)=f
-        
+
         ! Set the matrix to be row-sorted format
         R%arrange_type=D_SpMtx_ARRNG_COLS
 
@@ -201,7 +203,7 @@ contains
        integer, intent(out) :: ciout(:)
        integer, intent(out) :: ncsz
 
-       integer :: i, k, cdir, ncnt
+       integer :: i, k, ncnt
        integer :: ni(2*nsd+1), nc(2*nsd+1) ! new node indices and corners
        real(kind=xyzk) :: m(nsd) ! interpolation multipliers
 
@@ -215,10 +217,7 @@ contains
         ncnt=1 
 
        ! calc the interpolation multipliers
-       m=(maxv-ct)/(maxv-minv)
-!       write(stream,*) "ct: ",ct
-!       write(stream,*) "min:",minv
-!       write(stream,*) "max:",maxv
+       m=(maxv-ct)/(maxv-minv) ! Coefficients for the min values in each dir
 
        ! Fill the outbound structures with initial values
        ncsz=csz; ciout(1:csz)=cinds(1:csz)
@@ -228,11 +227,11 @@ contains
        ! Find the direction of the element and the array to reverse it
        dir=1; drev=1; k=1
        do i=1,nsd
-       if (pt(i)<ct(i)) then
-           dir=dir+k; rev(i)=-k; dh(i)=nsd+i
-       else
-           drev=drev+k; rev(i)=k; dh(i)=i
-       endif
+           if (pt(i)<ct(i)) then
+               dir=dir+k; rev(i)=-k; dh(i)=nsd+i
+           else
+               drev=drev+k; rev(i)=k; dh(i)=i
+           endif
            k=2*k
        enddo
        ! drev = <index of opposite corner to dir> = dir+sum(rev)
@@ -242,31 +241,86 @@ contains
 
        ! The new center of refinement used
        cfout(drev,1:csz)=0.0_xyzk; nc(1)=drev; ni(1)=ci ! Add the new center
+       
+       if (nsd==2) then
 
-       ! Turn the rev around so instead of reverting in the given direction, 
-       ! it reverts in all directions except it
-       ! this simple trick works only in the 2d case
-       rev=drev-dir-rev
+           ! Turn the rev around so instead of reverting in the given direction
+           ! it reverts in all directions except it
+           rev=drev-dir-rev
 
-       ! The nodes directly connected to the new center
-       ! To do it for 3d case, one should use bilinear interpolation
-       !  on the faces of the cube
-       do i=1,nsd
-           if (hnds(dh(i))>0) then
-               cfout(dir+rev(i),1:csz)=0.0_xyzk; ncnt=ncnt+1
-               nc(ncnt)=dir+rev(i); ni(ncnt)=hnds(dh(i))
-           else
-               if (rev(i)>0) then ! Fixed node is max
-                   cfout(dir+rev(i),1:csz)=m(i)*coefs(dir+rev(i),1:csz)+ &
-                                       (1-m(i))*coefs(dir,1:csz)
-               else ! Fixed node is min
-                   cfout(dir+rev(i),1:csz)=m(i)*coefs(dir,1:csz)+ &
-                                       (1-m(i))*coefs(dir+rev(i),1:csz)
-               endif
+           ! The nodes directly connected to the new center
+           ! To do it for 3d case, one should use bilinear interpolation
+           !  on the faces of the cube
+           do i=1,nsd
+                if (hnds(dh(i))>0) then
+                   cfout(dir+rev(i),1:csz)=0.0_xyzk; ncnt=ncnt+1
+                   nc(ncnt)=dir+rev(i); ni(ncnt)=hnds(dh(i))
+                else
+                   if (rev(i)>0) then ! Fixed node is max
+                       cfout(dir+rev(i),1:csz)=m(i)*coefs(dir+rev(i),1:csz)+ &
+                                           (1-m(i))*coefs(dir,1:csz)
+                   else ! Fixed node is min
+                       cfout(dir+rev(i),1:csz)=m(i)*coefs(dir,1:csz)+ &
+                                           (1-m(i))*coefs(dir+rev(i),1:csz)
+                   endif
+                endif
+           enddo
+
+       else ! if (nsd==3)
+
+            ! The nodes near the fixed one
+            do i=1,3
+                if (rev(i)>0) then ! Fixed node is max
+                    cfout(dir+rev(i),1:csz)=m(i)*coefs(dir+rev(i),1:csz)+ &
+                                        (1-m(i))*coefs(dir,1:csz)
+                else ! Fixed node is min
+                    cfout(dir+rev(i),1:csz)=m(i)*coefs(dir,1:csz)+ &
+                                        (1-m(i))*coefs(dir+rev(i),1:csz)
+                endif         
+            enddo
+ 
+            ! The nodes near the new center aka the centers of faces
+            ! use bilinear interpolation
+            if (hnds(dh(1))>0) then
+                cfout(drev-rev(1),1:csz)=0.0_xyzk; ncnt=ncnt+1
+                nc(ncnt)=drev-rev(1); ni(ncnt)=hnds(dh(1))
+            else
+                k=max(0, -rev(1) ) + 1
+                cfout(drev-rev(1),1:csz)=m(2)*m(3)*coefs(k,1:csz)+ &
+                                     m(2)*(1-m(3))*coefs(k+4,1:csz) + &
+                                     (1-m(2))*m(3)*coefs(k+2,1:csz) + &
+                                     (1-m(2))*(1-m(3))*coefs(k+6,1:csz)
+
+            endif
+            
+            if (hnds(dh(2))>0) then
+                cfout(drev-rev(2),1:csz)=0.0_xyzk; ncnt=ncnt+1
+                nc(ncnt)=drev-rev(2); ni(ncnt)=hnds(dh(2))
+            else
+                k=max(0, -rev(2) ) + 1
+                cfout(drev-rev(2),1:csz)=m(1)*m(3)*coefs(k,1:csz)+ &
+                                     m(1)*(1-m(3))*coefs(k+4,1:csz) + &
+                                     (1-m(1))*m(3)*coefs(k+1,1:csz) + &
+                                     (1-m(1))*(1-m(3))*coefs(k+5,1:csz)
            endif
-       enddo
+
+            if (hnds(dh(3))>0) then
+                cfout(drev-rev(3),1:csz)=0.0_xyzk; ncnt=ncnt+1
+                nc(ncnt)=drev-rev(3); ni(ncnt)=hnds(dh(3))
+            else
+                k=max(0, -rev(3) ) + 1
+                cfout(drev-rev(3),1:csz)=m(1)*m(2)*coefs(k,1:csz)+ &
+                                     m(1)*(1-m(2))*coefs(k+2,1:csz) + &
+                                     (1-m(1))*m(2)*coefs(k+1,1:csz) + &
+                                     (1-m(1))*(1-m(2))*coefs(k+3,1:csz)
+           endif
+
+       endif
 
 !----------------------------------------------------------------------
+! Following is the previous code with loops and conditionals unrolled for 
+! 2D case. It should be a lot more efficient, in case performance here becomes
+! an issue
 
        ! NE part
 !       if (ct(1)<=pt(1) .and. ct(2)<=pt(2)) then
@@ -359,7 +413,8 @@ contains
 
 !       write(stream,*) "inds:", ACHAR(ciout(1:ncsz)+32)
 !       do i=1,2**nsd
-!           write(stream,*) i, ":",cfout(i,1:ncsz)
+!!           if (sum(cfout(i,1:ncsz))<0.9999_xyzk) &
+!               write(stream,*) i, ":",cfout(i,1:ncsz)
 !       enddo
        
    end subroutine CalcNextCoefs
@@ -385,33 +440,73 @@ contains
        if (nsd==2) then
            ! 1: ne
            mbuf(1)=minv(1)*minv(2); mbuf(2)=-minv(2); 
-           mbuf(3)=-minv(1); mbuf(4)=1.0_xyzk; mbuf=mbuf*prd
-           
-           do i=1,csz
-               mults(:,i)=mults(:,i)+coefs(1,i)*mbuf(:)
-           enddo
+           mbuf(3)=-minv(1); mbuf(4)=1.0_xyzk; mbuf=mbuf*prd           
+           do i=1,csz; mults(:,i)=mults(:,i)+coefs(1,i)*mbuf(:); enddo
 
            ! 2: nw
            mbuf(1)=-maxv(1)*minv(2); mbuf(2)=minv(2)
            mbuf(3)=maxv(1); mbuf(4)=-1.0_xyzk; mbuf=mbuf*prd
-           do i=1,csz
-               mults(:,i)=mults(:,i)+coefs(2,i)*mbuf(:)
-           enddo
+           do i=1,csz; mults(:,i)=mults(:,i)+coefs(2,i)*mbuf(:); enddo
 
            ! 3: se
            mbuf(1)=-minv(1)*maxv(2); mbuf(2)=maxv(2)
            mbuf(3)=minv(1); mbuf(4)=-1.0_xyzk; mbuf=mbuf*prd
-           do i=1,csz
-               mults(:,i)=mults(:,i)+coefs(3,i)*mbuf(:)
-           enddo
+           do i=1,csz; mults(:,i)=mults(:,i)+coefs(3,i)*mbuf(:); enddo
 
            ! 4: sw
            mbuf(1)=maxv(1)*maxv(2); mbuf(2)=-maxv(2); 
            mbuf(3)=-maxv(1); mbuf(4)=1.0_xyzk; mbuf=mbuf*prd
-           do i=1,csz
-               mults(:,i)=mults(:,i)+coefs(4,i)*mbuf(:)
-           enddo
-!       else
+           do i=1,csz; mults(:,i)=mults(:,i)+coefs(4,i)*mbuf(:); enddo
+       else ! if (nsd==3)
+           ! 1: neu
+           mbuf(5)=-minv(1); mbuf(6)=-minv(2); mbuf(7)=-minv(3)
+           mbuf(1)=product(mbuf(5:7)); mbuf(2:4)=mbuf(1)/mbuf(5:7)
+           mbuf(8)=1.0_xyzk; mbuf=mbuf*prd
+           do i=1,csz; mults(:,i)=mults(:,i)+coefs(1,i)*mbuf(:); enddo
+
+           ! 2: nwu
+           mbuf(5)=maxv(1); mbuf(6)=minv(2); mbuf(7)=minv(3)
+           mbuf(1)=product(mbuf(5:7)); mbuf(2:4)=-mbuf(1)/mbuf(5:7)
+           mbuf(8)=-1.0_xyzk; mbuf=mbuf*prd
+           do i=1,csz; mults(:,i)=mults(:,i)+coefs(2,i)*mbuf(:); enddo
+
+           ! 3: seu
+           mbuf(5)=minv(1); mbuf(6)=maxv(2); mbuf(7)=minv(3)
+           mbuf(1)=product(mbuf(5:7)); mbuf(2:4)=-mbuf(1)/mbuf(5:7)
+           mbuf(8)=-1.0_xyzk; mbuf=mbuf*prd
+           do i=1,csz; mults(:,i)=mults(:,i)+coefs(3,i)*mbuf(:); enddo
+
+           ! 4: swu
+           mbuf(5)=-maxv(1); mbuf(6)=-maxv(2); mbuf(7)=-minv(3)
+           mbuf(1)=product(mbuf(5:7)); mbuf(2:4)=mbuf(1)/mbuf(5:7)
+           mbuf(8)=1.0_xyzk; mbuf=mbuf*prd
+           do i=1,csz; mults(:,i)=mults(:,i)+coefs(4,i)*mbuf(:); enddo
+
+           ! 5: ned
+           mbuf(5)=minv(1); mbuf(6)=minv(2); mbuf(7)=maxv(3)
+           mbuf(1)=product(mbuf(5:7)); mbuf(2:4)=-mbuf(1)/mbuf(5:7)
+           mbuf(8)=-1.0_xyzk; mbuf=mbuf*prd
+           do i=1,csz; mults(:,i)=mults(:,i)+coefs(5,i)*mbuf(:); enddo
+
+           ! 6: nwd
+           mbuf(5)=-maxv(1); mbuf(6)=-minv(2); mbuf(7)=-maxv(3)
+           mbuf(1)=product(mbuf(5:7)); mbuf(2:4)=mbuf(1)/mbuf(5:7)
+           mbuf(8)=1.0_xyzk; mbuf=mbuf*prd
+           do i=1,csz; mults(:,i)=mults(:,i)+coefs(6,i)*mbuf(:); enddo
+
+           ! 7: sed
+           mbuf(5)=-minv(1); mbuf(6)=-maxv(2); mbuf(7)=-maxv(3)
+           mbuf(1)=product(mbuf(5:7)); mbuf(2:4)=mbuf(1)/mbuf(5:7)
+           mbuf(8)=1.0_xyzk; mbuf=mbuf*prd
+           do i=1,csz; mults(:,i)=mults(:,i)+coefs(7,i)*mbuf(:); enddo
+
+           ! 8: swd
+           mbuf(5)=maxv(1); mbuf(6)=maxv(2); mbuf(7)=maxv(3)
+           mbuf(1)=product(mbuf(5:7)); mbuf(2:4)=-mbuf(1)/mbuf(5:7)
+           mbuf(8)=-1.0_xyzk; mbuf=mbuf*prd
+           do i=1,csz; mults(:,i)=mults(:,i)+coefs(8,i)*mbuf(:); enddo
+
+          
 !           call DOUG_abort("Trilinear case not implemented yet!")
        endif
    end subroutine BuildMults
@@ -503,6 +598,8 @@ contains
        integer :: i, j, k, l, o
        integer :: d, ci, lvl, cur, pn
 
+       integer :: x, y, z
+
         cur=1
 
         do i=1,C%elnum
@@ -513,7 +610,13 @@ contains
             !   maxs(k,1)=maxval(C%coords(k,C%els(i)%n(:)))
             !enddo
             mins(:,1)=C%coords(:,C%els(i)%n(1))
-            maxs(:,1)=C%coords(:,C%els(i)%n(4))
+            maxs(:,1)=C%coords(:,C%els(i)%n(2**M%nsd))
+
+!            write(stream,*) "/////////////////////////"
+!            do j=1,2**M%nsd
+!                write (stream,*) j,":",C%coords(:,C%els(i)%n(j))
+!            enddo
+!            write(stream,*) "/////////////////////////"
 
             ! Init the level 0 of coefs and cinds
             cszs(1)=2**M%nsd
@@ -521,11 +624,16 @@ contains
             coefs(:,1:cszs(1),1)=0.0_xyzk
 
             ! As our n-s are chosen in different order
+            ! One can do a getDir from element center to its corners
+            !  to check these values, if need be
             if (M%nsd==2) then
                 coefs(1,4,1)=1.0_xyzk; coefs(2,2,1)=1.0_xyzk
                 coefs(3,3,1)=1.0_xyzk; coefs(4,1,1)=1.0_xyzk
             else
-                call DOUG_abort("3 dimensional case not implemented yet!")
+                coefs(8,1,1)=1.0_xyzk; coefs(4,2,1)=1.0_xyzk
+                coefs(6,3,1)=1.0_xyzk; coefs(2,4,1)=1.0_xyzk
+                coefs(7,5,1)=1.0_xyzk; coefs(3,6,1)=1.0_xyzk
+                coefs(5,7,1)=1.0_xyzk; coefs(1,8,1)=1.0_xyzk
             endif
 
 !       write(stream,*) "/////////////////////////////////////"
@@ -560,8 +668,10 @@ contains
                     cur=cur+cszs(1)
                 enddo
 
-            else ! Otherwise loop through the refinements
-!            pinds(1:tnsd)=C%els(i)%n
+            else 
+
+            ! Otherwise loop through the refinements
+            !            pinds(1:tnsd)=C%els(i)%n
             j=C%els(i)%rbeg
             do while (j/=-1)
 
@@ -572,7 +682,7 @@ contains
                     ci=C%refels(C%refels(j)%parent)%node
                     ct=>C%coords(:,ci); lvl=C%refels(j)%level-1
                     pt=>C%coords(:,C%refels(j)%node)
-
+!                    write(stream,*) "LEVEL:",C%refels(C%refels(j)%parent)%level
                     call CalcNextCoefs(ct,ci,&
                              C%refels(C%refels(j)%parent)%hnds,&
                              mins(:,lvl),maxs(:,lvl),&
@@ -644,11 +754,26 @@ contains
 !                            write(stream,*) "Mins: ",mins(:,lvl+1)
 !                            write(stream,*) "Maxs: ",maxs(:,lvl+1)
 
+!                           do l=1,2**M%nsd
+!                           if (maxval(curcfs(l,:,d))==1.0_xyzk) then
+
+!                               x=maxloc(curcfs(l,:,d),DIM=1)
+!                               if (curcfs(l,x,d)/=1.0_xyzk) write(stream,*) "WTFWTF"
+!                               y=curcis(x,d)
+!                               z=getDir(C%coords(:,y)-pt,M%nsd)
+!                               if (l/=z .and. all(C%coords(:,y)-pt/=0.0_xyzk)) then
+!                                        write(stream,*) "DIRECTION MISMATCH!!",l,z, lvl+1
+!                                        write(stream,*) C%coords(:,y)-mins(:,lvl+1)
+!                                        write(stream,*) maxs(:,lvl+1)-mins(:,lvl+1)
+!                               endif
+!                           endif
+!                           enddo
+ 
                            call BuildMults( mins(:,lvl+1),maxs(:,lvl+1), &
                                curcfs(:,:,d),curcis(:,d),curcszs(d), &
                                M%nsd,finals(:,:,d))
 
-                         
+                        
                            haveData(d)=.true.
                        endif
 

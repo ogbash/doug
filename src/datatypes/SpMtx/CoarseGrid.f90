@@ -269,7 +269,7 @@ contains
                     endif
                 enddo
             enddo
-            call plcol0(14) ! grey
+            call plcol0(11) ! grey
 
             ! Draw the initial grid box
             call pljoin(mins(1,0),maxs(2,0),maxs(1,0),maxs(2,0)) ! top
@@ -280,7 +280,7 @@ contains
             ! Walk the refined elements witin
             i=el%rbeg
             if (i/=-1) then
-                call plcol0(7) ! grey
+                call plcol0(11) ! grey
 
                 ! Deal with the first refinement
                 ct=>C%coords(:,C%refels(i)%node) ! the center
@@ -321,7 +321,7 @@ contains
             endif
         enddo
        
-        call plcol0(14)
+        call plcol0(12)
         call plssym(0.0d0,5.0d0) 
         call plpoin(C%ncti+C%refnum,C%coords(1,:),C%coords(2,:),1)
         call plpoin(C%nhn,C%coords(1,C%nct-C%nhn+1:C%nct), &
@@ -491,13 +491,13 @@ contains
                 if ( eli>C%elnum-(C%nc(2)-1)*(C%nc(3)-1) ) then; nel=0
                 else; nel=eli+(C%nc(2)-1)*(C%nc(3)-1); endif
             else if (dir==-2) then
-                if ( mod((eli-1)/(C%nc(3)-1),C%nc(2) ) == 0 ) then
+                if ( mod((eli-1)/(C%nc(3)-1),C%nc(2)-1 ) == 0 ) then
                      nel=0 ! before first
-                else; nel=eli-1; endif
+                else; nel=eli-(C%nc(3)-1); endif
             else if (dir==2) then
                 if ( mod((eli-1)/(C%nc(3)-1)+1,C%nc(2)-1 ) == 0 ) then
                      nel=0  ! after last
-                else; nel=eli+1; endif 
+                else; nel=eli+(C%nc(3)-1); endif 
             else if (dir==-4) then
                 if ( mod( eli-1 , C%nc(3)-1 ) == 0 ) then; nel=0 ! before first
                 else; nel=eli-1; endif
@@ -532,7 +532,9 @@ contains
            if (C%refels(j)%parent<0) then
                 nb=-getNextElem(-C%refels(j)%parent,dir,nsd,C)
                 if (nb/=0) then
-                    if (C%els(-nb)%rbeg>0) nb=C%els(-nb)%rbeg
+                    if (C%els(-nb)%nfs==0) then; nb=0; ! "overlook" empty els
+                    else if (C%els(-nb)%rbeg>0) then; nb=C%els(-nb)%rbeg
+                    endif
                 endif
                 exit
            else
