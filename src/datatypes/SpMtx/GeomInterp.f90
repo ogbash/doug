@@ -1,4 +1,53 @@
 module GeomInterp
+! This module is intended for bi/trilinear interpolation matrix generation
+
+! General idea:
+! As in CreateRestrict, a top down approach is taken. The tree is walked
+! a coarse element at a time from coarsest to finest. 
+! Bi/trilinear interpolation assume we know values in the corners of a 
+! square/cube. In the grid elements we do, but in the refinements, we might
+! not always have that information. In such a case the corner values usually
+! need to be interpolated linearly from values connected to that point.
+! Parsing the tree in a top down fasion has the advantage that we always
+! know what points and with what coeficients to use when interpolating
+! into the corners of the previous refinement. That info can rather easily
+! be used to find the values in the corners of the new and finer element.
+! This mechanism guarantees we know how to get the values at the corners of 
+! the element once we get to it. Since we also know the center point of the
+! element and want to use that for interpolation, we also subdivide the element
+! we get into 4/8 others before actual interpolation. 
+! Now we could just use these values and do the interpolation for each fine
+! point based on the coarse coefficients. The trouble with that is that it
+! might be quite slow. To speed up the process, some simple math is used, 
+! that allows us to bring the single point interpolation costs down to
+! 4 multiplications and 3 additions in bilinear and 12 mult. 7 add. for trilin.
+! (might be overoptimizing but the inefficiency with which it was done in
+! previous doug left a deep mark on my psyche - author).
+
+! Details:
+! I will not go into the finer points of mathematics - they should be checkable
+! by anyone with a descent understanding of school algebra and the essence of
+! bi/trilinear interpolation (which can be found explained in many places in 
+! the internet). The actual interpolation algorithm stores the element bounds
+! and coefficients of all previous levels for future use, which ensures no
+! values are calculated more than once. Other than the math, there is 
+! relatively little complicated in here (although one might want to reread
+! the commentary of CreateCoarse). Math however is nearly impossible to explain
+! by text alone, especially in the case of geometry.
+! There is one result that might need mentioning - namely, that 
+! the introduction of hanging nodes does not increase the upper bound of
+! coarse elements used for interpolation for one fine one. That bound is tight
+! and in both cases is 2**M%nsd+max(C%mlvl-1,0). The proof is not impossible:
+! One just has to note that nearly always out of four corner points, 
+! 3 have a coarse node used that no other one uses and that property can be
+! proven to hold in descent assuming a trick is used "adding" a discarded 
+! unique node to one lacking it with a coefficient zero should it be needed.
+! Again - it is hard to explain with only words, as mathematics tends to be.
+
+! NOTE: I have left debug output in this code commented out instead of deleted.
+! The reason is that this code might need some rewriting (either towards
+! readability or towards efficiency) and is sadly quite easy to break in the
+! process. These debug snippets might help the process along.
 
 contains
 
@@ -10,7 +59,6 @@ contains
         use SpMtx_class
         use SpMtx_util
         use globals, only:stream
-
         
         implicit none
 
@@ -82,13 +130,6 @@ contains
         !****************************************************
         call genmat(NP,C,M)
       
-!         write(stream,*) "Node restriction matrix"
-!        do i=1,NP%nnz
-!           write(stream,*) i,NP%indi(i),NP%indj(i),NP%val(i)
-!           write(stream,*) "C",C%coords(:,NP%indj(i))
-!           write(stream,*) "F",M%lcoords(:,NP%indi(i))
-!        enddo
-        
 !        call SpMtx_printRaw(NP)
 
         !****************************************************
@@ -149,7 +190,6 @@ contains
             nd=M%lfreemap(i)
             R%M_bound(i)=f
             if (nd/=0) then
-!            write(stream,*) nd
             do j=lbounds(nd),ubounds(nd)
                 do k=fbeg(NP%indj(j)),fbeg(NP%indj(j)+1)-1
                 if (NP%val(j)>eps) then
@@ -176,12 +216,6 @@ contains
         if (sctls%verbose>3) &
              write (stream,*) "Restriction matrix has ",f-1," elements"
 
-!        write(stream,*) "Restriction matrix"
-!        do i=1,R%nnz
-!           write(stream,*) i,C%lg_fmap(R%indi(i)),M%lg_fmap(R%indj(i)),R%val(i)
-!           write(stream,*) "C",C%coords(:,C%cfreemap(R%indi(i)))
-!           write(stream,*) "F",M%lcoords(:,M%lfreemap(R%indj(i)))
-!        enddo
         
    end subroutine CreateGeneralRestrict
 
@@ -213,8 +247,8 @@ contains
            allocate(hnds(2*nsd)); hnds=0
        endif
 
-        ! Set new count to 1 (if no hanging nodes are used, it is valid)
-        ncnt=1 
+       ! Set new count to 1 (if no hanging nodes are used, it is valid)
+       ncnt=1 
 
        ! calc the interpolation multipliers
        m=(maxv-ct)/(maxv-minv) ! Coefficients for the min values in each dir
@@ -243,24 +277,19 @@ contains
        cfout(drev,1:csz)=0.0_xyzk; nc(1)=drev; ni(1)=ci ! Add the new center
        
        if (nsd==2) then
-
-           ! Turn the rev around so instead of reverting in the given direction
-           ! it reverts in all directions except it
-           rev=drev-dir-rev
-
            ! The nodes directly connected to the new center
            ! To do it for 3d case, one should use bilinear interpolation
            !  on the faces of the cube
            do i=1,nsd
                 if (hnds(dh(i))>0) then
-                   cfout(dir+rev(i),1:csz)=0.0_xyzk; ncnt=ncnt+1
-                   nc(ncnt)=dir+rev(i); ni(ncnt)=hnds(dh(i))
+                   cfout(drev-rev(i),1:csz)=0.0_xyzk; ncnt=ncnt+1
+                   nc(ncnt)=drev-rev(i); ni(ncnt)=hnds(dh(i))
                 else
                    if (rev(i)>0) then ! Fixed node is max
-                       cfout(dir+rev(i),1:csz)=m(i)*coefs(dir+rev(i),1:csz)+ &
+                       cfout(drev-rev(i),1:csz)=m(i)*coefs(dir+rev(i),1:csz)+ &
                                            (1-m(i))*coefs(dir,1:csz)
                    else ! Fixed node is min
-                       cfout(dir+rev(i),1:csz)=m(i)*coefs(dir,1:csz)+ &
+                       cfout(drev-rev(i),1:csz)=m(i)*coefs(dir,1:csz)+ &
                                            (1-m(i))*coefs(dir+rev(i),1:csz)
                    endif
                 endif
@@ -386,8 +415,7 @@ contains
 !----------------------------------------------------------------------
 
        ! Add new nodes to the gaps and thus remove the gaps
-       i=ncsz
-       do while (i>=1)
+       do i=ncsz,1,-1
          if (all(cfout(:,i)==0.0_xyzk)) then
              if (ncnt>0) then ! use one of the new coarse points
                  cfout(nc(ncnt),i)=1.0_xyzk; ciout(i)=ni(ncnt); 
@@ -398,7 +426,6 @@ contains
                  ncsz=ncsz-1
              endif
          endif
-         i=i-1
        enddo
 
        ! Append all those that didnt fit into gaps
@@ -549,7 +576,6 @@ contains
        ! The reader should be intimately familiar with the construction of
        ! the coarse grid and the layout of its data structures
 
-
        ! Initial coarse nodes have their backward edges included
        ! (picture assuming positive axes upward and rightward)
        ! xxxx
@@ -595,6 +621,8 @@ contains
 
        real(kind=xyzk),pointer :: ct(:), pt(:)
 
+       real(kind=xyzk) :: mi(M%nsd),ma(M%nsd)
+
        integer :: i, j, k, l, o
        integer :: d, ci, lvl, cur, pn
 
@@ -604,11 +632,6 @@ contains
 
         do i=1,C%elnum
         
-            ! Find mins and maxes
-            !do k=1,M%nsd
-            !   mins(k,1)=minval(C%coords(k,C%els(i)%n(:)))
-            !   maxs(k,1)=maxval(C%coords(k,C%els(i)%n(:)))
-            !enddo
             mins(:,1)=C%coords(:,C%els(i)%n(1))
             maxs(:,1)=C%coords(:,C%els(i)%n(2**M%nsd))
 
@@ -671,7 +694,6 @@ contains
             else 
 
             ! Otherwise loop through the refinements
-            !            pinds(1:tnsd)=C%els(i)%n
             j=C%els(i)%rbeg
             do while (j/=-1)
 
@@ -717,16 +739,10 @@ contains
                 ci=C%refels(j)%node; ct=>C%coords(:,ci)
                 lvl=C%refels(j)%level
 
-                ! Set the node of the element into pts
-!                pts(:,tnsd+C%refels(j)%level)=C%coords(:,C%refels(j)%node)
-!                pinds(tnsd+C%refels(j)%level)=C%refels(j)%node
-
                 ! Check if we actually need to do anything here
                 if (C%refels(j)%lbeg<=C%refels(j)%lend) then
                     haveData=.false.
        
-!                    call gendata(pts,tnsd+C%refels(j)%level,M%nsd,raux,iaux)
-
                     ! Go through all the fine nodes that are in this element
                     do k=C%refels(j)%lbeg,C%refels(j)%lend
                         pn=C%elmap(k); pt=>M%lcoords(:,pn)
@@ -736,7 +752,6 @@ contains
 
                         ! Calculate the values if nessecary
                        if (.not.haveData(d)) then
-!                           write(stream,*) "Inbetween"
                            call CalcNextCoefs(ct,ci,&
                                 C%refels(j)%hnds,&
                                 mins(:,lvl),maxs(:,lvl),&
@@ -751,24 +766,10 @@ contains
                                   mins(l,lvl+1)=mins(l,lvl); maxs(l,lvl+1)=ct(l)
                                endif
                            enddo
+
 !                            write(stream,*) "Mins: ",mins(:,lvl+1)
 !                            write(stream,*) "Maxs: ",maxs(:,lvl+1)
 
-!                           do l=1,2**M%nsd
-!                           if (maxval(curcfs(l,:,d))==1.0_xyzk) then
-
-!                               x=maxloc(curcfs(l,:,d),DIM=1)
-!                               if (curcfs(l,x,d)/=1.0_xyzk) write(stream,*) "WTFWTF"
-!                               y=curcis(x,d)
-!                               z=getDir(C%coords(:,y)-pt,M%nsd)
-!                               if (l/=z .and. all(C%coords(:,y)-pt/=0.0_xyzk)) then
-!                                        write(stream,*) "DIRECTION MISMATCH!!",l,z, lvl+1
-!                                        write(stream,*) C%coords(:,y)-mins(:,lvl+1)
-!                                        write(stream,*) maxs(:,lvl+1)-mins(:,lvl+1)
-!                               endif
-!                           endif
-!                           enddo
- 
                            call BuildMults( mins(:,lvl+1),maxs(:,lvl+1), &
                                curcfs(:,:,d),curcis(:,d),curcszs(d), &
                                M%nsd,finals(:,:,d))
@@ -776,11 +777,6 @@ contains
                         
                            haveData(d)=.true.
                        endif
-
-                       if (any(M%lcoords(:,pn)>=maxs(:,lvl)).or.&
-                               any(M%lcoords(:,pn)<mins(:,lvl)))&
-                        write(stream,*) "WWWTF"
-
 
                        ! Use the values for interpolation 
                        l=1

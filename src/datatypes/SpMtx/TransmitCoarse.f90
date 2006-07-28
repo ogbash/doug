@@ -1,4 +1,37 @@
 module TransmitCoarse
+! This file is concerned with distributing and reassembling the grid structure
+! for multiple processor case. 
+
+! General idea:
+! Master side first builds some global auxilliary data and then proceeds to
+! start chopping up the coarse grid and fine elements geometric data and 
+! sending the information required for rebuilding the parts of the mesh to 
+! the other processes. Once it is done with sending, it proceeds to build 
+! itself its own local part. 
+! Slave side simply waits for the information from the master and once it 
+! arrives, tries to piece together the whole mesh from the (limited)
+! iformation and knowledge of the structure of the datatypes.
+! It is paramount that the structure of datatypes remain roughly the same,
+! especially in the refinements tree, since it is relied upon quite extensively.
+
+! Details:
+! The auxilliary structures created in the beginning of send map
+! fine nodes into coarse elements (so we would know which to send and which not)
+! and fine elements to different processes (so we would know who gets what).
+! This ensures us that for each process we only need to look through its 
+! <local> data without having to iterate through all the global values each
+! time. This ensures us that as we increase the process count the efficiency
+! of this function will not decrease by much (it will decrease a little due to 
+! overlaps which are sure to occur, but there seems to be no way to avoid that).
+! Elmap, coordinates, lg_maps and freemaps are sent in a naive way. 
+! gl_maps are constructed from lg_maps as it is easy to do.
+! Refined element structure is built from 2 arrays, one holding
+! the levels of the fine nodes and the second holding the ending indices
+! of this nodes fine nodes in "elmap". Since the order of the refined elements
+! is quite fixed, it is enough to deduce all other needed values.
+! For each hanging nodes two indices are sent which describe between 
+! which refined nodes it lay. Again, that is enough to reconstruct "hnds"
+
     implicit none
 
 #ifdef D_COMPLEX
@@ -405,27 +438,24 @@ contains
             ! Coarse elmap (and refined els info)
             k=1
             do f=1,elcnt    
-                el=ellist(f)
+              el=ellist(f)
                 
-                i=C%els(el)%rbeg; lnfss(el)=0; lnrfs(el)=0
-                if (i==-1) then ! not subdivided
+              i=C%els(el)%rbeg; lnfss(el)=0; lnrfs(el)=0
+              if (i==-1) then ! Not subdivided
                 do j=C%els(el)%lbeg,C%els(el)%lbeg+C%els(el)%nfs-1
                     if (gl_nodemap(C%elmap(j))/=0) then
                         lnfss(el)=lnfss(el)+1   
-
-                        !write (stream,*) gl_nodemap(C%elmap(j))
 
                         call MPI_PACK(gl_nodemap(C%elmap(j)), 1, MPI_INTEGER, &
                                 buffer(1), szs, pt, MPI_COMM_WORLD, ierr)
                     endif
                 enddo
-                else ! subdivided
+              else ! subdivided
                 do while (i/=-1)
                   if (refmask(i)) then
                     do j=C%refels(i)%lbeg,C%refels(i)%lend
                     if (gl_nodemap(C%elmap(j))/=0) then
                         lnfss(el)=lnfss(el)+1
-                        !write (stream,*) gl_nodemap(C%elmap(j))
 
                         call MPI_PACK(gl_nodemap(C%elmap(j)), 1, MPI_INTEGER, &
                                 buffer(1), szs, pt, MPI_COMM_WORLD, ierr)
@@ -438,7 +468,7 @@ contains
                   endif
                   i=C%refels(i)%next               
                 enddo
-                endif
+              endif
             enddo
 
             ! Send refined element info gathered before
@@ -580,7 +610,7 @@ contains
         ! Determine the size of data being relocated
         !********************************************************
             
-        ! Determine how many coarse grid nodes and refined elements to send
+        ! Determine how many coarse grid nodes and refined elements to take
         LC%ncti=0;
         do i=1,LC%elnum
             el=ellist(i)
@@ -630,14 +660,14 @@ contains
         LC%ngfc=C%ngfc
         LC%mlvl=C%mlvl
 
-        ! Determine how much of the coarse freemap needs sending
+        ! Determine how much room the coarse freemap needs
         LC%nlfc=0
         do i=1,LC%nct
             LC%nlfc=LC%nlfc+cnfinds(i+1)-cnfinds(i)
         enddo
 
         !********************************************************
-        ! Pack the buffer and send it (non-blocking)
+        ! Create the actual structure
         !********************************************************
 
         call CoarseGrid_allocate(LC,M%nsd,lnnode,coords=.true.,&
@@ -732,7 +762,8 @@ contains
                 ref%next=-1
             endif
         enddo
-
+        
+        ! Print a small report
         if (sctls%verbose>3) then
             write (stream,*) "Local coarse mesh has: "
             write (stream,*) "Grid nodes:   ",LC%ncti
@@ -744,9 +775,6 @@ contains
 
     ! Receive the coarse mesh
     subroutine ReceiveCoarse(C, M)
-        ! This code depends on:
-        !  coarse refined node coordinates being grouped by elements
-        !  the ordering of elmap (as it is done currently)
         use RealKind
         use CoarseGrid_class
         use Mesh_class
@@ -782,8 +810,6 @@ contains
         ! Get the buffer size from the master
         call MPI_RECV(szs,1,MPI_INTEGER,D_MASTER,0,MPI_COMM_WORLD,stat,ierr)
         
-        !write(stream,*) "szs",szs
-
         ! Allocate memory for the buffer
         allocate(buffer(szs))
 
@@ -801,33 +827,25 @@ contains
                         M%lnnode,1, MPI_INTEGER,& 
                         MPI_COMM_WORLD, ierr)
         
-!        !write (stream,*) "lnnode:" , M%lnnode
 
         call MPI_UNPACK(buffer(1),szs, pt,&
                         nlf,1, MPI_INTEGER,& 
                         MPI_COMM_WORLD, ierr)
 
-!        !write (stream,*) "nlf:" , nlf
 
         ! The others for coarse mesh
         call MPI_UNPACK(buffer(1),szs,pt,&
                         C%ncti,1, MPI_INTEGER,& 
                         MPI_COMM_WORLD, ierr)
 
-!        !write (stream,*) "ncti:" , C%ncti
-
 
         call MPI_UNPACK(buffer(1),szs, pt,&
                         C%elnum,1, MPI_INTEGER,& 
                         MPI_COMM_WORLD, ierr)
         
-!        !write (stream,*) "elnum:" , C%elnum
-
         call MPI_UNPACK(buffer(1),szs, pt,&
                         C%refnum,1, MPI_INTEGER,& 
                         MPI_COMM_WORLD, ierr)
-
-!        !write (stream,*) "refnum" , C%refnum
 
         call MPI_UNPACK(buffer(1),szs, pt,&
                         C%nhn,1, MPI_INTEGER,& 
@@ -839,22 +857,13 @@ contains
                         C%ngfc,1, MPI_INTEGER,& 
                         MPI_COMM_WORLD, ierr)
         
-!        !write (stream,*) "ngfc:" , C%ngfc
-
         call MPI_UNPACK(buffer(1),szs, pt,&
                         C%nlfc,1, MPI_INTEGER,& 
                         MPI_COMM_WORLD, ierr)
         
-!        !write (stream,*) "nlfc:" , C%nlfc
-
         call MPI_UNPACK(buffer(1),szs, pt,&
                         C%mlvl,1, MPI_INTEGER,& 
                         MPI_COMM_WORLD, ierr)
-
-!        !write (stream,*) "mlvl:" , C%mlvl
-
-
-        !write(stream,*) pt, " - suurused vastuvotul"
 
         !*****************************************
         ! Unpack the fine mesh info
@@ -868,32 +877,15 @@ contains
         call MPI_UNPACK(buffer(1),szs, pt,&
                         M%lcoords(1,1), M%nsd*M%lnnode, MPI_xyzkind,& 
                         MPI_COMM_WORLD, ierr)
-       !write(stream,*) pt, " - fine mesh coords vastuvotul"
-
-!            do i=1,M%lnnode
-!                write (stream,*) M%lcoords(1,i), M%lcoords(2,i)
-!            enddo
-
 
         ! Unpack lfreemap and fremap into temp. arrays
         call MPI_UNPACK(buffer(1),szs, pt,&
                         lfreemap(1), nlf, MPI_INTEGER,& 
                         MPI_COMM_WORLD, ierr)
 
-       !write(stream,*) pt, " - fine mesh freemap vastuvotul"
-!            do i=1,nlf
-!                !write (stream,*) lfreemap(i)
-!            enddo
-
         call MPI_UNPACK(buffer(1),szs, pt,&
                         fremap(1), nlf, MPI_INTEGER,& 
                         MPI_COMM_WORLD, ierr)
-
-       !write(stream,*) pt, " - fine mesh fremap vastuvotul"
-!            do i=1,nlf
-!                !write (stream,*) fremap(i)
-!            enddo
-
 
         ! Create lfreemap based on the two temp arrays
         M%lfreemap=0 
@@ -918,26 +910,16 @@ contains
        call MPI_UNPACK(buffer(1),szs, pt,&
                         C%coords(1,1),M%nsd*C%ncti, MPI_xyzkind,& 
                         MPI_COMM_WORLD, ierr)
-!            do i=1,C%ncti
-!                write (stream,*) C%coords(1,i), C%coords(2,i)
-!            enddo
-
-
-       !write(stream,*) pt, " - ccoords vastuvotul"
 
        ! Coarse freemap
        call MPI_UNPACK(buffer(1),szs, pt,&
                         C%cfreemap(1),C%nlfc, MPI_INTEGER,& 
                         MPI_COMM_WORLD, ierr)
 
-       !write(stream,*) pt, " - cfreemap vastuvotul"
-
        ! Coarse freedom local-to-global mapping
        call MPI_UNPACK(buffer(1),szs, pt,&
                         C%lg_fmap(1),C%nlfc, MPI_INTEGER,& 
                         MPI_COMM_WORLD, ierr)
-
-       !write(stream,*) pt, " - lg_fmap vastuvotul"
 
        ! Create the opposite map
        C%gl_fmap=0
@@ -949,13 +931,6 @@ contains
        call MPI_UNPACK(buffer(1),szs, pt,&
                         C%elmap(1),M%lnnode, MPI_INTEGER,& 
                         MPI_COMM_WORLD, ierr)
-
-!            do i=1,M%lnnode
-                !write (stream,*) C%elmap(i)
-!            enddo
-
-
-       !write(stream,*) pt, " - elmap vastuvotul"
 
        !*****************************************
        ! Unpack and rebuild elements
@@ -970,12 +945,10 @@ contains
        call MPI_UNPACK(buffer(1),szs, pt,&
                         lends(1),C%refnum, MPI_INTEGER,& 
                         MPI_COMM_WORLD, ierr)
-       !write(stream,*) pt, " - lends vastuvotul"
-
+       
        call MPI_UNPACK(buffer(1),szs, pt,&
                         levels(1),C%refnum, MPI_INTEGER,& 
                         MPI_COMM_WORLD, ierr)
-       !write(stream,*) pt, " - levels vastuvotul"
        endif
      
        ! One coarse element at a time
@@ -1089,6 +1062,7 @@ contains
  
        endif
 
+       ! Print a small report
        if (sctls%verbose>3) then
                 write (stream,*) "Local coarse mesh has: "
                 write (stream,*) "Grid nodes:   ",C%ncti
@@ -1097,289 +1071,9 @@ contains
        endif
 
 
-       !write(stream,*) pt, " - lopuks vastuvotul"
-
        deallocate(buffer)
        if (C%refnum/=0) deallocate(lends,levels,pstack)
 
     end subroutine ReceiveCoarse
- 
-    !! DEPRECATED! This functionality has been added to SendCoarse
-    !! Map out a local coarse grid structure (for use on master)
-    !! Some of its fields point to the original C (to conserve memory)
-    subroutine CreateLocalCoarse(C, M, LC) 
-        ! This code depends on:
-        !  coarse refined node coordinates being grouped by elements
-        !  the ordering of elmap (as it is done currently)
-        use RealKind
-        use CoarseGrid_class
-        use Mesh_class
-        use globals, only: stream
-        
-        implicit none
-        
-        !! Coarse Grid whose structure to use
-        type(CoarseGrid), intent(in) :: C
-        !! Local coarse grid to create
-        type(CoarseGrid), intent(out) :: LC
-        !! Fine Mesh for which to build
-        type(Mesh), intent(inout) :: M
-        
-        integer :: ndtoel(M%nnode) ! Map fine nodes to coarse elements
-
-        logical :: elmask(C%elnum) ! Mark down elements needed for sending
-        integer :: ellist(C%ncti) ! The list of element inds to be sent
-
-        logical :: refmask(C%refnum)
-
-        integer :: lnnode ! local number of fine nodes
-        logical :: nodemask(M%nnode) ! mask of global node inds to local
-
-        integer :: gl_cnodemap(0:C%nct) ! map of global coarse mesh nds to local
-
-
-        integer :: pstack(0:C%mlvl)
-        
-        type(RefinedElem),pointer :: new, old
-
-        integer :: i, j, k, f, el, d, nd, ref, lvl, ndp
-        
-        !***********************************************************
-        ! Fine Mesh structures
-        !***********************************************************
-        M%lnnode=M%nnode 
-        M%lcoords=>M%coords ! To avoid reallocating double memory
-        allocate(M%lfreemap(M%nlf))
-
-        !************************************************************
-        ! Create a map of fine nodes to initial coarse grid elements
-        !************************************************************
-        ndtoel=0
-        do el=1,C%elnum
-        if (C%els(el)%rbeg<=0) then
-            ! Initial grid elements are <0
-            ndtoel(C%elmap(C%els(el)%lbeg:C%els(el)%lbeg+C%els(el)%nfs-1))=-el
-        else
-            j=C%els(el)%rbeg
-            do while (j>0)
-                ! Refined elements are positive
-                ndtoel(C%elmap(C%refels(j)%lbeg:C%refels(j)%lend))=j
-                j=C%refels(j)%next
-            enddo
-        endif
-        enddo
-
-        !********************************************************
-        ! Clear the arrays
-        !********************************************************
-        elmask=.false.; nodemask=.false.; gl_cnodemap=0; refmask=.false.
-        lnnode=0; LC%elnum=0; LC%refnum=0; LC%nhn=0;
-                
-        !********************************************************
-        ! Find what to pack
-        !********************************************************
-        do i=1,M%nlf
-            f=M%lg_fmap(i)
-
-            if (ndtoel(M%freemap(f))/=0) then
- 
-                    ! Build local freemap
-                    M%lfreemap(i)=M%freemap(f)
-           
-                    ! Mark this node as present
-                    if (.not.nodemask(M%freemap(f))) then
-                        lnnode=lnnode+1
-                        nodemask(M%freemap(f))=.true.
-                    endif 
- 
-                    ! Mark the coarse refinements for sending
-                    k=ndtoel(M%freemap(f))
-                    do while (k>0)
-                        ! If it is marked, so are its parents
-                        if (refmask(k)) exit
-
-                        refmask(k)=.true.
-                        LC%refnum=LC%refnum+1
-
-                        k=C%refels(k)%parent ! Move up in the tree
-                    enddo
-                        
-                    ! Mark this coarse grid element for sending if needed
-                    if (k<0) then
-                    if (.not.elmask(-k)) then
-                        LC%elnum=LC%elnum+1
-                        ellist(LC%elnum)=-k
-                        elmask(-k)=.true.
-                    endif; endif
-            else
-                    M%lfreemap(i)=0
-            endif
-        enddo
-
-        write (stream,*) "Local elements",LC%elnum
-
-        !********************************************************
-        ! Determine the size of data being sent
-        !********************************************************
-            
-        ! Determine how many coarse grid nodes and refined elements to send
-        LC%ncti=0;
-        do i=1,LC%elnum
-            el=ellist(i)
-
-            ! Add the nodes to the sending list
-            do j=1,2**M%nsd
-               if (gl_cnodemap(C%els(el)%n(j))==0) then
-                   LC%ncti=LC%ncti+1
-                   gl_cnodemap(C%els(el)%n(j))=LC%ncti
-               endif
-            enddo
-        enddo
-
-            ! Update cnodemaps with refined elements
-            k=LC%ncti+1
-            do i=1,LC%elnum
-                el=ellist(i)
-                j=C%els(el)%rbeg
-                do while (j/=-1)
-                  if (refmask(j)) then
-                    old=>C%refels(j)
-                    gl_cnodemap(old%node)=k
-
-                    ! Worry about hanging nodes
-                    if (associated(old%hnds)) then
-                        do d=1,2*M%nsd
-                        if (old%hnds(d)/=0) then
-                            f=old%hnds(d)
-                            if (gl_cnodemap(f)==0) then
-                                LC%nhn=LC%nhn+1
-                                gl_cnodemap(f)=LC%ncti+LC%refnum+LC%nhn
-                            endif
-                        endif
-                        enddo
-                    endif
-
-                    k=k+1
-                  endif
-                  j=C%refels(j)%next
-                enddo
-            enddo
-
-            ! Determine how much of the coarse freemap needs sending
-            LC%nlfc=0
-            do i=1,C%ngfc
-            if (gl_cnodemap(C%cfreemap(i))/=0) LC%nlfc=LC%nlfc+1
-            enddo
-
-            !********************************************************
-            ! Pack the buffer and send it (non-blocking)
-            !********************************************************
-
-            LC%nct=LC%ncti+LC%refnum+LC%nhn
-            LC%ngfc=C%ngfc
-            LC%mlvl=C%mlvl
-
-            call CoarseGrid_allocate(LC,M%nsd,lnnode,coords=.true.,&
-                         els=.true.,refels=.true.,cfreemap=.true.,local=.true.)
-            
-            ! Coordinates
-            do i=1,C%nct
-                if (gl_cnodemap(i)/=0) &
-                    LC%coords(:,gl_cnodemap(i))=C%coords(:,i)
-            enddo
-
-            ! Coarse freemap, lg and gl maps
-            LC%gl_fmap=0
-            k=1
-            do i=1,C%ngfc
-            if (gl_cnodemap(C%cfreemap(i))/=0) then
-                LC%cfreemap(k)=gl_cnodemap(C%cfreemap(i))
-                LC%lg_fmap(k)=i
-                LC%gl_fmap(i)=k
-                k=k+1
-            endif
-            enddo
-
-            ! Coarse grid and refined elements + elmap
-            k=1; nd=1; ref=1
-            do f=1,LC%elnum  
-                el=ellist(f)
-                
-                ! First the initial grid element
-                LC%els(f)%nref=C%els(el)%nref
-                allocate(LC%els(f)%n(2**M%nsd))
-                LC%els(f)%n=gl_cnodemap(C%els(el)%n)
-                LC%els(f)%lbeg=nd
-                
-                ! Deal with refinements and elmap
-                i=C%els(el)%rbeg; LC%els(f)%nfs=0
-                if (i==-1) then ! not subdivided
-                LC%els(f)%rbeg=-1
-                do j=C%els(el)%lbeg,C%els(el)%lbeg+C%els(el)%nfs-1
-                    if (nodemask(C%elmap(j))) then
-                        LC%els(f)%nfs=LC%els(f)%nfs+1
-                        LC%elmap(nd)=C%elmap(j)
-                        nd=nd+1
-                    endif
-                enddo
-                else ! subdivided
-                LC%els(f)%rbeg=ref
-                pstack(0)=-f; lvl=0; ndp=nd-1
-                do while (i/=-1)
-                  old=>C%refels(i)
-
-                  if (refmask(i)) then  
-
-                    new=>LC%refels(ref)  
-
-                    new%level=old%level
-                    new%node=gl_cnodemap(old%node)
-                    new%parent=pstack(new%level-1)
-                    new%next=ref+1
-
-                    if (associated(old%hnds)) then
-                        allocate(new%hnds(2*M%nsd))
-                        new%hnds=gl_cnodemap(old%hnds)
-                    else
-                        nullify(new%hnds)
-                    endif
-
-                    new%lbeg=nd
-                    do j=old%lbeg,old%lend
-                    if (nodemask(C%elmap(j))/=0) then
-                        LC%els(f)%nfs=LC%els(f)%nfs+1
-                        LC%elmap(nd)=C%elmap(j)
-                        nd=nd+1
-                    endif
-                    enddo
-                    new%lend=nd-1
-                    new%lstop=new%lend
-                    
-                    ! If we ascend in the tree, mod lstops
-                    if (new%level<lvl) then
-                        do j=new%level,lvl-1
-                            LC%refels(pstack(j))%lstop=ndp
-                        enddo
-                    endif
-                    
-                    ! Move forward
-                    ndp=new%lstop; lvl=new%level
-                    pstack(lvl)=ref; ref=ref+1
-                  endif
-                  i=old%next           
-                enddo
-                ! new should point to the last refined el made
-                new%next=-1
-                endif
-            enddo
-
-            if (sctls%verbose>3) then
-                write (stream,*) "Local coarse mesh has: "
-                write (stream,*) "Grid nodes:   ",LC%ncti
-                write (stream,*) "Refinements:  ",LC%refnum
-                write (stream,*) "Hanging nodes:",LC%nhn
-            endif
-
-    end subroutine CreateLocalCoarse
 
 end module TransmitCoarse

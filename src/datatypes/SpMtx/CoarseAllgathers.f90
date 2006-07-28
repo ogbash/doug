@@ -1,4 +1,24 @@
 module CoarseAllgathers
+! This module contains a number of utility functions with the main intent
+! of being able to nonblockingly distribute the whole coarse problem and
+! its rhs vectors to every thread. 
+
+! The functions here are quite straightforward, except maybe the last.
+! CleanCoarse finds freedoms which noone uses by a two phase system:
+! First, everyone tells everyone else what nodes he doesnt need and thinks
+! should be deleted. Second, everyone looks through the first list and if he
+! objects to something being deleted tells the others. Only freedoms
+! someone wanted deleted and noone objects to get deleted. The code
+! itself is again quite straightforward.
+
+! About nonblocking allgather: the nonblockingness is achieved by 
+! moving it to another thread. That however means that
+! a) The memory it uses needs to be kept constant for longer 
+!     ( so we cant change the arrays we pass to it before it is done )
+! b) No other MPI operations can be done between sends and recieves
+!     ( that includes other nonblocking gathers, which can be chained
+!       after the first one however )
+
     use RealKind
     use SpMtx_class
     implicit none
@@ -8,7 +28,8 @@ module CoarseAllgathers
 #else
 #define float real
 #endif
- 
+
+    ! Datatype for us with nonblocking alltoalls 
     type SendData
         integer :: ssize
         integer, pointer :: rsizes(:), rdisps(:)
@@ -181,35 +202,19 @@ contains
 
         call MPI_ALLGATHERV_NB_WAIT(send%send)
 
-!        if (ismaster()) then
-!            call SpMtx_printRaw(A)
-!        endif
-
         ! After recieving, get rid of duplicate elements by adding them
         call SpMtx_consolidate(A)
 
-!        if (ismaster()) then
-!            call SpMtx_printRaw(A)
-!        endif
 
         ar=.false.
         do i=1,A%nnz
             ar(A%indi(i))=.true.
         enddo
 
-!        do i=1,A%nrows
-!            if (.not.ar(i)) write (stream,*) "Missing row ",i
-!        enddo
-
         ar=.false.
         do i=1,A%nnz
             ar(A%indj(i))=.true.
         enddo
-
-!        do i=1,A%ncols
-!            if (.not.ar(i)) write (stream,*) "Missing col ",i
-!        enddo
-
 
     end subroutine
 
@@ -334,8 +339,7 @@ contains
 
         ! If noone has any freedoms he doesnt need, we have nothing to do
         if (tcnt==0) return
-
-!        write(stream,*) "TCNT:",tcnt
+        
         if (sctls%verbose>5) &
                write(stream,*) "Total number of obsoletion candidates recieved:",tcnt 
 
@@ -430,8 +434,6 @@ contains
             endif
         enddo
         C%ngfc=C%ngfc-cnt
-!        write (*,*) myrank," thinks ngfc is ",C%ngfc," but acts as it is ",remap(C%ngfc)
-!        write (stream,*) "CNT:",cnt
 
         ! remap the gl and lg_fmap
         cnt=0; k=1; C%gl_fmap=0 
@@ -459,12 +461,10 @@ contains
             R%M_bound(k)=R%M_bound(C%nlfc+1)
         endif
 
-!        R%arrange_type=D_SpMtx_ARRNG_NO
         C%nlfc=k-1
 
         R%nrows=C%nlfc
 
-!        call SpMtx_printRaw(R)
     end subroutine CleanCoarse 
 
 end module CoarseAllgathers

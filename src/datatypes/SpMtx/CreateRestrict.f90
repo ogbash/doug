@@ -1,4 +1,24 @@
 module CoarseCreateRestrict
+! The main aim of this module is to create the restriction matrix.
+! In the bi/trilinear case some of this functionality is moved to GeomInterp.
+! The main framework, however, resides here.
+
+! General idea:
+! First the prolongation matrix is created for nodes that would
+! interpolate values from coarse nodes to fine nodes. That matrix is then
+! transposed and translated from nodes to freedoms, thus giving the proper
+! Restriction matrix required. The resulting matrix is such that it can 
+! interpolate the value of every fine node based on the coarse nodes. 
+! That restrict is used to create the coarse matrix. However, to create
+! coarse vectors, some rows need to be removed so there wouldnt be any value
+! overlap for the freedoms present on many different processes. That is
+! achieved by the function stripRestrict.
+! Restriction matrix itself is currently created in a top down way -
+! the points used in interpolation for a fine node are the centers of
+! elements that are passed in descending in the refinement tree.
+! The sad thing is that inverse distances and kriging dont really provide
+! a continuos interpolation (in fact, contrasts can be quite sharp), so
+! their practicality in this implementation is doubtful.
     use RealKind
 
 #ifdef D_COMPLEX
@@ -37,10 +57,6 @@ contains
         call CreatePathRestrict(C,M,R,genNoData,&
                                 getInvDistVals,getSizeOne)
 
-        case (COARSE_INTERPOLATION_RANDOM)
-        call CreatePathRestrict(C,M,R,genNoData,&
-                                getRandomVals,getSizeOne)
- 
         case (COARSE_INTERPOLATION_KRIGING)
         call CreatePathRestrict(C,M,R,genKrigingData,&
                                 getKrigingVals,getKrigingSize)
@@ -243,7 +259,6 @@ contains
 
         deallocate(raux,iaux)
         
-!        call SpMtx_printRaw(NP)
 
         !****************************************************
         ! Create the reverse of freemap
@@ -448,199 +463,6 @@ contains
     end subroutine getKrigingVals
     
 
-    !**************************************************************
-    ! Bi/Trilinear interpolation - only for CreatePathProlong!!
-    !**************************************************************
-
-    !! A function to pass to CreateProlong for bi/trilinear interpolation
-    subroutine getMultiLinearSize(ptcnt, nsd, rsz, isz)
-        integer, intent(in) :: ptcnt, nsd
-        integer :: rsz, isz
-
-        ! Room for interpolation data (2**nsd per coarse node)
-        ! and the bounds for the finest element currently examined (2*nsd)
-        rsz=ptcnt*(2**nsd)+(2*nsd)
-        isz=1
-        
-    end subroutine getMultiLinearSize
-
-    !! Calculate the multilinear interpolation value for a fine-coarse pair
-    function calcmlin(pt,nsd,aux) result(res)
-        real(kind=xyzk), intent(in) :: pt(:)
-        integer, intent(in) :: nsd
-        real(kind=xyzk), intent(in) :: aux(:)
-        real(kind=xyzk) :: res
-       
-        ! Bilinear interpolation
-        if (nsd==2) then
-           res=aux(1)+ & ! 1
-               aux(2)*pt(1)+aux(3)*pt(2)+ & ! x/y
-               aux(4)*pt(1)*pt(2) ! xy
-        ! Trilinear interpolation
-        else if (nsd==3) then
-           res=aux(1)+ & ! 1
-               aux(2)*pt(1)+aux(3)*pt(2)+aux(4)*pt(3)+ & ! x/y/z
-               aux(5)*pt(2)*pt(3)+aux(6)*pt(1)*pt(3)+aux(7)*pt(1)*pt(2)+ &
-               aux(8)*pt(1)*pt(2)*pt(3) ! xyz
-        endif
-    end function calcmlin
-
-    !! Generate the aux data for one coarse point
-    subroutine mlinaux(pt,h,refpt,nsd,aux)
-        use RealKind
-
-        real(kind=xyzk), intent(in) :: pt(:) ! The gridpoint of the element
-        real(kind=xyzk), intent(in) :: h(:) ! The bounds of element
-        real(kind=xyzk), intent(in) :: refpt(:) ! A point within the element
-        integer, intent(in) :: nsd ! Number of dimensions
-        real(kind=xyzk), intent(out) :: aux(:) ! Output aux data
-        real(kind=xyzk) :: factor
-        
-        ! Bilinear interpolation
-        if (nsd==2) then
-           aux(1)=product(pt)     ! 1
-           aux(2:3)= -aux(1)/pt   ! x/y
-           aux(4)=1.0_xyzk        ! xy
-        ! Trilinear interpolation
-        else if (nsd==3) then
-           aux(1)=product(pt)     ! 1
-           aux(2:4)= -aux(1)/pt   ! x/y/z
-           aux(5:7)=pt            ! yz/xz/xy
-           aux(8)=-1.0_xyzk       ! xyz
-        endif
-
-        ! Find the factor to get the correct sign
-        if (calcmlin(refpt,nsd,aux)<0) then
-            factor=-product(h)
-        else 
-            factor=product(h)
-        endif
-        
-        ! Normalize
-        aux(1:2**nsd)=aux(1:2**nsd)/factor
-        
-    end subroutine
-
-    !! A function to pass to CreateProlong to create bi/trilinear interp. data
-    subroutine genMultiLinearData(cpts,csz,nsd,routp,ioutp)
-        use RealKind
-        real(kind=xyzk), intent(in) :: cpts(:,:) ! pts(nsd,csz)
-        integer :: csz, nsd
-        real(kind=xyzk), intent(out) :: routp(:) ! outp(undet.)
-        integer, intent(out) :: ioutp(:) ! ioutp(1)
-        
-        real(kind=xyzk) :: mins(nsd), maxs(nsd)
-        integer :: tnsd, i, k
-        real(kind=xyzk), pointer :: pt(:)
-
-        ioutp(1)=1 ! to remove a warning
-        tnsd=2**nsd
-
-        ! Get the initial coarse element bounds into mins/maxs
-        mins=cpts(:,1); maxs=mins
-        do i=2,tnsd
-            do k=1,nsd
-                if (cpts(k,i)<mins(k)) then
-                    mins(k)=cpts(k,i)
-                else if (cpts(k,i)>maxs(k)) then
-                    maxs(k)=cpts(k,i)
-                endif
-            enddo
-        enddo
-
-        ! Generate routp data for the grid points
-        do i=1,tnsd
-            call mlinaux(cpts(:,i),mins-maxs,cpts(:,csz),nsd, &
-                                routp(1+tnsd*(i-1):tnsd*i))
-        enddo
-
-        ! Take care of the refined coarse nodes
-        do i=tnsd+1,csz-1
-        
-            ! Adjust mins and maxs as needed
-            do k=1,nsd
-                if (cpts(k,i)>cpts(k,csz)) then
-                    maxs(k)=cpts(k,i)
-                else
-                    mins(k)=cpts(k,i)
-                endif
-            enddo
-            
-            ! Calculate the routp data for it
-            call mlinaux(cpts(:,i),mins-maxs,cpts(:,csz),nsd, &
-                                routp(1+tnsd*(i-1):tnsd*i))
-        enddo
-
-        ! Put the last mins and maxs into routp
-        routp(tnsd*csz+1 : tnsd*csz+nsd)=mins
-        routp(tnsd*csz+nsd+1 : tnsd*csz+2*nsd)=maxs
-
-    end subroutine genMultiLinearData
-
-    !! Get the interpolation values for bi/trilinear data
-    subroutine getMultiLinearVals(cpts,csz,nsd,rinp,iinp,pt,outp)
-        use RealKind
-        real(kind=xyzk), intent(in) :: cpts(:,:) ! pts(nsd,csz)
-        integer :: csz, nsd
-        real(kind=xyzk), intent(in) :: rinp(:) ! rinp(undet.)
-        integer, intent(in) :: iinp(:) ! iinp(1)
-        real(kind=xyzk), intent(in) :: pt(:) ! pt(nsd)
-        float(kind=rk), intent(out) :: outp(:) ! outp(csz)
-
-        integer :: i,k, tnsd
-        real(kind=xyzk) :: mins(nsd),maxs(nsd)
-        real(kind=xyzk) :: buf(csz)
-
-        tnsd=2**nsd
-
-        ! Calc the last aux data in the case we dont have it
-        if (csz/=nsd) then
-            ! Get mins/maxes
-            mins=rinp(tnsd*csz+1 : tnsd*csz+nsd)
-            maxs=rinp(tnsd*csz+nsd+1 : tnsd*csz+2*nsd)
-
-            ! Adjust them as needed
-            do k=1,nsd
-                if (cpts(k,csz)>pt(k)) then
-                    maxs(k)=cpts(k,csz)
-                else
-                    mins(k)=cpts(k,csz)
-                endif
-            enddo
-        
-            ! And calc the aux data
-            call mlinaux(cpts(:,csz),mins-maxs,pt,nsd, buf)
-        endif
-
-        ! Now calc the matrix elems required
-        do i=1,csz-1
-            outp(i)=calcmlin(pt,nsd,rinp(1+tnsd*(i-1) : tnsd*i))
-        enddo
-        outp(csz)=calcmlin(pt,nsd,buf)
-        
-    end subroutine getMultiLinearVals
-
-    !************************************************
-    ! Random Interpolation - use only on single proc.
-    !************************************************
-    
-    !! Get the interpolation values by using random numbers
-    subroutine getRandomVals(cpts,csz,nsd,rinp,iinp,pt,outp)
-        use RealKind
-        real(kind=xyzk), intent(in) :: cpts(:,:) ! pts(nsd,csz)
-        integer :: csz, nsd
-        real(kind=xyzk), intent(in) :: rinp(:) ! rinp(1)
-        integer, intent(in) :: iinp(:) ! iinp(1)
-        real(kind=xyzk), intent(in) :: pt(:) ! pt(nsd)
-        float(kind=rk), intent(out) :: outp(:) ! outp(csz)
-
-        integer :: i
-
-        ! Output random values
-        call random_number(outp(1:csz))
-        
-    end subroutine getRandomVals
-
     !! Strip the restriction matrix
     !! useful for multiple processor case, where 
     !! the stripped variant is used for vector restrict/interpolate
@@ -698,8 +520,6 @@ contains
                     R%indj(j)=R%indj(i)
                     R%val(j)=R%val(i)
                     j=j+1
-!                else 
-!                    write(stream,*) M%lg_fmap(R%indj(i)),"not unique"
                 endif
             enddo
 !        endif

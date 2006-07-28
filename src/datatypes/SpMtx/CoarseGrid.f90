@@ -1,11 +1,17 @@
+module CoarseGrid_class
+ ! To familiarize yourself with the geometric coarse grid implementation,
+! we recommend you get a printout of the type descriptions for
+! CoarseGrid, Mesh and SpMtx and then proceed through the following files
+! CreateCoarse->TransmitCoarse->CreateRestrict->GeomInterp->CoarseAllgathers
+! It might be wise to also follow the flow of functions in main.f90 in parallel
+! with the above process. This file mainly contains utility functions.
+
 ! Some comments about the comments in the coarse grid code:
 ! A) There is a distinct difference between (Coarse) GRID Elements and 
 !               (Coarse) REFINED Elements
 ! B) Nodes BELONG to only one element (the deepest if refined).
 !               They can BE WITHIN many however.
-
-module CoarseGrid_class
-   
+  
     use Mesh_class
     use SpMtx_class
     use RealKind
@@ -13,19 +19,15 @@ module CoarseGrid_class
 
     implicit none
 
-    !integer, parameter :: D_PLPLOT_INIT = 1
-    !integer, parameter :: D_PLPLOT_END = 2
-
     ! Center choosing options
     integer, parameter :: COARSE_CENTER_GEOM  = 1
     integer, parameter :: COARSE_CENTER_MEAN  = 2
     integer, parameter :: COARSE_CENTER_MERID = 3
 
     ! Interpolation variants
-    integer, parameter :: COARSE_INTERPOLATION_INVDIST  = 1
-    integer, parameter :: COARSE_INTERPOLATION_KRIGING  = 2
-    integer, parameter :: COARSE_INTERPOLATION_MULTLIN  = 3
-    integer, parameter :: COARSE_INTERPOLATION_RANDOM   = 4
+    integer, parameter :: COARSE_INTERPOLATION_MULTLIN  = 1
+    integer, parameter :: COARSE_INTERPOLATION_INVDIST  = 2
+    integer, parameter :: COARSE_INTERPOLATION_KRIGING  = 3
 
     type CoarseGridElem
         integer :: nfs ! number of fine mesh nodes within 
@@ -177,10 +179,6 @@ contains
         if (associated(C%cfreemap)) deallocate(C%cfreemap)
         if (associated(C%lg_fmap)) deallocate(C%lg_fmap)
         if (associated(C%gl_fmap)) deallocate(C%gl_fmap)
-
-        !if (associated(C%P%rowind)) deallocate(C%P%rowind)
-        !if (associated(C%P%vals)) deallocate(C%P%vals)
-        !if (associated(C%P%indj)) deallocate(C%P%indj)
 
     end subroutine CoarseGrid_Destroy
 
@@ -443,7 +441,7 @@ contains
 
     ! Caluclate the direction number (1-4 or 1-7)
     ! 2 ^ 1
-    ! --+->
+    ! --+->   in the 2D case
     ! 4 | 3
     function getDir(ds,nsd) result (n)
         real(kind=xyzk), intent(in) :: ds(:)
@@ -553,7 +551,6 @@ contains
                 flag=flag+1
                 ! If no such move is possible, go on upwards
                 if (flag==stack(p%level)) then
-!                    write(stream,*) p%level,": ",flag-1
                     stack(p%level)=stack(p%level)+dir; cycle
                 endif
 

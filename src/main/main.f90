@@ -53,6 +53,10 @@ program main
   integer, allocatable :: cdisps(:),sends(:)
   type(CoarseData) :: cdat
 
+  !DEBUG
+  integer :: k
+  real(kind=xyzk) :: mi(3),ma(3)
+
   ! Init DOUG
   call DOUG_Init()
 
@@ -80,11 +84,11 @@ program main
   ! Geometric coarse grid processing
   if (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL .and. sctls%levels==2) then
     ! Init some mandatory values if they arent given
-    if (mctls%cutbal==-1) mctls%cutbal=5
+    if (mctls%cutbal<=0) mctls%cutbal=1
     if (mctls%maxnd==-1) mctls%maxnd=500
     if (mctls%maxcie==-1) mctls%maxcie=75
     if (mctls%center_type==-1) mctls%center_type=1 ! geometric
-    if (sctls%interpolation_type==-1) sctls%interpolation_type=3 ! multilinear
+    if (sctls%interpolation_type==-1) sctls%interpolation_type=1 ! multilinear
     sctls%smoothers=0 ! only way it works
 
     if (ismaster()) then
@@ -109,8 +113,6 @@ program main
       nullify(C%coords) ! as LC uses that
       call CoarseGrid_Destroy(C)
 
-!      call SpMtx_printMat(Restrict) ! should have col. sums near 1.0 
-
     else
       if (sctls%verbose>0) write (stream,*) "Recieving coarse grid data"
       call  ReceiveCoarse(LC, M)
@@ -120,23 +122,12 @@ program main
       if (sctls%verbose>0) write (stream,*) "Creating Restriction matrix"
       call CreateRestrict(LC,M,Restrict)
 
-!      write (stream,*) "Restrict is ",Restrict%nrows," by ",Restrict%ncols," with ",Restrict%nnz," elems and an ubound of ",ubound(Restrict%val)
 
       if (sctls%verbose>1) write (stream,*) "Cleaning Restriction matrix"
       call CleanCoarse(LC,Restrict,M)
 
-
-!      Restrict%indj=M%lg_fmap(Restrict%indj)
-!      call SpMtx_printRaw(Restrict)
-
-!      write (stream,*) "Creating the Coarse Matrix"
-
       if (sctls%verbose>0)  write (stream,*) "Building coarse matrix"
       call CoarseMtxBuild(A,cdat%LAC,Restrict)  
-
-!      cdat%LAC%indi=>cdat%LAC%indj
-
-!      call CleanCoarse(LC,cdat%LAC,M)
 
       if (sctls%verbose>1) write (stream, *) "Stripping the restriction matrix"
       call StripRestrict(M,Restrict)
