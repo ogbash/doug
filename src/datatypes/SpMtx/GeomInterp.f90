@@ -286,11 +286,11 @@ contains
                    nc(ncnt)=drev-rev(i); ni(ncnt)=hnds(dh(i))
                 else
                    if (rev(i)>0) then ! Fixed node is max
-                       cfout(drev-rev(i),1:csz)=m(i)*coefs(dir+rev(i),1:csz)+ &
+                       cfout(drev-rev(i),1:csz)=m(i)*coefs(drev-rev(i),1:csz)+ &
                                            (1-m(i))*coefs(dir,1:csz)
                    else ! Fixed node is min
                        cfout(drev-rev(i),1:csz)=m(i)*coefs(dir,1:csz)+ &
-                                           (1-m(i))*coefs(dir+rev(i),1:csz)
+                                           (1-m(i))*coefs(drev-rev(i),1:csz)
                    endif
                 endif
            enddo
@@ -620,8 +620,6 @@ contains
        real(kind=xyzk) :: mults(2**M%nsd,2**M%nsd)
 
        real(kind=xyzk),pointer :: ct(:), pt(:)
-
-       real(kind=xyzk) :: mi(M%nsd),ma(M%nsd)
 
        integer :: i, j, k, l, o
        integer :: d, ci, lvl, cur, pn
