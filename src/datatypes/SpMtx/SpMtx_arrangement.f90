@@ -242,11 +242,13 @@ CONTAINS
         allocate(M%diag(ndiags))
       endif
       allocate(scalerval(ndiags))
-      do i=1,M%nnz
+      !do i=1,M%nnz
+      do i=1,M%mtx_bbe(2,2)
         if (M%indi(i)==M%indj(i)) then
           j=M%indi(i)
           if (j<M%mtx_inner_bound) then
-            M%diag(j)=M%val_intf_full(i)
+            !M%diag(j)=M%val_intf_full(i)
+            M%diag(j)=M%val(i)
           else
             M%diag(j)=M%val(i)
           endif
@@ -257,10 +259,13 @@ CONTAINS
           scalerval(i)=dsqrt(dabs(M%diag(i)))
         enddo
         do i=M%mtx_bbs(1,1),M%mtx_bbe(M%nblocks,M%nblocks)
-          M%val_intf_full(i)=M%val_intf_full(i)/scalerval(M%indi(i))
-          M%val_intf_full(i)=M%val_intf_full(i)/scalerval(M%indj(i))
+          !M%val_intf_full(i)=M%val_intf_full(i)/scalerval(M%indi(i))
+          !M%val_intf_full(i)=M%val_intf_full(i)/scalerval(M%indj(i))
+          M%val(i)=M%val(i)/scalerval(M%indi(i))
+          M%val(i)=M%val(i)/scalerval(M%indj(i))
         enddo
-        do i=M%mtx_bbe(M%nblocks,M%nblocks)+1,M%nnz
+        !do i=M%mtx_bbe(M%nblocks,M%nblocks)+1,M%nnz
+        do i=M%mtx_bbe(M%nblocks,M%nblocks)+1,M%mtx_bbe(2,2)
           M%val(i)=M%val(i)/scalerval(M%indi(i))
           M%val(i)=M%val(i)/scalerval(M%indj(i))
         enddo
@@ -303,8 +308,10 @@ CONTAINS
           scalerval(i)=dsqrt(dabs(M%diag(i)))
         enddo
         do i=M%mtx_bbs(1,1),M%mtx_bbe(M%nblocks,M%nblocks)
-          M%val_intf_full(i)=M%val_intf_full(i)*scalerval(M%indi(i))
-          M%val_intf_full(i)=M%val_intf_full(i)*scalerval(M%indj(i))
+          !M%val_intf_full(i)=M%val_intf_full(i)*scalerval(M%indi(i))
+          !M%val_intf_full(i)=M%val_intf_full(i)*scalerval(M%indj(i))
+          M%val(i)=M%val(i)*scalerval(M%indi(i))
+          M%val(i)=M%val(i)*scalerval(M%indj(i))
         enddo
         do i=M%mtx_bbe(M%nblocks,M%nblocks)+1,M%nnz
           M%val(i)=M%val(i)*scalerval(M%indi(i))
@@ -317,7 +324,8 @@ CONTAINS
         do i=M%mtx_bbs(1,1),M%mtx_bbe(M%nblocks,M%nblocks)
           M%val_intf_full(i)=M%val_intf_full(i)*scalerval(M%indi(i))
         enddo
-        do i=M%mtx_bbe(M%nblocks,M%nblocks)+1,M%nnz
+        !do i=M%mtx_bbe(M%nblocks,M%nblocks)+1,M%nnz
+        do i=M%mtx_bbe(M%nblocks,M%nblocks)+1,M%mtx_bbe(2,2)
           M%val(i)=M%val(i)*scalerval(M%indi(i))
         enddo
       endif
@@ -353,7 +361,8 @@ CONTAINS
     endif
     if (simple) then
       do i=A%mtx_bbs(1,1),A%mtx_bbe(A%nblocks,A%nblocks)
-        if (abs(A%val_intf_full(i))>=alpha) then
+        !if (abs(A%val_intf_full(i))>=alpha) then
+        if (abs(A%val(i))>=alpha) then
           A%strong(i)=.true.
         else
           A%strong(i)=.false.
@@ -2260,6 +2269,7 @@ print *,'    ========== aggregate ',i,' got removed node by node ============'
     float(kind=rk),dimension(:),pointer :: rtmp
     integer,dimension(:), pointer :: nnodesonclrol,ccount
     integer,dimension(2,2) :: bbe
+    integer,dimension(:),pointer :: ol_outer
 
     ! we assume this now:
     !! if (A%arrange_type==D_SpMtx_ARRNG_ROWS) then
@@ -2478,7 +2488,7 @@ print *,'    ========== aggregate ',i,' got removed node by node ============'
     do k=1,M%nnghbrs
       nfront=0
       offset=k*hl
-      !clrnode=M%nghbrs(k)+1
+      clrnode=M%nghbrs(k)+1
       frontstart(0)=1
 !rite(stream,*)'starting with: onfront=',onfront
       do i=clrstarts(k),clrstarts(k+1)-1
@@ -2522,7 +2532,7 @@ print *,'    ========== aggregate ',i,' got removed node by node ============'
       enddo
       allocate(M%ax_sendidx(k)%inds(M%ax_sendidx(k)%ninds))
       allocate(M%ol_inner(k)%inds(M%ol_inner(k)%ninds))
-      allocate(M%ol_outer(k)%inds(M%ol_outer(k)%ninds))
+      allocate(ol_outer(M%ol_outer(k)%ninds))
       M%ax_sendidx(k)%ninds = 0
       M%ol_inner(k)%ninds = 0
       M%ol_outer(k)%ninds = 0
@@ -2539,7 +2549,7 @@ print *,'    ========== aggregate ',i,' got removed node by node ============'
         elseif (layer<=lastlayer) then ! the node on ol_outer
 !rite(stream,*)'adding to 0 outer: node=',node,' layer=',layer
           M%ol_outer(k)%ninds=M%ol_outer(k)%ninds+1
-          M%ol_outer(k)%inds(M%ol_outer(k)%ninds)=node
+          ol_outer(M%ol_outer(k)%ninds)=node
         endif
       enddo
       do i=frontstart(lastlayer),frontend(lastlayer)
@@ -2555,26 +2565,42 @@ print *,'    ========== aggregate ',i,' got removed node by node ============'
         elseif (layer<=lastlayer) then ! the node on ol_outer
 !rite(stream,*)'adding to outer: node=',node,' layer=',layer
           M%ol_outer(k)%ninds=M%ol_outer(k)%ninds+1
-          M%ol_outer(k)%inds(M%ol_outer(k)%ninds)=node
+          ol_outer(M%ol_outer(k)%ninds)=node
         endif
       enddo
       call quicksort(M%ol_inner(k)%ninds,M%ol_inner(k)%inds)
-write(stream,*)k,':ol_inner:::',M%ol_inner(k)%inds
-      call quicksort(M%ol_outer(k)%ninds,M%ol_outer(k)%inds)
-write(stream,*)k,':ol_outer:::',M%ol_outer(k)%inds
       call quicksort(M%ax_sendidx(k)%ninds,M%ax_sendidx(k)%inds)
-write(stream,*)k,':ax_sendidx:::',M%ax_sendidx(k)%inds
       call quicksort(M%ax_recvidx(k)%ninds,M%ax_recvidx(k)%inds)
-write(stream,*)k,':ax_recvidx:::',M%ax_recvidx(k)%inds
       M%ol_solve(k)%ninds=M%ol_outer(k)%ninds+&
                           M%ol_inner(k)%ninds
       allocate(M%ol_solve(k)%inds(M%ol_solve(k)%ninds))
       j=M%ol_outer(k)%ninds
-      M%ol_solve(k)%inds(1:j)=M%ol_outer(k)%inds(:)
+      M%ol_solve(k)%inds(1:j)=ol_outer(:)
       jj=j+M%ol_inner(k)%ninds
       M%ol_solve(k)%inds(j+1:jj)=M%ol_inner(k)%inds(:)
       call quicksort(M%ol_solve(k)%ninds,M%ol_solve(k)%inds)
-write(stream,*)k,':ol_solve:::',M%ol_solve(k)%inds
+      ! Now take out all foreign nodes from ol_outer:
+      j=0
+      do i=1,M%ol_outer(k)%ninds
+        if (M%eptnmap(ol_outer(i))==clrnode) then
+          j=j+1
+          if (j<i) then
+            ol_outer(j)=ol_outer(i)
+          endif
+        endif
+      enddo
+      M%ol_outer(k)%ninds=j
+      allocate(M%ol_outer(k)%inds(M%ol_outer(k)%ninds))
+      M%ol_outer(k)%inds=ol_outer(1:j)
+      deallocate(ol_outer)
+      call quicksort(M%ol_outer(k)%ninds,M%ol_outer(k)%inds)
+      if (sctls%verbose>3.and.A%nrows<300) then 
+        write(stream,*)k,':ol_solve:::',M%ol_solve(k)%inds
+        write(stream,*)k,':ol_inner:::',M%ol_inner(k)%inds
+        write(stream,*)k,':ax_sendidx:::',M%ax_sendidx(k)%inds
+        write(stream,*)k,':ax_recvidx:::',M%ax_recvidx(k)%inds
+        write(stream,*)k,':ol_outer:::',M%ol_outer(k)%inds
+      endif
     enddo ! k 
     ! note: actually, interf/inner may contain also interf/receive_nodes
     !         connections 
@@ -2753,7 +2779,7 @@ write(stream,*)k,':ol_solve:::',M%ol_solve(k)%inds
             itmp(bbe(2,1))=node
             jtmp(bbe(2,1))=neigh
             rtmp(bbe(2,1))=A%val(j)
-          elseif (M%eptnmap(neigh)==clr) then
+          else
             bbe(2,2)=bbe(2,2)+1
             btmp(node+1)=btmp(node+1)+1
             itmp(bbe(2,2))=node
