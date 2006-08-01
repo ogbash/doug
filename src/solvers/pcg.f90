@@ -216,68 +216,10 @@ contains
     if (associated(arr_copy)) deallocate(arr_copy)
   end subroutine pcg
 
-
-  !-------------------------------
-  ! Setup preconditioner
-  !-------------------------------
-  subroutine setup_preconditioner(sol,A,rhs,CoarseMtx_, Restrict)
-    use subsolvers
-    use CoarseMtx_mod
-    implicit none
-    real(kind=rk),dimension(:),pointer :: sol
-    type(SpMtx),           intent(in)  :: A
-    real(kind=rk),dimension(:),pointer :: rhs
-    type(SpMtx),optional               :: CoarseMtx_ ! Coarse matrix
-    type(SpMtx),optional               :: Restrict ! Restriction matrix
-
-    ! ----- local: ------
-    real(kind=rk),dimension(:),pointer :: csol,crhs,tmpsol
-    ! ----------------------------
-    sol=0.0_rk
-    if (present(CoarseMtx_)) then
-      call sparse_multisolve(sol,A,rhs,CoarseMtx_) !fine solves
-      !call sparse_multisolve(sol,A,rhs) !fine solves
-      if (sctls%levels>1) then
-        if (coarseid==0) then ! setup coarse solve:
-          allocate(crhs(CoarseMtx_%ncols))
-          allocate(csol(CoarseMtx_%nrows))
-          allocate(tmpsol(A%nrows))
-          call SpMtx_Ax(crhs,Restrict,rhs,dozero=.true.) ! restriction
-          !csol=0.0_rk
-          write (stream,*) &
-            'factorising coarse matrix of size',CoarseMtx_%nrows, &
-            ' and nnz:',CoarseMtx_%nnz
-          call sparse_singlesolve(coarseid,csol,crhs, &
-                 nfreds=CoarseMtx_%nrows,   &
-                 nnz=CoarseMtx_%nnz,        &
-                 indi=CoarseMtx_%indi,      &
-                 indj=CoarseMtx_%indj,      &
-                 val=CoarseMtx_%val)
-          write (stream,*) 'coarse factorisation done!'
-          !tmpsol=0.0_rk
-          call SpMtx_Ax(tmpsol,Restrict,csol,dozero=.true.,transp=.true.) ! interpolation
-          !call SpMtx_Ax(tmpsol,Interp,csol,dozero=.true.,transp=.false.) ! interpolation
-        else ! apply coarse solve:
-          call SpMtx_Ax(crhs,Restrict,rhs,dozero=.true.) ! restriction
-          !csol=0.0_rk
-          call sparse_singlesolve(coarseid,csol,crhs, &
-                 nfreds=CoarseMtx_%nrows)
-          !tmpsol=0.0_rk
-          call SpMtx_Ax(tmpsol,Restrict,csol,dozero=.true.,transp=.true.) ! interpolation
-          !call SpMtx_Ax(tmpsol,Interp,csol,dozero=.true.,transp=.false.) ! interpolation
-        endif
-        !sol=sol+tmpsol
-        sol(1:A%nrows)=sol(1:A%nrows)+tmpsol(1:A%nrows)
-      endif
-    else
-      call sparse_multisolve(sol,A,rhs)
-    endif
-  end subroutine setup_preconditioner
-
   !-------------------------------
   ! Make preconditioner
   !-------------------------------
-  subroutine preconditioner(sol,A,rhs,A_interf_,CoarseMtx_,Restrict,refactor_,cdat)
+  subroutine preconditioner(sol,A,rhs,M,A_interf_,CoarseMtx_,Restrict,refactor_,cdat)
     use subsolvers
     use CoarseMtx_mod
     use CoarseAllgathers
@@ -286,10 +228,13 @@ contains
     real(kind=rk),dimension(:),pointer :: sol
     type(SpMtx)                        :: A
     real(kind=rk),dimension(:),pointer :: rhs
+    type(Mesh),intent(in)              :: M ! Mesh
+    real(kind=rk),dimension(:),pointer :: res ! -- residual vector, allocated
+                                              ! here for multiplicative Schwarz
     type(SpMtx),optional               :: A_interf_  ! matr@interf.
     type(SpMtx),optional               :: CoarseMtx_ ! Coarse matrix
     type(SpMtx),optional               :: Restrict ! Restriction matrix
-    logical,intent(in),optional :: refactor_
+    logical,intent(inout),optional :: refactor_
     type(CoarseData),intent(inout),optional :: cdat
     ! ----- local: ------
     real(kind=rk),dimension(:),pointer,save :: csol,crhs,tmpsol,tmpsol2,clrhs,ctmp
@@ -306,40 +251,37 @@ contains
     sol=0.0_rk
     if (present(CoarseMtx_)) then !{
 
-        if (.not.present(Restrict)) call DOUG_abort("Restriction matrix needs to be passed along with the coarse matrix!")
+      if (.not.present(Restrict)) call DOUG_abort("Restriction matrix needs to be passed along with the coarse matrix!")
         
-    if (present(cdat)) then
-
-!do i=1,MG%nlf
-!   if (MG%inner_interf_fmask(i)/=0) & 
-!   write(stream,*) MG%lg_fmap(i), rhs(i)
-!enddo
-
-
+      if (present(cdat)) then
         ! Not the first iteration, so send the coarse vector here
         if (.not.(present(refactor_).and.refactor_)) then
-         call SpMtx_Ax(clrhs,Restrict,rhs,dozero=.true.) ! restrict <RA>
+          call SpMtx_Ax(clrhs,Restrict,rhs,dozero=.true.) ! restrict <RA>
 !         call Vect_print(rhs,"RHS")
-
+      
          ! And send
-         call AllSendCoarseVector(clrhs,cdat%nprocs,cdat%cdisps,cdat%send, &
+          call AllSendCoarseVector(clrhs,cdat%nprocs,cdat%cdisps,cdat%send, &
                                   useprev=.true.)
         else ! First iteration - send matrix
-         call AllSendCoarseMtx(cdat%LAC,CoarseMtx_,cdat%lg_cfmap,&
+          call AllSendCoarseMtx(cdat%LAC,CoarseMtx_,cdat%lg_cfmap,&
                                 cdat%ngfc,cdat%nprocs,cdat%send)
-         allocate(ctmp(cdat%ngfc))
-
+          allocate(ctmp(cdat%ngfc))
+      
         endif
       endif
 
+      if (sctls%method>1) then ! For multiplicative Schwarz method...:
+        allocate(res(size(rhs)))
+      endif
       if (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL) then
-          call sparse_multisolve(sol=sol,A=a,rhs=rhs, &
+          call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
                         A_interf_=A_interf_, &
                         refactor=refactor_) !fine solves 
       else
-          call sparse_multisolve(sol=sol,A=a,rhs=rhs, &
+          call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
                         A_interf_=A_interf_,AC=CoarseMtx_, &
                         refactor=refactor_,Restrict=Restrict) !fine solves 
+!call Print_Glob_Vect(sol,M,'global sol===')
       endif 
 
       if (sctls%levels>1) then
@@ -376,14 +318,18 @@ contains
           endif
 
           if (.not.present(cdat)) then
-          if (sctls%smoothers==-1) then
-            allocate(tmpsol2(A%nrows))
-            tmpsol2=0.0_rk
-            call exact_sparse_multismoother(tmpsol2,A,rhs)
-            call SpMtx_Ax(crhs,Restrict,tmpsol2,dozero=.true.) ! restriction
-          else
-            call SpMtx_Ax(crhs,Restrict,rhs,dozero=.true.) ! restriction
-          endif
+            if (sctls%smoothers==-1) then
+              allocate(tmpsol2(A%nrows))
+              tmpsol2=0.0_rk
+              call exact_sparse_multismoother(tmpsol2,A,rhs)
+              call SpMtx_Ax(crhs,Restrict,tmpsol2,dozero=.true.) ! restriction
+            else
+              if (sctls%method>1.and.sctls%method/=5) then ! multiplicative Schwarz
+                call SpMtx_Ax(crhs,Restrict,res,dozero=.true.) ! restriction
+              else
+                call SpMtx_Ax(crhs,Restrict,rhs,dozero=.true.) ! restriction
+              endif
+            endif
           endif
           !csol=0.0_rk
           write (stream,*) &
@@ -411,7 +357,6 @@ contains
 !            write(stream,*) "Got vector!"
           endif
 
-          !call sparse_singlesolve(coarseid,csol,crhs, &
           call sparse_singlesolve(CoarseMtx_%subsolve_ids(1),csol,crhs, &
                  nfreds=CoarseMtx_%nrows,   &
                  nnz=CoarseMtx_%nnz,        &
@@ -432,13 +377,13 @@ contains
             
             call SpMtx_Ax(tmpsol,Restrict,clrhs,dozero=.true.,transp=.true.) ! RB
           else
-          if (sctls%smoothers==-1) then
-            call SpMtx_Ax(tmpsol2,Restrict,csol,dozero=.true.,transp=.true.) ! interpolation
-            tmpsol=0.0_rk
-            call exact_sparse_multismoother(tmpsol,A,tmpsol2)
-          else
-            call SpMtx_Ax(tmpsol,Restrict,csol,dozero=.true.,transp=.true.) ! interpolation
-          endif
+            if (sctls%smoothers==-1) then
+              call SpMtx_Ax(tmpsol2,Restrict,csol,dozero=.true.,transp=.true.) ! interpolation
+              tmpsol=0.0_rk
+              call exact_sparse_multismoother(tmpsol,A,tmpsol2)
+            else
+              call SpMtx_Ax(tmpsol,Restrict,csol,dozero=.true.,transp=.true.) ! interpolation
+            endif
           endif
         else ! apply coarse solve:
           if (present(cdat)) then
@@ -449,13 +394,13 @@ contains
 
 
           else
-          if (sctls%smoothers==-1) then
-            tmpsol2=0.0_rk
-            call exact_sparse_multismoother(tmpsol2,A,rhs)
-            call SpMtx_Ax(crhs,Restrict,tmpsol2,dozero=.true.) ! restriction
-          else
-            call SpMtx_Ax(crhs,Restrict,rhs,dozero=.true.) ! restriction
-          endif
+            if (sctls%smoothers==-1) then
+              tmpsol2=0.0_rk
+              call exact_sparse_multismoother(tmpsol2,A,rhs)
+              call SpMtx_Ax(crhs,Restrict,tmpsol2,dozero=.true.) ! restriction
+            else
+              call SpMtx_Ax(crhs,Restrict,rhs,dozero=.true.) ! restriction
+            endif
           endif
           call sparse_singlesolve(CoarseMtx_%subsolve_ids(1),csol,crhs, &
                  nfreds=CoarseMtx_%nrows)
@@ -469,24 +414,52 @@ contains
 
             call SpMtx_Ax(tmpsol,Restrict,clrhs,dozero=.true.,transp=.true.) ! RB
           else
-          if (sctls%smoothers==-1) then
-            call SpMtx_Ax(tmpsol2,Restrict,csol,dozero=.true.,transp=.true.) ! interpolation
-            tmpsol=0.0_rk
-            call exact_sparse_multismoother(tmpsol,A,tmpsol2)
-          else
-            call SpMtx_Ax(tmpsol,Restrict,csol,dozero=.true.,transp=.true.) ! interpolation
-!            call Vect_print(tmpsol,"csol")
-          endif
+            if (sctls%smoothers==-1) then
+              call SpMtx_Ax(tmpsol2,Restrict,csol,dozero=.true.,transp=.true.) ! interpolation
+              tmpsol=0.0_rk
+              call exact_sparse_multismoother(tmpsol,A,tmpsol2)
+            else
+              call SpMtx_Ax(tmpsol,Restrict,csol,dozero=.true.,transp=.true.) ! interpolation
+!              call Vect_print(tmpsol,"csol")
+            endif
           endif
         endif
+        if (sctls%method==1) then
+          sol(1:A%nrows)=sol(1:A%nrows)+tmpsol(1:A%nrows)
+        elseif (sctls%method==3) then ! fully multiplicative Schwarz
+          sol(1:A%nrows)=sol(1:A%nrows)+tmpsol(1:A%nrows)
+          ! calculate the residual:
+          call SpMtx_Ax(res,A,sol,dozero=.true.) ! 
+          res=rhs-res
+        elseif (sctls%method==4) then ! fully multiplicative Schwarz
+          sol(1:A%nrows)=tmpsol(1:A%nrows)
+          ! calculate the residual:
+          call SpMtx_Ax(res,A,sol,dozero=.true.) ! 
+          res=rhs-res
+        endif
+      endif
+      if (sctls%method>1) then ! For multiplicative Schwarz method...:
+        refactor_=.false.
+        if (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL) then
+            call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
+                          A_interf_=A_interf_, &
+                          refactor=refactor_) !fine solves 
+        else
+            call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
+                          A_interf_=A_interf_,AC=CoarseMtx_, &
+                          refactor=refactor_,Restrict=Restrict) !fine solves 
+        endif 
+      endif
+      if ((sctls%method==2.or.sctls%method==5).and.sctls%levels>1) then 
+        ! multiplicative on fine level, additive with coarse level: 
         sol(1:A%nrows)=sol(1:A%nrows)+tmpsol(1:A%nrows)
       endif
     else !}{
-      if (refactor_.and.present(A_interf_)) then
+      if (refactor_.and.present(A_interf_)) then!{
         if (sctls%verbose>9) then
-          call SpMtx_printMat(A)
+          !call SpMtx_printMat(A)
           call SpMtx_printRaw(A)
-          call SpMtx_printMat(A_interf_)
+          !call SpMtx_printMat(A_interf_)
           call SpMtx_printRaw(A_interf_)
           !stop
         endif
@@ -504,14 +477,15 @@ contains
           !  deallocate(A%M_bound)
           !endif
           call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS,sort=.true.)
-   write(stream,*)'AAAAAAAAAAAAAAAA is:'
-   call SpMtx_printRaw(A)
-   call SpMtx_printRaw(A_interf_)
-   write(stream,*)'AAAAAAAAAAAAAAAA :'
-   call flush(stream)
-          call sparse_multisolve(sol=sol,A=A,rhs=rhs, &
+          call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
                                  A_interf_=A_interf_, &
                                   refactor=refactor_) !fine solves 
+          if (sctls%method>1) then ! For multiplicative Schwarz method...:
+            refactor_=.false.
+            call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
+                                   A_interf_=A_interf_, &
+                                    refactor=refactor_) !fine solves 
+          endif
           ! put the original structure and orders back:
           A%indi=A_tmp%indi
           A%indj=A_tmp%indj
@@ -522,39 +496,54 @@ contains
           A%arrange_type=A_tmp%arrange_type
           call SpMtx_Destroy(A_tmp)
         else
-          call sparse_multisolve(sol=sol,A=a,rhs=rhs, &
+          call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
+                               A_interf_=A_interf_, &
+                                refactor=refactor_) !fine solves 
+          if (sctls%method>1) then ! For multiplicative Schwarz method...:
+            refactor_=.false.
+            call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
+                                 A_interf_=A_interf_, &
+                                  refactor=refactor_) !fine solves 
+          endif
+        endif
+      elseif (refactor_.and.sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED) then!}{
+        A_tmp=SpMtx_newInit(nnz=A%nnz,nblocks=A%nblocks,nrows=A%nrows,&
+                           ncols=A%ncols,&
+                           indi=A%indi,indj=A%indj,val=A%val,&
+                           arrange_type=A%arrange_type,M_bound=A%M_bound)
+        A%arrange_type=D_SpMtx_ARRNG_NO
+        call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS,sort=.true.)
+        call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
+                                refactor=refactor_) !fine solves 
+        if (sctls%method>1) then ! For multiplicative Schwarz method...:
+          refactor_=.false.
+          call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
+                                  refactor=refactor_) !fine solves 
+        endif
+        ! put the original structure and orders back:
+        A%indi=A_tmp%indi
+        A%indj=A_tmp%indj
+        A%val=A_tmp%val
+        A%M_bound=A_tmp%M_bound
+        A%nrows=A_tmp%nrows
+        A%ncols=A_tmp%ncols
+        A%arrange_type=A_tmp%arrange_type
+        call SpMtx_Destroy(A_tmp)
+      else!}{
+        call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
+                             A_interf_=A_interf_, &
+                              refactor=refactor_) !fine solves 
+        if (sctls%method>1) then ! For multiplicative Schwarz method...:
+          refactor_=.false.
+          call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
                                A_interf_=A_interf_, &
                                 refactor=refactor_) !fine solves 
         endif
-      elseif (refactor_.and.sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED) then
-          A_tmp=SpMtx_newInit(nnz=A%nnz,nblocks=A%nblocks,nrows=A%nrows,&
-                             ncols=A%ncols,&
-                             indi=A%indi,indj=A%indj,val=A%val,&
-                             arrange_type=A%arrange_type,M_bound=A%M_bound)
-          A%arrange_type=D_SpMtx_ARRNG_NO
-          call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS,sort=.true.)
- write(stream,*)'BBBBBBBBBBBBAAAA is:'
- write(stream,*)'A%nrows=',A%nrows
- call SpMtx_printRaw(A,startnz=1,endnz=A%mtx_bbe(2,2))
- write(stream,*)'BBBBBBBBBBBBAAAA :'
- call flush(stream)
-          call sparse_multisolve(sol=sol,A=A,rhs=rhs, &
-                                  refactor=refactor_) !fine solves 
-          ! put the original structure and orders back:
-          A%indi=A_tmp%indi
-          A%indj=A_tmp%indj
-          A%val=A_tmp%val
-          A%M_bound=A_tmp%M_bound
-          A%nrows=A_tmp%nrows
-          A%ncols=A_tmp%ncols
-          A%arrange_type=A_tmp%arrange_type
-          call SpMtx_Destroy(A_tmp)
-      else
-        call sparse_multisolve(sol=sol,A=a,rhs=rhs, &
-                             A_interf_=A_interf_, &
-                              refactor=refactor_) !fine solves 
-      endif
+      endif!}
     endif !}
+    if (sctls%method>1) then ! For multiplicative Schwarz method...:
+      if (associated(res)) deallocate(res)
+    endif
   end subroutine preconditioner
 
   !--------------------------
@@ -689,9 +678,11 @@ contains
       it = it + 1
  
 !call Print_Glob_Vect(r,Msh,'global r===')
+!write(stream,*)'present(CoarseMtx_):',present(CoarseMtx_)
       call preconditioner(sol=z,          &
                             A=A,          &
                           rhs=r,          &
+                            M=Msh,        &
                     A_interf_=A_interf_,  &
                    CoarseMtx_=CoarseMtx_, &
                     Restrict=Restrict,    &
@@ -701,7 +692,7 @@ contains
       if (sctls%method/=0) then
         call Add_common_interf(z,A,Msh)
       endif
-!write(stream,*)'localz==:',z
+!call Print_Glob_Vect(z,Msh,'global z===')
 !call Print_Glob_Vect(z,Msh,'global z===')
       ! compute current rho
       rho_curr = Vect_dot_product(r,z)
@@ -723,7 +714,7 @@ contains
       rho_prev = rho_curr
       ! check
       res_norm = Vect_dot_product(r,r)
-      write (stream,*) "Norm is", res_norm
+      !write (stream,*) "Norm is", res_norm
       ratio_norm = res_norm / init_norm
       if (ismaster()) &
            write(stream, '(i5,a,e22.15)') it,': res_norm=',dsqrt(res_norm)
@@ -763,7 +754,7 @@ contains
     do i=2,it
       if (alpha(i)==0.or.beta(i)<0) then
         print *,'Unable to compute eigenvalue number',i,' and '
-        do j=1,it
+        do j=1,i
           print *,j,' alpha:',alpha(j),' beta:',beta
         enddo
         return
