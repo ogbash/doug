@@ -23,10 +23,10 @@ libdoug_la_SOURCES += \
 	datatypes/SpMtx/SpMtx.f90 \
 	datatypes/SpMtx/CoarseMtx.F90 \
 	datatypes/SpMtx/CoarseGrid.F90 \
-	datatypes/SpMtx/CoarseAllgathers.f90 \
+	datatypes/SpMtx/CoarseAllgathers.F90 \
 	datatypes/SpMtx/GeomInterp.f90 \
 	datatypes/SpMtx/CreateRestrict.F90 \
-	datatypes/SpMtx/TransmitCoarse.f90 \
+	datatypes/SpMtx/TransmitCoarse.F90 \
 	datatypes/SpMtx/CreateCoarse.f90
 
 EXTRA_DIST += \

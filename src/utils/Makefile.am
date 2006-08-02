@@ -1,5 +1,6 @@
 
 libdoug_la_SOURCES += \
+	utils/mpi_ex.c \
 	utils/RealKind.f90 \
 	utils/parameters.F90 \
 	utils/globals.f90 \
