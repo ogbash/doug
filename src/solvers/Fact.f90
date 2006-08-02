@@ -3,6 +3,9 @@
 module Fact_class
   use globals
   use DOUG_utils
+
+#include<doug_config.h>
+
 #ifdef D_WANT_MUMPS_YES
   include 'dmumps_struc.h'
 #endif

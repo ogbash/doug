@@ -10,10 +10,12 @@ module parameters
 
   implicit none 
 
+#include <doug_config.h>
+
   ! DOUG major and minor versions.
-  ! DVMAJOR and DVMINOR are defined via preprocessor
-  integer :: D_VMAJOR = DVMAJOR
-  integer :: D_VMINOR = DVMINOR
+  ! PACKAGE_VERSION_[MAJOR,MINOR] are defined via preprocessor (autoconf)
+  integer :: D_VMAJOR = PACKAGE_VERSION_MAJOR
+  integer :: D_VMINOR = PACKAGE_VERSION_MINOR
   
   ! DOUG error stream.
   integer, parameter :: D_ERROR_STREAM = 0

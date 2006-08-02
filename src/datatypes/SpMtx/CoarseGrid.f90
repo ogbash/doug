@@ -19,6 +19,8 @@ module CoarseGrid_class
 
     implicit none
 
+#include<doug_config.h>
+
     ! Center choosing options
     integer, parameter :: COARSE_CENTER_GEOM  = 1
     integer, parameter :: COARSE_CENTER_MEAN  = 2

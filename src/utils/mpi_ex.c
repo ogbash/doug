@@ -1,3 +1,5 @@
+#include <doug_config.h>
+
 #include <malloc.h>
 #include <pthread.h>
 #include <mpi.h>

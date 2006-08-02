@@ -6,6 +6,8 @@ module Polygon_class
 
   implicit none
 
+#include<doug_config.h>
+
 !!$  include 'DOUG_utils.f90'
 !!$  include 'globals.f90'
 !!$  include 'Points2D.f90'

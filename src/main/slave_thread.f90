@@ -5,6 +5,8 @@ module slave_thread
 
   implicit none
 
+#include<doug_config.h>
+
 ! "on-the-fly" real/complex picking
 #ifdef D_COMPLEX
 #define float complex

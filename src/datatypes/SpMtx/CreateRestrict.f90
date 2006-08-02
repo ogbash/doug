@@ -21,6 +21,8 @@ module CoarseCreateRestrict
 ! their practicality in this implementation is doubtful.
     use RealKind
 
+#include<doug_config.h>
+
 #ifdef D_COMPLEX
 #define float complex
 #else

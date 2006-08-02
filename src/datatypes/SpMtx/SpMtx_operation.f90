@@ -16,6 +16,8 @@ Module SpMtx_operation
 
   Implicit None
 
+#include<doug_config.h>
+
 #ifdef D_COMPLEX
 #define float complex
 #else

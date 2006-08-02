@@ -13,6 +13,8 @@ module CoarseMtx_mod
 
   implicit none
 
+#include<doug_config.h>
+
 #ifdef D_COMPLEX
 #define float complex
 #else

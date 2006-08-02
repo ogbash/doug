@@ -11,6 +11,8 @@ module ElemMtxs_distribute
   use ElemMtxs_assemble
   use globals
 
+#include<doug_config.h>
+
 #ifdef D_COMPLEX
 #define float complex
 #else

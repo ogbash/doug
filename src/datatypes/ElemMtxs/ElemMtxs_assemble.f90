@@ -13,6 +13,8 @@ module ElemMtxs_assemble
 
   implicit none
 
+#include<doug_config.h>
+
 #ifdef D_COMPLEX
 #define float complex
 #else
@@ -46,8 +48,8 @@ module ElemMtxs_assemble
      integer, dimension(:), pointer :: inv_perm_map
   end type ElemMtxsAssembleContext
 
-  private :: &
-       ElemMtxsAssembleBlock
+  !private :: &
+  !     ElemMtxsAssembleBlock
 
 
 contains

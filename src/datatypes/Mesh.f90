@@ -8,6 +8,8 @@ module Mesh_class
 
   implicit none
 
+#include<doug_config.h>
+
   integer, parameter :: D_FREEDOM_INNER  = 0
   integer, parameter :: D_FREEDOM_INTERF = 1
 

@@ -11,6 +11,8 @@ Module SpMtx_arrangement
   
   Implicit None
 
+#include<doug_config.h>
+
 ! "on-the-fly" real/complex picking
 #ifdef D_COMPLEX
 #define float complex

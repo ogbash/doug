@@ -9,6 +9,8 @@ program test_SpMtx_symmetry_at_pmvm
 
   implicit none
 
+#include<doug_config.h>
+
 #ifdef D_COMPLEX
 #define float complex
 #else

@@ -7,6 +7,8 @@ module ElemMtxs_base
   use parameters
   use Mesh_class
 
+#include<doug_config.h>
+
 #ifdef D_COMPLEX
 #define float complex
 #else

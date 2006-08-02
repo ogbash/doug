@@ -1,3 +1,0 @@
-globals.o: parameters.o RealKind.o
-DOUG_utils.o: RealKind.o globals.o parameters.o
-parameters.o: RealKind.o

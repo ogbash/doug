@@ -1,8 +1,0 @@
-aggr1.o: DOUG.o main_drivers.o
-main_drivers.o:
-aggr.o: DOUG.o main_drivers.o
-DOUG.o:
-master_thread.o:
-aggr2.o: DOUG.o main_drivers.o
-main.o: DOUG.o main_drivers.o
-slave_thread.o:

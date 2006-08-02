@@ -1,0 +1,20 @@
+
+ * Compiling
+
+When fresh checkout from SVN run ./autogen.sh in project
+directory. This creates configure script and some other files.
+
+Run ./configure. The exact command depends on location of
+libraries. There are several issues with configure that need to be
+fixed, but it's not yet clear how.
+Examples:
+./configure --with-umfpack=/usr/local/src
+./configure CPPFLAGS=-I'/usr/local/include/UMFPACKv4.4/ -I/home/markt/src/UMFPACKv4.4/AMD/Include/' --disable-shared
+
+Run make. Executables are in src/main directory.
+
+ * Developing
+
+When adding or removing files appropriate Makefile.am should be updated. Make automatically runs automake in this case, so there is no need to run any other scripts.
+
+Sometimes, eg when Makefile's are not yet generated, it is neccesary to rerun ./autogen.sh and then ./configure.

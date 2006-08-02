@@ -5,6 +5,8 @@ module DOUG_utils
 
   implicit none
 
+#include<doug_config.h>
+
 #ifdef D_COMPLEX
 #define float complex
 #else

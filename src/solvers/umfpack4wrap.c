@@ -71,6 +71,7 @@
  *	* IBM AIX xlc and xlf compilers.
  *	    (32-bit and 64-bit modes)
  */
+#include<doug_config.h>
 
 #include <umfpack.h>
 #include <ctype.h>
