@@ -29,7 +29,7 @@ AC_ARG_WITH(amd-libs,
   _amd_libs="${withval}"
   DOUG_UTILS_HEAD_TAIL(_head, _tail, $_amd_libs)
   DOUG_UTILS_LIB_UNQUOTE(_head, $_head)
-  AC_CHECK_LIB([$_head], dscal,
+  AC_CHECK_LIB([$_head], amd_valid,
                [ amd_found=yes
                  AMD_LIBS=$_amd_libs
                  LIBS="$AMD_LIBS $LIBS"],
@@ -58,7 +58,7 @@ AC_ARG_WITH(umfpack-libs,
   _umfpack_libs="${withval}"
   DOUG_UTILS_HEAD_TAIL(_head, _tail, $_umfpack_libs)
   DOUG_UTILS_LIB_UNQUOTE(_head, $_head)
-  AC_CHECK_LIB([$_head], dscal,
+  AC_CHECK_LIB([$_head], umfpack_di_solve,
                [ umfpack_found=yes
                  UMFPACK_LIBS=$_umfpack_libs
                  LIBS="$UMFPACK_LIBS $LIBS"],
