@@ -241,9 +241,7 @@ contains
     ! ----- local: ------
     real(kind=rk),dimension(:),pointer,save :: csol,crhs,tmpsol,tmpsol2,clrhs,ctmp
     type(SpMtx)                        :: A_tmp
-
-
-    integer :: i
+    integer :: i,ol
 
     ! ----------------------------
     if (sctls%method==0) then
@@ -274,6 +272,7 @@ contains
 
       if (sctls%method>1) then ! For multiplicative Schwarz method...:
         allocate(res(size(rhs)))
+        ol=max(sctls%overlap,sctls%smoothers)
       endif
       if (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL) then
           call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
@@ -433,7 +432,7 @@ contains
           ! calculate the residual:
           call SpMtx_Ax(res,A,sol,dozero=.true.) ! 
           res=rhs-res
-        elseif (sctls%method==4) then ! fully multiplicative Schwarz
+        elseif (sctls%method==2.and.ol>0) then ! fully multiplicative Schwarz
           sol(1:A%nrows)=tmpsol(1:A%nrows)
           ! calculate the residual:
           call SpMtx_Ax(res,A,sol,dozero=.true.) ! 
@@ -452,7 +451,7 @@ contains
                           refactor=refactor_,Restrict=Restrict) !fine solves 
         endif 
       endif
-      if ((sctls%method==2.or.sctls%method==5).and.sctls%levels>1) then 
+      if (((ol==0.and.sctls%method==2).or.sctls%method==5).and.sctls%levels>1) then 
         ! multiplicative on fine level, additive with coarse level: 
         sol(1:A%nrows)=sol(1:A%nrows)+tmpsol(1:A%nrows)
       endif

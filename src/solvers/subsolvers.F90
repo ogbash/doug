@@ -1032,7 +1032,6 @@ contains
     if (associated(subrhs)) deallocate(subrhs)
   end subroutine multi_subsolve
 
-  !subroutine multiplicative_multi_subsolve(A,M,nids,ids,sol,rhs,res,subd,nfreds,nnz,indi,indj,val, &
   subroutine multiplicative_multi_subsolve(A,M,ids,sol,rhs,res,subd,nfreds,nnz,indi,indj,val, &
     nnz_interf,indi_interf,indj_interf,val_interf, &
     nagr1,starts1,nodes1, & ! fine level aggregate list
@@ -1044,8 +1043,6 @@ contains
     implicit none
     type(SpMtx),intent(inout) :: A
     type(Mesh),intent(in) :: M ! Mesh
-    !integer,intent(inout) :: nids
-    integer :: nids
     integer,dimension(:),pointer :: ids
     real(kind=rk),dimension(:),pointer :: sol,rhs,res
     type(indlist),dimension(:),pointer :: subd
@@ -1061,6 +1058,7 @@ contains
                                         starts1,starts2,starts3
     integer,dimension(:),pointer,optional :: nodes1,nodes2,nodes3
     ! ----- local: ------
+    integer :: nids
     integer :: i,ii,j,n,nod1,nod2,sd,agr1,agr2,snnz,nnz_per_fred
     integer,save :: nnz_est=0
     integer :: nselind ! number of selected indeces
@@ -1194,7 +1192,7 @@ contains
               else
                 full=.false.
               endif
-              call find_sub_residual(res,A,sol,rhs,nselind,selind,full)
+              call find_sub_residual(agr2,nagr2,res,A,sol,rhs,nselind,selind,full)
               !-----------------------------------------
               allocate(subd(agr2)%inds(nselind))
               subd(agr2)%ninds=nselind
@@ -1283,7 +1281,7 @@ contains
               else
                 full=.false.
               endif
-              call find_sub_residual(res,A,sol,rhs,nselind,selind,full)
+              call find_sub_residual(agr2,nagr2,res,A,sol,rhs,nselind,selind,full)
               !-----------------------------------------
               ! keep indlist:
               allocate(subd(agr2)%inds(nselind))
@@ -1370,7 +1368,7 @@ contains
             else
               full=.false.
             endif
-            call find_sub_residual(res,A,sol,rhs,nselind,selind,full)
+            call find_sub_residual(agr1,nagr1,res,A,sol,rhs,nselind,selind,full)
             !-----------------------------------------
             ! keep indlist:
             allocate(subd(agr1)%inds(nselind)) !todo: siin mingi jama?
@@ -1410,7 +1408,7 @@ contains
           else
             full=.false.
           endif
-          call find_sub_residual(res,A,sol,rhs,n,subd(sd)%inds,full)
+          call find_sub_residual(sd,nids,res,A,sol,rhs,n,subd(sd)%inds,full)
           !-----------------------------------------
         enddo
       endif
@@ -1436,7 +1434,7 @@ contains
           !-----------------------------------------
           ! now update also the residual: !TODO -- compute this only on the
           !                                        affected freedoms.
-          call find_sub_residual(res,A,sol,rhs,n,subd(sd)%inds,full)
+          call find_sub_residual(sd,nids,res,A,sol,rhs,n,subd(sd)%inds,full)
           !-----------------------------------------
         endif
       enddo
@@ -1447,71 +1445,67 @@ contains
   end subroutine multiplicative_multi_subsolve
 
   ! the very first, far from optimised version:
-  subroutine find_sub_residual(res,A,sol,rhs,nselind,selind,full)
+  subroutine find_sub_residual(sd,nsd,res,A,sol,rhs,nselind,selind,full)
     use SpMtx_mods
     implicit none
+    integer :: sd,nsd
     type(SpMtx) :: A
     real(kind=rk),dimension(:),pointer :: res,sol,rhs
     integer :: nselind
     integer,dimension(:),pointer :: selind
     logical :: full
-    integer,dimension(:),allocatable :: isin
-    integer :: i,ii,jj
-    if (full) then
-      res=rhs
-      do i=1,A%nnz
-        ii=A%indi(i)
-        jj=A%indj(i)
-        res(ii)=res(ii)-A%val(i)*sol(jj)
-      enddo
-    else
-      allocate(isin(size(rhs)))
-      isin=0
-      isin(selind(1:nselind))=1
-      do i=1,A%nnz
-        ii=A%indi(i)
-        jj=A%indj(i)
-        if (isin(ii)==1.or.isin(jj)==1) then
-          if (isin(ii)==0) then
-            isin(ii)=2
-          endif
-          if (isin(jj)==0) then
-            isin(jj)=2
-          endif
-        endif
-      enddo
-      do i=1,A%nnz
-        ii=A%indi(i)
-        jj=A%indj(i)
-        if (isin(ii)>0) then
-          res(ii)=rhs(ii)
-          isin(ii)=-1
-        endif
-        !if (isin(ii)/=0.or.isin(jj)/=0) then
-        if (isin(ii)/=0) then
-          res(ii)=res(ii)-A%val(i)*sol(jj)
-        endif
-      enddo
-      deallocate(isin)
+    logical,dimension(:),allocatable,save :: isin
+    integer,dimension(:),allocatable,save :: moreinds
+    integer :: i,j,ii,jj
+    logical,save :: alloc=.false.
+    type(indlist),dimension(:),pointer :: ind
+    if (A%arrange_type/=D_SpMtx_ARRNG_ROWS) then
+      call SpMtx_arrange(A,arrange_type=D_SpMtx_ARRNG_ROWS,sort=.true.)   !
+      write(stream,*)'Arranged A to row storage'
     endif
-
-           !isin=.false.
-           !isin(selind(1:nselind))=.true.
-           !do i=1,nselind
-           !  ii=selind(i)
-           !  !!rhs(ii)=0.0_rk
-           !  !!!rhs(ii)=0.0_rk
-           !  !!!!rhs(ii)=-rhs_in(ii)
-           !  rhs(ii)=-b(ii)
-           !  do j=A%M_bound(ii),A%M_bound(ii+1)-1
-           !    if (isin(A%indj(j))) then
-           !      rhs(ii)=rhs(ii)+A%val(j)*sol(A%indj(j))
-           !      !!!rhs(ii)=-rhs(ii)+A%val(j)*sol(A%indj(j))
-           !    endif
-           !  enddo
-           !enddo
+    if (full) then
+      if (.not.alloc) then
+        allocate(isin(size(rhs)))
+        allocate(moreinds(size(rhs)))
+        allocate(ind(nsd))
+        ind(1:nsd)%ninds=0
+        alloc=.true.
+      endif
+      res=rhs
+    endif
+    if (ind(sd)%ninds==0) then
+      isin=.false.
+      isin(selind(1:nselind))=.true.
+      ind(sd)%ninds=nselind
+      ! now add an additional layer:
+      do i=1,nselind
+        ii=selind(i)
+        do j=A%M_bound(ii),A%M_bound(ii+1)-1
+          jj=A%indj(j)
+          if (.not.isin(jj)) then
+            ind(sd)%ninds=ind(sd)%ninds+1
+            moreinds(ind(sd)%ninds)=jj
+            isin(jj)=.true.
+          endif
+        enddo
+      enddo
+      allocate(ind(sd)%inds(ind(sd)%ninds))
+      ind(sd)%inds(1:nselind)=selind(1:nselind)
+      ind(sd)%inds(nselind+1:ind(sd)%ninds)=moreinds(nselind+1:ind(sd)%ninds)
+      call quicksort(ind(sd)%ninds,ind(sd)%inds)
+      if (sd==nsd) then
+        deallocate(moreinds)
+        deallocate(isin)
+      endif
+    endif
+    do i=1,ind(sd)%ninds
+      ii=ind(sd)%inds(i)
+      res(ii)=rhs(ii)
+      do j=A%M_bound(ii),A%M_bound(ii+1)-1
+        res(ii)=res(ii)-A%val(j)*sol(A%indj(j))
+      enddo
+    enddo
   end subroutine find_sub_residual
-
 
   subroutine sparse_singlesolve(id,sol,rhs,nfreds,nnz,indi,indj,val,tot_nfreds,nnz_est)
     ! For adding a new factorised matrix id must be 0.

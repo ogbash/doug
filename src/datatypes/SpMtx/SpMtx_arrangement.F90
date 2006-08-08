@@ -1731,7 +1731,7 @@ endif
 !print *,'eater of ',i,' is:',eater
           else ! try to give the struct away node by node to all good neighbours...
 !if (present(Afine)) then
- print *,' ...not eaten... '
+! print *,' ...not eaten... '
 !endif
             nleft=aggrsize(i)
             reduced=.true.
@@ -1763,8 +1763,8 @@ endif
                         structnodes(k,i)=-1
                         nleft=nleft-1
                         reduced=.true.
-print *,i,'  ######## sold ',structnodes(aggrsize(colr),colr), &
- ' to:',colr,'########'
+!print *,i,'  ######## sold ',structnodes(aggrsize(colr),colr), &
+! ' to:',colr,'########'
                         exit looking ! this node is sold
                       endif
                     endif
@@ -1783,9 +1783,9 @@ print *,i,'  ######## sold ',structnodes(aggrsize(colr),colr), &
                 endif
               enddo
               aggrsize(i)=nleft
-print *,'    ========== aggregate ',i,' remained as small as ',nleft,'@@@@@'
+!print *,'    ========== aggregate ',i,' remained as small as ',nleft,'@@@@@'
             elseif (nleft==0) then ! the aggregate got removed
-print *,'    ========== aggregate ',i,' got removed node by node ============'
+!print *,'    ========== aggregate ',i,' got removed node by node ============'
               noccupied=noccupied+1
               aggrsize(i)=0
               nagrs_new=nagrs_new-1
