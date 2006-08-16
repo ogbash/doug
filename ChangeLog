@@ -1,2 +1,7 @@
+2006-08-16  Oleg Batrasev  <olegus@ut.ee>
 
+	* doug_blas.m4, doug_umfpack.m4: fixed AC_SEARCH_LIBS calls to
+	work with <2.59c versions of autoconf.
 
+	* tac_arg_config_mpi.m4: --with-mpi-bindir added, mpif77 now
+	searched in that location if specified.

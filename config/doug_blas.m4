@@ -1,3 +1,4 @@
+# -*- indent-tabs-mode: nil; -*-
 dnl @synopsis DOUG_CHECK_LIB_BLAS
 dnl
 dnl Test a variety of BLAS libraries
@@ -32,7 +33,8 @@ AC_ARG_WITH(blas-libs,
 if test X$blas_found == Xno; then
   AC_MSG_NOTICE([BLAS search priority = $_blas_lib_list_nq])
   AC_SEARCH_LIBS(dscal, $_blas_lib_list_nq,
-                 [blas_found=yes BLAS_LIBS="$ac_res"])
+                 [blas_found=yes BLAS_LIBS="$ac_cv_search_dscal"])#,
+#                 [AC_MSG_ERROR([blas not found])])
 fi
 
 AC_LANG_POP(Fortran)

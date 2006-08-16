@@ -41,7 +41,7 @@ if test X$amd_found == Xno; then
   AC_MSG_NOTICE([AMD search priority = $_amd_lib_list_nq])
   AC_SEARCH_LIBS(amd_valid, [$_amd_lib_list_nq],
                  [amd_found=yes
-                  AMD_LIBS=$ac_res],
+                  AMD_LIBS=$ac_cv_search_amd_valid],
                  [AC_MSG_ERROR([amd not found])])
 fi
 
@@ -71,7 +71,7 @@ if test X$umfpack_found == Xno; then
   AC_MSG_NOTICE([UMFPACK search priority = $_umfpack_lib_list_nq])
   AC_SEARCH_LIBS(umfpack_di_solve, [$_umfpack_lib_list_nq],
                  [umfpack_found=yes
-                  UMFPACK_LIBS=$ac_res
+                  UMFPACK_LIBS=$ac_cv_search_umfpack_di_solve
                   AC_DEFINE([D_WANT_UMFPACK4_YES],,[Use umfpack 4])
                   AC_DEFINE([D_WANT_UMFPACK2_NO],,[Do not use umfpack 2])],
                  [AC_MSG_ERROR([umfpack not found])])

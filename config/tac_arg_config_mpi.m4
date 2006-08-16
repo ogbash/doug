@@ -42,6 +42,15 @@ AC_ARG_WITH(mpi-libs,
 ]
 )
 
+AC_ARG_WITH(mpi-bindir,
+[AC_HELP_STRING([--with-mpi-bindir=DIR],[MPI bin directory @<:@MPIROOT/bin@:>@])],
+[
+  MPI_BIN=${withval}
+  AC_MSG_CHECKING(user-defined MPI binaries)
+  AC_MSG_RESULT([${MPI_BIN}])
+]
+)
+
 AC_ARG_WITH(mpi-incdir,
 [AC_HELP_STRING([--with-mpi-incdir=DIR],[MPI include directory @<:@MPIROOT/include@:>@  Do not use -I])],
 [
@@ -65,6 +74,14 @@ dnl --------------------------------------------------------------------
 dnl Check for MPI compilers (must be done *before* AC_PROG_F77)
 dnl 
 dnl --------------------------------------------------------------------
+
+  if test -n "${MPI_DIR}" && test -z "${MPI_BIN}"; then
+    MPI_BIN="${MPI_DIR}/bin"
+  fi
+
+  if test -n "$MPI_BIN"; then
+    MPI_FC="${MPI_BIN}/${MPI_FC}"
+  fi
 
   if test -f ${MPI_FC}; then
     MPI_FC_EXISTS=yes
