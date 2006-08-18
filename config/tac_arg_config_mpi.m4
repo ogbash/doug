@@ -83,7 +83,7 @@ dnl --------------------------------------------------------------------
     MPI_BIN="${MPI_DIR}/bin"
   fi
 
-  if test -n "$MPI_BIN" && -n "$MPI_FC"; then
+  if test -n "$MPI_BIN" && test -n "$MPI_FC"; then
     MPI_FC="${MPI_BIN}/${MPI_FC}"
   fi
 

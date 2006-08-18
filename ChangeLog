@@ -1,4 +1,6 @@
 2006-08-18  Oleg Batrashev  <olegus (at) ut.ee>
+	
+	* README: configuring and installation instructions updated
 
 	* RealKind.f90: renamed to RealKind.F90; added interfaces isnan,
 	isinf to resolve non-existense of those implicits in gfortran

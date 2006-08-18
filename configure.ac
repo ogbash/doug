@@ -98,5 +98,10 @@ Summary:
   umfpack: $umfpack_found, UMFPACK_LIBS = $UMFPACK_LIBS
   plplot: $plplot_found, PLPLOT_LIBS = $PLPLOT_LIBS
   mumps: $mumps_found, MUMPS_LIBS = $MUMPS_LIBS
+
+  CPPFLAGS = $CPPFLAGS
+  FCFLAGS = $FCFLAGS
+  LDFLAGS = $LDFLAGS
   LIBS = $LIBS
+
 EOF
