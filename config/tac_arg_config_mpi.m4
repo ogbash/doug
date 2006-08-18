@@ -3,7 +3,7 @@ dnl @synopsis TAC_ARG_CONFIG_MPI
 dnl
 dnl Test a variety of MPI options:
 dnl --with-mpi         - specify root directory of MPI
-dnl --with-mpi-fc - Sets the MPI Fortran compiler [mpif77]
+dnl --with-mpi-fc - Sets the MPI Fortran compiler [$FC | mpif77]
 dnl --with-mpi-incdir - specify include directory for MPI 
 dnl --with-mpi-libs    - specify MPI libraries
 dnl --with-mpi-libdir  - specify location of MPI libraries
@@ -15,12 +15,16 @@ AC_DEFUN([TAC_ARG_CONFIG_MPI],
 
 AC_ARG_WITH(mpi-fc,
 [AC_HELP_STRING([--with-mpi-fc=COMPILER],
-[use given MPI Fortran compiler [mpif77]])],
+[use given MPI Fortran compiler [$FC | mpif77]])],
 [
   MPI_FC=${withval}
 ],
 [
-  MPI_FC=mpif77
+  if test -n "$FC"; then
+    MPI_FC=$FC
+  else
+    MPI_FC=mpif77
+  fi
 ]
 )
 
@@ -79,7 +83,7 @@ dnl --------------------------------------------------------------------
     MPI_BIN="${MPI_DIR}/bin"
   fi
 
-  if test -n "$MPI_BIN"; then
+  if test -n "$MPI_BIN" && -n "$MPI_FC"; then
     MPI_FC="${MPI_BIN}/${MPI_FC}"
   fi
 

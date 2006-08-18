@@ -1,4 +1,17 @@
-2006-08-16  Oleg Batrasev  <olegus@ut.ee>
+2006-08-18  Oleg Batrashev  <olegus (at) ut.ee>
+
+	* RealKind.f90: renamed to RealKind.F90; added interfaces isnan,
+	isinf to resolve non-existense of those implicits in gfortran
+
+	* configure.ac, Polygon.F90: fix to compile under gfortran
+
+	* doug_umfpack.m4: CPPFLAGS updated, because AMD of date
+	2006-07-27 and later needs UFconfig.h
+
+	* tac_arg_config_mpi.m4: if defined, use FC supplied in
+	environment or configure command line, even if mpif77 exists
+	
+2006-08-16  Oleg Batrasev  <olegus (at) ut.ee>
 
 	* doug_blas.m4, doug_umfpack.m4: fixed AC_SEARCH_LIBS calls to
 	work with <2.59c versions of autoconf.

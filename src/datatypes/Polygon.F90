@@ -250,7 +250,7 @@ contains
 
 !          write(stream, *) 'angles_i<0 : after: angles(',i,') = ', angles(i)
 
-       else if (angles(i) == 1.0/0) then ! Infinity (1.0/0 simulates infinity)
+       else if (isinf(angles(i))==1) then ! Infinity
 
           ! As tan(90) is equal to infinity, substitute it with
           ! the corresponding value in degrees.

@@ -27,10 +27,6 @@ TAC_ARG_CONFIG_MPI
 AC_PROG_CC()
 AC_PROG_FC([ifort g95 gfortran], [Fortran 95]) #fortran 95 compiler and dialect
 
-#if test -n "`$FC --version|grep g95`"; then
-#   FCFLAGS_F95="-fleading-underscore"
-#   AC_MSG_NOTICE([Adding flags to $FC, "$FCFLAGS_F95"])
-#fi
 AC_SUBST([FCFLAGS_F95])
 
 AC_PROG_LIBTOOL
@@ -70,6 +66,19 @@ AC_LANG_POP(Fortran)
 # MPI link check
 # ------------------------------------------------------------------------
 TAC_ARG_CHECK_MPI
+
+# Fortran intrinsics
+
+# isnan intrinsic (currently check compiler, but should write test)
+if test -n "`$FC --version|grep gfortran`"; then
+   _has_isnan=0
+   _has_isinf=0
+else
+   _has_isnan=1
+   _has_isinf=0
+fi
+AC_DEFINE_UNQUOTED([HAS_ISNAN],[$_has_isnan], [has isnan intrinsic])
+AC_DEFINE_UNQUOTED([HAS_ISINF],[$_has_isinf], [has isinf intrinsic])
 
 # --- Output ---
 

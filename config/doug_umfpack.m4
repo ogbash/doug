@@ -13,7 +13,7 @@ AC_LANG_PUSH(C)
 # allow to specify --with-umfpack
 AC_ARG_WITH(umfpack,
         [AC_HELP_STRING([--with-umfpack=DIR],[UMFPACK and AMD root directory])],
-        [CPPFLAGS="-I${withval}/AMD/Include -I${withval}/UMFPACK/Include $CPPFLAGS"
+        [CPPFLAGS="-I${withval}/AMD/Include -I${withval}/UMFPACK/Include $CPPFLAGS -I${withval}/UFconfig"
          LDFLAGS="-L${withval}/AMD/Lib -L${withval}/UMFPACK/Lib $LDFLAGS" ])
 
 # AMD
