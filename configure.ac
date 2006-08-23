@@ -29,6 +29,7 @@ AC_PROG_FC([ifort g95 gfortran], [Fortran 95]) #fortran 95 compiler and dialect
 
 AC_SUBST(FCFLAGS_F95)
 
+lam_fortran_double_underscore=0
 GET_FORTRAN_EXT_NAME_CONVENTION($FC)
 
 AC_DEFINE_UNQUOTED(FORTRANDOUBLEUNDERSCORE, 
