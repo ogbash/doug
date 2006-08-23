@@ -5,6 +5,22 @@
 #include <mpi.h>
 #include <stdio.h>
 
+#if FORTRANDOUBLEUNDERSCORE
+#define getnull_ getnull__
+#define mpi_allgatherv_nb_chain_ mpi_allgatherv_nb_chain__
+#define mpi_allgatherv_nb_init_ mpi_allgatherv_nb_init__
+#define mpi_allgatherv_nb_wait_ mpi_allgatherv_nb_wait__
+#define mpi_allgatherv_nb_test_ mpi_allgatherv_nb_test__
+#define mpi_alltoall_nb_init_ mpi_alltoall_nb_init__
+#define mpi_alltoall_nb_wait_ mpi_alltoall_nb_wait__
+#define mpi_alltoall_nb_test_ mpi_alltoall_nb_test__
+#define mpi_alltoall_nb_free_ mpi_alltoall_nb_free__
+
+#define mpi_abort_ mpi_abort__
+#define mpi_allgatherv_ mpi_allgatherv__
+#define mpi_alltoallv_ mpi_alltoallv__
+#endif
+
 /* The new variant: uses allgatherv instead of alltoallv
    wait does the free too, calls can be chained */
 /* When chaining, note you have to WAIT for only the last one.

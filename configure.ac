@@ -27,7 +27,13 @@ TAC_ARG_CONFIG_MPI
 AC_PROG_CC()
 AC_PROG_FC([ifort g95 gfortran], [Fortran 95]) #fortran 95 compiler and dialect
 
-AC_SUBST([FCFLAGS_F95])
+AC_SUBST(FCFLAGS_F95)
+
+GET_FORTRAN_EXT_NAME_CONVENTION($FC)
+
+AC_DEFINE_UNQUOTED(FORTRANDOUBLEUNDERSCORE, 
+    $lam_fortran_double_underscore, 
+    [Whether fortran symbols have a trailing double underscore or not])
 
 AC_PROG_LIBTOOL
 
