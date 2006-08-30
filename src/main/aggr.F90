@@ -54,7 +54,7 @@ program main
   integer :: aver_subdsize,min_subdsize,max_subdsize
   integer :: start_radius1,start_radius2
   ! Parallel coarse level
-  type(CoarseData) :: cdat
+  !type(CoarseData) :: cdat -- moved into the module itself...
 
   ! Init DOUG
   call DOUG_Init()
@@ -120,7 +120,8 @@ program main
     call SpMtx_aggregate(A,aggr_radius1, &
            minaggrsize=min_asize1,       &
            maxaggrsize=max_asize1,       &
-           alpha=strong_conn1)
+           alpha=strong_conn1,           &
+           M=M)
     
     call SpMtx_unscale(A)
     ! todo: to be rewritten with aggr%starts and aggr%nodes...:
@@ -270,7 +271,7 @@ program main
            write(stream,*)'calling pcg_weigs /3/...'
            call pcg_weigs(A=A,b=b,x=xl,Msh=M,it=it,cond_num=cond_num, &
                   CoarseMtx_=AC,Restrict=Restrict, &
-                  refactor_=.true., cdat_=cdat)
+                  refactor_=.true.)
          else
            write(stream,*)'calling pcg_weigs /4/...'
            call pcg_weigs(A, b, xl, M,it,cond_num,refactor_=.true.)

@@ -221,7 +221,8 @@ contains
   !-------------------------------
   ! Make preconditioner
   !-------------------------------
-  subroutine preconditioner(sol,A,rhs,M,A_interf_,CoarseMtx_,Restrict,refactor_,cdat)
+  !subroutine preconditioner(sol,A,rhs,M,A_interf_,CoarseMtx_,Restrict,refactor_,cdat)
+  subroutine preconditioner(sol,A,rhs,M,A_interf_,CoarseMtx_,Restrict,refactor_)
     use subsolvers
     use CoarseMtx_mod
     use CoarseAllgathers
@@ -237,7 +238,7 @@ contains
     type(SpMtx),optional               :: CoarseMtx_ ! Coarse matrix
     type(SpMtx),optional               :: Restrict ! Restriction matrix
     logical,intent(inout),optional :: refactor_
-    type(CoarseData),intent(inout),optional :: cdat
+    !type(CoarseData),intent(inout),optional :: cdat
     ! ----- local: ------
     real(kind=rk),dimension(:),pointer,save :: csol,crhs,tmpsol,tmpsol2,clrhs,ctmp
     type(SpMtx)                        :: A_tmp
@@ -253,7 +254,8 @@ contains
 
       if (.not.present(Restrict)) call DOUG_abort("Restriction matrix needs to be passed along with the coarse matrix!")
         
-      if (present(cdat)) then
+      !if (present(cdat)) then
+      if (cdat%active) then
         ! Not the first iteration, so send the coarse vector here
         if (.not.(present(refactor_).and.refactor_)) then
           call SpMtx_Ax(clrhs,Restrict,rhs,dozero=.true.) ! restrict <RA>
@@ -289,7 +291,8 @@ contains
         if (present(refactor_).and.refactor_) then ! setup coarse solve:
 
           ! We have a matrix send pending
-          if (present(cdat)) then
+          !if (present(cdat)) then
+          if (cdat.active) then
               write(stream,*) "Waiting the Matrix!"
               call AllRecvCoarseMtx(CoarseMtx_,cdat%send) ! Recieve it
               
@@ -318,7 +321,8 @@ contains
             allocate(tmpsol(A%nrows))
           endif
 
-          if (.not.present(cdat)) then
+          !if (.not.present(cdat)) then
+          if (.not.cdat%active) then
             if (sctls%smoothers==-1) then
               allocate(tmpsol2(A%nrows))
               tmpsol2=0.0_rk
@@ -342,7 +346,8 @@ contains
           CoarseMtx_%nsubsolves=1
 
           !! TODO: force it to do it AFTER factorization, but before solve
-          if (present(cdat)) then
+          !if (present(cdat)) then
+          if (cdat%active) then
             ! Factorise the matrix
             if (sctls%verbose>2) then
               write(stream,*)'Global coarse matrix is:---------'
@@ -374,7 +379,8 @@ contains
                  val=CoarseMtx_%val)
           write (stream,*) 'coarse factorisation done!',CoarseMtx_%subsolve_ids(1)
 
-          if (present(cdat)) then
+          !if (present(cdat)) then
+          if (cdat%active) then
 
             CoarseMtx_%indi=CoarseMtx_%indi+1
             CoarseMtx_%indj=CoarseMtx_%indj+1
@@ -395,7 +401,8 @@ contains
             endif
           endif
         else ! apply coarse solve:
-          if (present(cdat)) then
+          !if (present(cdat)) then
+          if (cdat%active) then
 !            write(stream,*) "Waiting for vector!"
             call AllRecvCoarseVector(crhs,cdat%nprocs,cdat%cdisps,&
                                           cdat%glg_cfmap,cdat%send)
@@ -414,7 +421,8 @@ contains
           call sparse_singlesolve(CoarseMtx_%subsolve_ids(1),csol,crhs, &
                  nfreds=CoarseMtx_%nrows)
 
-          if (present(cdat)) then
+          !if (present(cdat)) then
+          if (cdat%active) then
 !            call SpMtx_Ax(ctmp,CoarseMtx_,csol,dozero=.true.,transp=.true.)
 !            ctmp=ctmp-crhs
 !            write(stream,*) "Cres:",dsqrt(dot_product(ctmp,ctmp))
@@ -570,7 +578,8 @@ contains
   end subroutine msolve
 
   subroutine pcg_weigs (A,b,x,Msh,it,cond_num,A_interf_,tol_,maxit_, &
-       x0_,solinf,resvects_,CoarseMtx_,Restrict,refactor_,cdat_)
+       x0_,solinf,resvects_,CoarseMtx_,Restrict,refactor_)
+!       x0_,solinf,resvects_,CoarseMtx_,Restrict,refactor_,cdat_)
     use CoarseAllgathers
 
     implicit none
@@ -600,7 +609,7 @@ contains
 
     logical,intent(in),optional :: refactor_
     logical :: refactor
-    type(CoarseData),intent(inout), optional :: cdat_
+    !type(CoarseData),intent(inout), optional :: cdat_
 
     real(kind=rk) :: tol   ! Tolerance
     integer       :: maxit ! Max number of iterations
@@ -695,8 +704,8 @@ contains
                     A_interf_=A_interf_,  &
                    CoarseMtx_=CoarseMtx_, &
                     Restrict=Restrict,    &
-                    refactor_=refactor,   &
-                         cdat=cdat_)
+                    refactor_=refactor)
+!                         cdat=cdat_)
       refactor=.false.
       if (sctls%method/=0) then
         call Add_common_interf(z,A,Msh)

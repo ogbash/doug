@@ -6,4 +6,5 @@ module SpMtx_mods
   use SpMtx_arrangement
   use SpMtx_permutation
   use SpMtx_util
+  use SpMtx_aggregation
 end module SpMtx_mods

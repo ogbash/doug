@@ -53,7 +53,7 @@ program main
   type(CoarseGrid) :: LC,C
   integer, pointer :: glg_cfmap(:)
   integer, allocatable :: cdisps(:),sends(:)
-  type(CoarseData) :: cdat
+  !type(CoarseData) :: cdat -- is defined now inside the module...
 
   !DEBUG
   integer :: k
@@ -142,6 +142,7 @@ program main
       cdat%gl_cfmap=>LC%gl_fmap
       cdat%nprocs=M%nparts
       cdat%ngfc=LC%ngfc
+      cdat%active=.true.
  
       call AllSendCoarselgmap(LC%lg_fmap,LC%nlfc,M%nparts,&
                               cdat%cdisps,cdat%glg_cfmap,cdat%send)
@@ -169,7 +170,8 @@ program main
                         sctls%levels==2) then
              call pcg_weigs(A=A,b=b,x=xl,Msh=M,it=it,cond_num=cond_num, &
                     A_interf_=A_interf,CoarseMtx_=AC,Restrict=Restrict, &
-                    refactor_=.true., cdat_=cdat)
+                    refactor_=.true.)
+!                    refactor_=.true., cdat_=cdat)
      else
      !call pcg(A, b, xl, M)
 !b=1.0_rk

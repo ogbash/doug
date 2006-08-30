@@ -21,6 +21,7 @@ module CoarseAllgathers
 
     use RealKind
     use SpMtx_class
+    use SpMtx_arrangement
     implicit none
 
 #include<doug_config.h>
@@ -40,6 +41,7 @@ module CoarseAllgathers
     end type
 
     type CoarseData
+        logical :: active=.false.
         integer :: nprocs               ! Number of processes
         integer :: ngfc,nlfc            ! numbers of freedoms
         integer, pointer :: cdisps(:)    ! Coarse node displacements in array
@@ -53,6 +55,7 @@ module CoarseAllgathers
         type(SendData) :: send          ! Auxilliary struct for sending data
    end type
 
+   type(CoarseData) :: cdat !coarse data
 contains
     
     function SendData_New(nproc) result (S)
@@ -193,7 +196,7 @@ contains
     end subroutine AllSendCoarseMtx
 
     subroutine AllRecvCoarseMtx(A,send)
-        use SpMtx_arrangement
+        !use SpMtx_arrangement
         !! The coarse matrix - initially unusable, later global coarse matrix
         type(SpMtx), intent(inout) :: A 
         !! The sends argument output by correspondind AllSendCoarseMtx
@@ -469,15 +472,15 @@ contains
 
     end subroutine CleanCoarse 
 
-  subroutine setup_aggr_cdat(nagrs,n,num,cdat,M)
+  subroutine setup_aggr_cdat(nagrs,n,num,M)
     use globals
+    !use CoarseAllgathers
     use Mesh_class
     use SpMtx_operation
     Implicit None
     integer, intent(in) :: nagrs ! number of aggregates
     integer, intent(in) :: n ! number of unknowns
     integer, dimension(:), pointer :: num
-    type(CoarseData),optional :: cdat !coarse data
     type(Mesh),optional     :: M  ! Mesh
 
     integer,dimension(:),pointer :: l2g

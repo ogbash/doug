@@ -27,7 +27,8 @@ libdoug_la_SOURCES += \
 	datatypes/SpMtx/GeomInterp.f90 \
 	datatypes/SpMtx/CreateRestrict.F90 \
 	datatypes/SpMtx/TransmitCoarse.F90 \
-	datatypes/SpMtx/CreateCoarse.f90
+	datatypes/SpMtx/CreateCoarse.f90 \
+	datatypes/SpMtx/SpMtx_aggregation.F90
 
 EXTRA_DIST += \
 	datatypes/SpMtx/SpMtx_arrange_qs.F90
