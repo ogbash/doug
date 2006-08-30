@@ -469,4 +469,83 @@ contains
 
     end subroutine CleanCoarse 
 
+  subroutine setup_aggr_cdat(nagrs,n,num,cdat,M)
+    use globals
+    use Mesh_class
+    use SpMtx_operation
+    Implicit None
+    integer, intent(in) :: nagrs ! number of aggregates
+    integer, intent(in) :: n ! number of unknowns
+    integer, dimension(:), pointer :: num
+    type(CoarseData),optional :: cdat !coarse data
+    type(Mesh),optional     :: M  ! Mesh
+
+    integer,dimension(:),pointer :: l2g
+    integer :: i
+
+    ! todo: in parallel case, assign global aggregate numbers... siin
+    !if (n<M%nlf) then ! numprocs>1 - actually which crashes intel compiler...
+    if (numprocs>1) then ! numprocs>1 - actually which crashes intel compiler...
+      cdat%send=SendData_New(numprocs)
+      cdat%send%ssize=nagrs
+      call MPI_ALLGATHER(cdat%send%ssize,1,MPI_INTEGER,&
+                         cdat%send%rsizes,1,MPI_INTEGER,&
+                         MPI_COMM_WORLD,i)
+      write(stream,*)'rsizes are:',cdat%send%rsizes
+      allocate(l2g(nagrs))
+      cdat%ngfc=sum(cdat%send%rsizes)
+      l2g(1)=sum(cdat%send%rsizes(1:myrank))+1
+      do i=2,nagrs
+        l2g(i)=l2g(i-1)+1
+      enddo
+      ! now change to global agregate numbers:
+      do i=1,n
+        num(i)=l2g(num(i))
+      enddo
+ write(stream,*)'Global aggregate numbers before exchange are:', num
+      if (max(sctls%overlap,sctls%smoothers)>0) then
+        ! todo to be written
+      else
+        call exch_aggr_nums_ol0(num,M)
+      endif
+ write(stream,*)'Global aggregate numbers after exchange are:', num
+
+      cdat%nlfc=nagrs
+      write(stream,*)'global coarse problem size:',cdat%ngfc
+      allocate(cdat%lg_cfmap(cdat%nlfc))
+      cdat%lg_cfmap(1)=sum(cdat%send%rsizes(1:myrank))+1
+      do i=2,cdat%nlfc
+        cdat%lg_cfmap(i)=cdat%lg_cfmap(i-1)+1
+      enddo
+      write(stream,*)'cdat%lg_cfmap:',cdat%lg_cfmap
+      ! todo siin: globalise aggrnum now!
+      ! todo add neighbours' aggrnums as well
+      ! todo redo cdat%lg_cfmap
+      allocate(cdat%gl_cfmap(cdat%ngfc))
+      cdat%gl_cfmap(1:cdat%lg_cfmap(1)-1)=0
+      do i=1,cdat%nlfc
+        cdat%gl_cfmap(cdat%lg_cfmap(i))=i
+      enddo
+      cdat%gl_cfmap(cdat%lg_cfmap(cdat%nlfc)+1:cdat%ngfc)=0
+      write(stream,*)'cdat%gl_cfmap:',cdat%gl_cfmap
+      allocate(cdat%cdisps(numprocs+1))
+      cdat%nprocs=numprocs
+      !!call AllSendCoarselgmap(cdat%lg_cfmap,cdat%nlfc,numprocs,&
+      !!                        cdat%cdisps,cdat%glg_cfmap,cdat%send)
+      !!call AllRecvCoarselgmap(cdat%send)
+      !!*** instead we can do just:
+      ! Calc cdisps
+      cdat%cdisps(1)=0
+      do i=1,numprocs
+         cdat%cdisps(i+1)=cdat%cdisps(i)+cdat%send%rsizes(i)
+      enddo
+      allocate(cdat%glg_cfmap(cdat%cdisps(numprocs+1)))
+      cdat%glg_cfmap=(/(i,i=1,cdat%ngfc)/)
+      write(stream,*)'cdat%lg_cfmap:',cdat%lg_cfmap
+      write(stream,*)'cdat%gl_cfmap:',cdat%gl_cfmap
+      write(stream,*)'cdat%cdisps:',cdat%cdisps
+      write(stream,*)'cdat%glg_cfmap:',cdat%glg_cfmap
+    endif
+  end subroutine setup_aggr_cdat
+
 end module CoarseAllgathers

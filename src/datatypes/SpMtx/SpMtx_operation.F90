@@ -420,6 +420,70 @@ CONTAINS
 !write(stream,*)'y after A(end)x:',y
   end subroutine SpMtx_pmvm_assembled_ol0
 
+  subroutine exch_aggr_nums_ol0(aggr,M)
+    implicit none
+
+    integer,dimension(:),pointer          :: aggr ! Vector
+    type(Mesh),                       intent(in) :: M ! Mesh
+    integer :: i, n, p
+    ! MPI
+    integer,dimension(:),pointer :: in_reqs,out_reqs
+    integer                      :: ierr,status(MPI_STATUS_SIZE)
+    integer,parameter            :: D_TAG_FREE_INTERFFREE=777
+    ! Input/output bufers for send/receiv freedoms
+    type(indlist),dimension(:),pointer :: iinbufs
+    type(indlist),dimension(:),pointer :: ioutbufs
+
+    ! initialise receives
+    allocate(out_reqs(M%nnghbrs))
+    allocate(in_reqs(M%nnghbrs))
+    allocate(iinbufs(M%nnghbrs))
+    allocate(ioutbufs(M%nnghbrs))
+    do i=1,M%nnghbrs
+      n=M%ax_recvidx(i)%ninds
+      allocate(iinbufs(i)%inds(n))
+      p=M%nghbrs(i)
+!write(stream,*) '**** starting non-blocking recv from ',p
+      call MPI_IRECV(iinbufs(i)%inds,n,MPI_INTEGER, &
+               p,D_TAG_FREE_INTERFFREE,MPI_COMM_WORLD,in_reqs(i),ierr)
+    enddo
+    ! x - nonblockingly send
+    do i=1,M%nnghbrs
+      n=M%ax_sendidx(i)%ninds
+      allocate(ioutbufs(i)%inds(n))
+      p=M%nghbrs(i)
+      outbufs(i)%arr(1:M%ax_sendidx(i)%ninds)=aggr(M%ax_sendidx(i)%inds)
+      call MPI_ISEND(ioutbufs(i)%inds,n,MPI_INTEGER, &
+               p,D_TAG_FREE_INTERFFREE,MPI_COMM_WORLD,out_reqs(i),ierr)
+!write(stream,*) '**** sending to ',p,outbufs(i)%arr
+    enddo
+    ! could actually perform some calculations here... (TODO)
+    ! wait for neighbours' interface freedoms
+    do while (.true.)
+      call MPI_WAITANY(M%nnghbrs,in_reqs,i,status,ierr)
+      if (i/=MPI_UNDEFINED) then
+!write(stream,*)'**** received from ',M%nghbrs(i),inbufs(i)%arr
+        aggr(M%ax_recvidx(i)%inds)=iinbufs(i)%inds(1:M%ax_recvidx(i)%ninds)
+        deallocate(iinbufs(i)%inds)
+      else
+        exit
+      endif
+    enddo
+    deallocate(in_reqs)
+    do while (.true.)
+      call MPI_WAITANY(M%nnghbrs,out_reqs,i,status,ierr)
+      if (i/=MPI_UNDEFINED) then
+        deallocate(ioutbufs(i)%inds)
+      else
+        exit
+      endif
+    enddo
+    deallocate(out_reqs)
+    deallocate(ioutbufs)
+    deallocate(iinbufs)
+    ! do some post-calculations here if needed... todo
+  end subroutine exch_aggr_nums_ol0
+
   subroutine Add_common_interf(x,A,M)
     implicit none
 
@@ -536,7 +600,7 @@ CONTAINS
                p,D_TAG_FREE_OUTEROL,MPI_COMM_WORLD,out_req,ierr)
 !write(stream,*) '**** sending to ',p,outbufs(i)%arr
     enddo
-call MPI_Barrier(MPI_COMM_WORLD,ierr)
+call MPI_Barrier(MPI_COMM_WORLD,ierr) !TODO: this should be get removed!?
     do while (.true.)
       call MPI_WAITANY(M%nnghbrs,in_reqs,i,status,ierr)
       if (i/=MPI_UNDEFINED) then

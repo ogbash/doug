@@ -9,6 +9,7 @@ program main
   use solvers_mod
   use Aggregate_mod
   use CoarseMtx_mod
+  use CoarseAllgathers
 
   implicit none
 
@@ -52,6 +53,8 @@ program main
   integer :: aver_finesize,min_finesize,max_finesize
   integer :: aver_subdsize,min_subdsize,max_subdsize
   integer :: start_radius1,start_radius2
+  ! Parallel coarse level
+  type(CoarseData) :: cdat
 
   ! Init DOUG
   call DOUG_Init()
@@ -88,7 +91,8 @@ program main
   case default
      call DOUG_abort('[DOUG main] : Unrecognised input type.', -1)
   end select
-  if (numprocs==1.or.sctls%levels>1) then !todo remove
+  !if (numprocs==1.or.sctls%levels>1) then !todo remove
+  if (sctls%levels>1) then !todo remove
     ! Testing aggregation: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
     if (sctls%strong1>0) then
       strong_conn1=sctls%strong1
@@ -122,7 +126,6 @@ program main
     ! todo: to be rewritten with aggr%starts and aggr%nodes...:
     
     call Mesh_printInfo(M)
-    write (stream,*) sctls%plotting, M%nell
     
     if (numprocs==1.and.sctls%plotting==2.and.M%nell>0) then
       call Mesh_pl2D_plotAggregate(A%aggr,M,&
@@ -135,13 +138,21 @@ program main
     ! .. Testing aggregationAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
     
     ! Testing coarse matrix and aggregation through it:
-    call IntRestBuild(A,Restrict)
-    call CoarseMtxBuild(A,AC,Restrict)
-   
-    !write(stream,*)'A coarse (local) is:=================='
-    !call SpMtx_printRaw(A=AC)
-    !call MPI_BARRIER(MPI_COMM_WORLD,i)
-    !call DOUG_abort('testing parallel AC',0)
+    if (numprocs>1) then
+      call IntRestBuild(A,Restrict)
+      call CoarseMtxBuild(A,cdat%LAC,Restrict)
+     
+      write(stream,*)'A coarse (local) is:=================='
+      call SpMtx_printRaw(A=cdat%LAC)
+      !call MPI_BARRIER(MPI_COMM_WORLD,i)
+      !call DOUG_abort('testing parallel AC',0)
+    else 
+      call IntRestBuild(A,Restrict)
+      call CoarseMtxBuild(A,AC,Restrict)
+     
+      write(stream,*)'A coarse (local) is:=================='
+      call SpMtx_printRaw(A=AC)
+    endif
     
     if (numprocs==1) then
       if (sctls%strong2>0) then
@@ -245,16 +256,25 @@ program main
      ! Preconditioned conjugate gradient
      !call pcg(A, b, xl, M, solinf=resStat, resvects_in=.true.)
      t1 = MPI_WTIME()
-     if (sctls%levels>1.or.(numprocs==1.and.sctls%levels==1)) then
+     if (numprocs==1) then
+       write(stream,*)'calling pcg_weigs /1/...'
        call pcg_weigs(A=A,b=b,x=xl,Msh=M,it=it,cond_num=cond_num, &
           CoarseMtx_=AC,Restrict=Restrict,refactor_=.true.)
      else
-       if (numprocs>1.and.max(sctls%overlap,sctls%smoothers)>0) then
-       !!!if (numprocs>1) then
+       if (max(sctls%overlap,sctls%smoothers)>0) then
+         write(stream,*)'calling pcg_weigs /2/...'
          call pcg_weigs(A=A,b=b,x=xl,Msh=M,it=it,cond_num=cond_num, &
            A_interf_=A_ghost,refactor_=.true.)
        else
-         call pcg_weigs(A, b, xl, M,it,cond_num,refactor_=.true.)
+         if (sctls%levels==2) then
+           write(stream,*)'calling pcg_weigs /3/...'
+           call pcg_weigs(A=A,b=b,x=xl,Msh=M,it=it,cond_num=cond_num, &
+                  CoarseMtx_=AC,Restrict=Restrict, &
+                  refactor_=.true., cdat_=cdat)
+         else
+           write(stream,*)'calling pcg_weigs /4/...'
+           call pcg_weigs(A, b, xl, M,it,cond_num,refactor_=.true.)
+         endif
        endif
      endif
      t=MPI_WTIME()-t1

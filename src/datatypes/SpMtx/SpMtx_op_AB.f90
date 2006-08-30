@@ -20,7 +20,7 @@ module SpMtx_op_AB
     type(SpMtx), intent(inout) :: A, B
     logical,intent(in),optional :: AT,BT !A-transp, B-transp?
     type(SpMtx)                :: AB
-    integer                    :: i,j,jj,k,kk,kkk,nnz,nind
+    integer                    :: i,j,jj,k,kk,kkk,nnz,nind,Annz,Bnnz
     integer                    :: aj,bi,as,ae,bs,be,ac,bc
     integer                    :: counter,maxrowa,maxrowb,maxrow
     integer,dimension(:),allocatable :: indeces,coladder,colindeces,ABi,ABj,ABb
@@ -44,7 +44,11 @@ module SpMtx_op_AB
       Aindi=>A%indi
       Aindj=>A%indj
       Anrows=A%Nrows
-      Ancols=A%Ncols
+      if (A%mtx_bbe(2,2)>0) then
+        Ancols=maxval(A%indj(1:A%mtx_bbe(2,2)))
+      else
+        Ancols=A%Ncols
+      endif
       call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS,sort=.false.)        
     endif
     if (present(BT).and.BT) then
@@ -68,13 +72,23 @@ module SpMtx_op_AB
 !print *,'Anrows,Ancols,Bnrows,Bncols:',Anrows,Ancols,Bnrows,Bncols
     !write(*,*) 'AB startup-time:',MPI_WTIME()-t1
     rl=1.0*Anrows*Ancols
-    Asparsity=int(rl/A%nnz)
+    if (A%mtx_bbe(2,2)>0) then
+      Annz=A%mtx_bbe(2,2)
+    else
+      Annz=A%nnz
+    endif
+    if (B%mtx_bbe(2,2)>0) then
+      Bnnz=B%mtx_bbe(2,2)
+    else
+      Bnnz=B%nnz
+    endif
+    Asparsity=int(rl/Annz)
 
     rl=1.0*Bnrows*Bncols
-    Bsparsity=int(rl/B%nnz)
+    Bsparsity=int(rl/Bnnz)
     rl=1.0*Anrows*Bncols
     !nnzest=int(rl/min(Asparsity,Bsparsity)*4.0)
-    nnzest=int(rl/min(Asparsity,Bsparsity)*4.0)+max(A%nnz,B%nnz)
+    nnzest=int(rl/min(Asparsity,Bsparsity)*4.0)+max(Annz,Bnnz)
     maxrowa=maxval(A%M_bound(2:Anrows+1)-A%M_bound(1:Anrows))
     maxrowb=maxval(B%M_bound(2:Bnrows+1)-B%M_bound(1:Bnrows))
     maxrow=maxrowa*maxrowb
@@ -117,7 +131,7 @@ module SpMtx_op_AB
                 deallocate(ABj)
                 deallocate(ABi)
                 !nnzest=nnzest+A%nnz+B%nnz
-                nnzest=nnzest+max(A%nnz,B%nnz)
+                nnzest=nnzest+max(Annz,Bnnz)
                 print *,'incresing nnzest to',nnzest
                 cont=.true.
                 exit try

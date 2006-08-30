@@ -344,6 +344,14 @@ contains
           !! TODO: force it to do it AFTER factorization, but before solve
           if (present(cdat)) then
             ! Factorise the matrix
+            if (sctls%verbose>2) then
+              write(stream,*)'Global coarse matrix is:---------'
+              do i=1,CoarseMtx_%nnz
+                write(stream,*) CoarseMtx_%indi(i),&
+                CoarseMtx_%indj(i),CoarseMtx_%val(i)
+              enddo
+              write(stream,*)'---------------------------------'
+            endif
             call factorise(CoarseMtx_%subsolve_ids(1), &
                  nfreds=CoarseMtx_%nrows,   &
                  nnz=CoarseMtx_%nnz,        &

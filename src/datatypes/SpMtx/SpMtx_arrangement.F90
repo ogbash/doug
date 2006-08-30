@@ -82,10 +82,11 @@ CONTAINS
 
     !===== 1.find how many elements are every row/col
  
-    if (M%mtx_bbe(2,2)>0) then
-      nnz=M%mtx_bbe(2,2)
-    else
-      nnz=M%nnz
+    nnz=M%nnz
+    if (associated(M%mtx_bbe)) then
+      if (M%mtx_bbe(2,2)>0) then
+        nnz=M%mtx_bbe(2,2)
+      endif
     endif
     el = 0
     do i = 1, nnz
@@ -296,8 +297,13 @@ CONTAINS
   subroutine SpMtx_unscale(M)
     Implicit None
     Type(SpMtx), intent(in out) :: M
-    integer :: i,ndiags
+    integer :: i,ndiags,nnz
     float(kind=rk), dimension(:), pointer :: scalerval
+    if (M%mtx_bbe(2,2)>0) then
+      nnz=M%mtx_bbe(2,2)
+    else
+      nnz=M%nnz
+    endif
     if (M%scaling==D_SpMtx_SCALE_DIAG.or. &
         M%scaling==D_SpMtx_SCALE_DIAG_FILTERED) then
       ndiags=min(M%nrows,M%ncols)
@@ -315,7 +321,7 @@ CONTAINS
           M%val(i)=M%val(i)*scalerval(M%indi(i))
           M%val(i)=M%val(i)*scalerval(M%indj(i))
         enddo
-        do i=M%mtx_bbe(M%nblocks,M%nblocks)+1,M%nnz
+        do i=M%mtx_bbe(M%nblocks,M%nblocks)+1,nnz
           M%val(i)=M%val(i)*scalerval(M%indi(i))
           M%val(i)=M%val(i)*scalerval(M%indj(i))
         enddo
@@ -326,8 +332,7 @@ CONTAINS
         do i=M%mtx_bbs(1,1),M%mtx_bbe(M%nblocks,M%nblocks)
           M%val_intf_full(i)=M%val_intf_full(i)*scalerval(M%indi(i))
         enddo
-        !do i=M%mtx_bbe(M%nblocks,M%nblocks)+1,M%nnz
-        do i=M%mtx_bbe(M%nblocks,M%nblocks)+1,M%mtx_bbe(2,2)
+        do i=M%mtx_bbe(M%nblocks,M%nblocks)+1,nnz
           M%val(i)=M%val(i)*scalerval(M%indi(i))
         enddo
       endif
@@ -349,7 +354,7 @@ CONTAINS
     float(kind=rk), intent(in) :: alpha
     logical,intent(in),optional :: symmetrise
     ! local:
-    integer :: i,j,k,start,ending
+    integer :: i,j,k,start,ending,nnz
     logical :: did_scale
     logical :: simple=.false.,symm=.true.
     float(kind=rk) :: maxndiag,aa
@@ -358,8 +363,13 @@ CONTAINS
       call SpMtx_scale(A)
       did_scale=.true.
     endif
+    if (A%mtx_bbe(2,2)>0) then
+      nnz=A%mtx_bbe(2,2)
+    else
+      nnz=A%nnz
+    endif
     if (.not.associated(A%strong)) then
-      allocate(A%strong(A%nnz))
+      allocate(A%strong(nnz))
     endif
     if (simple) then
       do i=A%mtx_bbs(1,1),A%mtx_bbe(A%nblocks,A%nblocks)
@@ -370,7 +380,7 @@ CONTAINS
           A%strong(i)=.false.
         endif
       enddo
-      do i=A%mtx_bbe(A%nblocks,A%nblocks)+1,A%nnz
+      do i=A%mtx_bbe(A%nblocks,A%nblocks)+1,nnz
         if (abs(A%val(i))>=alpha) then
           A%strong(i)=.true.
         else
@@ -411,7 +421,7 @@ CONTAINS
       symm=symmetrise
     endif
     if (symm) then
-      do i=1,A%nnz
+      do i=1,nnz
         k=SpMtx_findElem(A,A%indj(i),A%indi(i))
         if (k>0) then
           if (A%strong(i).and..not.A%strong(k)) then
@@ -508,7 +518,11 @@ CONTAINS
     integer, dimension(:), allocatable :: sortref ! for getting the sorted list
     !- - - - - - - - - - - - - - - - - - - - - - - -
     nn=A%nrows
-    nnz=A%nnz
+    if (A%mtx_bbe(2,2)>0) then
+      nnz=A%mtx_bbe(2,2)
+    else
+      nnz=A%nnz
+    endif
     !===== allocate memory
     allocate(nnz_in_row(nn))
     !===== find how many elements are every row/col 
@@ -590,6 +604,8 @@ CONTAINS
 !------------------------------------------------------
   subroutine SpMtx_aggregate(A,neighood,minaggrsize,maxaggrsize,alpha,Afine)
     use globals
+    !use CoarseAllgathers
+    !use Mesh_class
     Implicit None
     Type(SpMtx),intent(in out) :: A ! our matrix
     integer,intent(in) :: neighood  ! 1-neighood,2-neighood or r-neighood...
@@ -599,6 +615,8 @@ CONTAINS
     integer,intent(in),optional :: minaggrsize,maxaggrsize
     float(kind=rk),intent(in) :: alpha
     Type(SpMtx),intent(inout),optional :: Afine ! fine level matrix
+    !type(CoarseData),optional :: cdat !coarse data
+    !type(Mesh),optional     :: M  ! Mesh
     !-----
     integer,dimension(:),allocatable :: aggrneigs
     integer,dimension(:),pointer :: stat,distance
@@ -640,12 +658,20 @@ CONTAINS
     endif
     toosmall=.false.
     n=A%nrows
+!write(stream,*)'A%nrows=======',A%nrows
+!write(stream,*)'M%nlf=======',M%nlf
+!stop
     if (sctls%plotting==3) then
       track_print=.true.
       allocate(moviecols(A%nrows))
     endif
-    allocate(aggrnum(A%nrows))
-    allocate(fullaggrnum(A%nrows))
+    if (numprocs>1) then
+      !allocate(aggrnum(M%nlf))
+      !allocate(fullaggrnum(M%nlf))
+    else
+      allocate(aggrnum(A%nrows))
+      allocate(fullaggrnum(A%nrows))
+    endif
     aggrnum=0
     sn=sqrt(1.0*n)
     if (alpha>=0.or.sn**2/=n) then
@@ -1627,6 +1653,7 @@ endif
             'aggregate',i,':',(aggrnodes(j),j=aggrstarts(i),aggrstarts(i+1)-1)
         enddo
       endif
+      !call setup_aggr_cdat(nagrs,n,aggrnum,cdat,M)
       call Construct_Aggrs(A%aggr,nagrs,n,neighood,nisolated,aggrnum,aggrstarts,aggrnodes)
       deallocate(aggrnodes) 
       deallocate(aggrstarts)
@@ -1816,6 +1843,7 @@ endif
             'aggregate',i,':',(aggrnodes(j),j=aggrstarts(i),aggrstarts(i+1)-1)
         enddo
       endif
+      !call setup_aggr_cdat(nagrs_new,n,aggrnum,cdat,M)
       call Construct_Aggrs(aggr=A%aggr,             &
                            nagr=nagrs_new,          &
                               n=n,                  &
@@ -2085,6 +2113,7 @@ endif
     enddo
     A%nrows=maxval(A%indi)
     A%ncols=maxval(A%indj)
+    A%arrange_type=D_SpMTX_ARRNG_NO
     if (ol>0) then
       do i=1,A_ghost%nnz
         A_ghost%indi(i)=M%gl_fmap(A_ghost%indi(i))
