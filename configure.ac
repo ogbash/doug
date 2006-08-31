@@ -92,7 +92,8 @@ AC_DEFINE_UNQUOTED([HAS_ISINF],[$_has_isinf], [has isinf intrinsic])
 AC_CONFIG_HEADERS([src/doug_config.h])
 AC_CONFIG_FILES([Makefile
         src/Makefile
-        src/main/Makefile])
+        src/main/Makefile
+        doc/Doxyfile])
 
 AC_OUTPUT
 
