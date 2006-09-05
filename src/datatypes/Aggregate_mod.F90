@@ -1,5 +1,6 @@
 Module Aggregate_mod
   use RealKind
+  use globals
   !use SpMtx_class
   !use SpMtx_arrangement
 
@@ -23,6 +24,51 @@ Module Aggregate_mod
 
   logical :: debu = .false.
 CONTAINS
+
+  subroutine Form_Aggr(aggr,nagrs,n,radius,nisolated,aggrnum)
+    Implicit None
+    type(Aggrs) :: aggr
+    integer, intent(in) :: nagrs ! number of aggregates
+    integer, intent(in) :: n ! number of unknowns
+    integer, intent(in) :: radius ! aggr radius (or neighood)
+    integer, intent(in) :: nisolated ! number of isolated nodes
+    integer, dimension(:), intent(in) :: aggrnum
+
+    integer,dimension(:),pointer :: aggrstarts,stat,aggrnodes
+    integer :: i,j
+    allocate(aggrstarts(nagrs+1))
+    allocate(stat(nagrs)) ! stat gets different meaning here...
+    stat=0
+    do i=1,n ! find the #nodes for each color
+      j=aggrnum(i)
+      if (j>0) then
+        stat(j)=stat(j)+1
+      endif
+    enddo
+    aggrstarts(1)=1
+    do i=1,nagrs
+      aggrstarts(i+1)=aggrstarts(i)+stat(i)
+      stat(i)=aggrstarts(i) ! shows the place to fill the nodes
+    enddo
+    allocate(aggrnodes(aggrstarts(nagrs+1)-1))
+    do i=1,n ! put the node#-s in
+      j=aggrnum(i)
+      if (j>0) then
+        aggrnodes(stat(j))=i
+        stat(j)=stat(j)+1
+      endif
+    enddo
+    if (sctls%verbose>=2) then
+      do i=1,nagrs
+        write(stream,*) &
+          'aggregate',i,':',(aggrnodes(j),j=aggrstarts(i),aggrstarts(i+1)-1)
+      enddo
+    endif
+    call Construct_Aggrs(aggr,nagrs,n,radius,nisolated,aggrnum,aggrstarts,aggrnodes)
+    deallocate(aggrnodes) 
+    deallocate(stat)
+    deallocate(aggrstarts)
+  end subroutine Form_Aggr
 
   subroutine Construct_Aggrs(aggr,nagr,n,radius,nisolated,num,starts,nodes)
     Implicit None

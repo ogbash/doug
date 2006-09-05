@@ -33,34 +33,45 @@ CONTAINS
 !    optional:
 !  arrange_type -- D_SpMtx_ARRNG_ROWS or D_SpMtx_ARRNG_COLS
 !----------------------------------------------------------
-  subroutine SpMtx_arrange(M,arrange_type,sort)
+  subroutine SpMtx_arrange(M,arrange_type,sort,nnz,nrows,ncols)
     Implicit None
     Type(SpMtx), intent(in out)        :: M        !Initial matrix
     integer, optional, intent(in)      :: arrange_type ! how to arrange?
     logical, optional, intent(in)      :: sort ! wheather entries ascending?
-    logical                            :: columnwise,dosort
-    integer                            :: i,j,k,kk,ind_beg,ind,nnz
+    integer, optional, intent(in)      :: nnz ! if the M%nnz to be overridden
+    integer, optional, intent(in)      :: nrows ! if the M%nrows to be overridden
+    integer, optional, intent(in)      :: ncols ! if the M%ncols to be overridden
+    logical                            :: columnwise,dosort,ok
+    integer                            :: i,j,k,kk,ind_beg,ind,Mnnz,Mnrows,Mncols
     integer, dimension(:), allocatable :: el        !elements vector
     integer, dimension(:), allocatable :: indi,indj !helper vectors
     float(kind=rk),dimension(:),allocatable :: val
     integer, dimension(:), allocatable :: sortref   !helper for sorting
     integer :: at
     !- - - - - - - - - - - - - - - - - - - - - - - -
+    ok=.true.
     if (present(arrange_type)) then
       at=arrange_type
     else
       at=D_SpMtx_ARRNG_ROWS
     endif
-    if (M%arrange_type==at) then
-      return
+    if (M%arrange_type/=at) then
+      ok=.false.
     endif
-    if (at==D_SpMtx_ARRNG_ROWS) then
-      columnwise = .false.
-    elseif (at==D_SpMtx_ARRNG_COLS) then
-      columnwise = .true.
+    if (present(nnz)) then
+      Mnnz=nnz
     else
-      write(stream,*)'WARNING: SpMtx_arrange to ',at,' not done'
-      return
+      Mnnz=M%nnz
+    endif
+    if (present(nrows)) then
+      Mnrows=nrows
+    else
+      Mnrows=M%nrows
+    endif
+    if (present(ncols)) then
+      Mncols=ncols
+    else
+      Mncols=M%ncols
     endif
     dosort=.false.
     if (present(sort)) then
@@ -68,28 +79,49 @@ CONTAINS
         dosort=sort
       endif
     endif
+    if (at==D_SpMtx_ARRNG_ROWS) then
+      columnwise =.false.
+      if (ok) then
+        if (size(M%M_bound)/=Mnrows+1) then
+          ok=.false.
+        endif
+      endif
+    elseif (at==D_SpMtx_ARRNG_COLS) then
+      columnwise = .true.
+      if (ok) then
+        if (size(M%M_bound)/=Mncols+1) then
+          ok=.false.
+        endif
+      endif
+    else
+      write(stream,*)'WARNING: SpMtx_arrange to ',at,' not done'
+      return
+    endif
+    if (ok) then
+      write(stream,*)'WARNING: SpMtx_arrange to ',at,' not needed...'
+      return
+    endif
     M%arrange_type=at
 
     !===== allocate memory and control arrange_type
     if (columnwise) then !!!columns
-      allocate(el(M%ncols))
-      allocate(M%M_bound(M%ncols+1))
+      allocate(el(Mncols))
+      allocate(M%M_bound(Mncols+1))
     else !!!rows
-      allocate(el(M%nrows))
-      allocate(M%M_bound(M%nrows+1))
+      allocate(el(Mnrows))
+      allocate(M%M_bound(Mnrows+1))
     end if
 
 
     !===== 1.find how many elements are every row/col
  
-    nnz=M%nnz
-    if (associated(M%mtx_bbe)) then
+    if (.not.present(nnz).and.associated(M%mtx_bbe)) then
       if (M%mtx_bbe(2,2)>0) then
-        nnz=M%mtx_bbe(2,2)
+        Mnnz=M%mtx_bbe(2,2)
       endif
     endif
     el = 0
-    do i = 1, nnz
+    do i = 1, Mnnz
       if (columnwise) then
         k=M%indj(i)
       else
@@ -102,13 +134,13 @@ CONTAINS
     do i = 1, size(M%M_bound) - 1
       M%M_bound(i+1) = M%M_bound(i) + el(i)
     end do
-    allocate(indi(nnz),indj(nnz),val(nnz))    
+    allocate(indi(Mnnz),indj(Mnnz),val(Mnnz))    
     if (dosort) then
       ! 2.find the order:
-      allocate(sortref(nnz))
+      allocate(sortref(Mnnz))
       el = 0
       if (columnwise) then
-        do i = 1,nnz
+        do i = 1,Mnnz
           k=M%indj(i)
           ind_beg = M%M_bound(k)
           if (el(k)==0) then ! the first element
@@ -136,7 +168,7 @@ CONTAINS
           endif
         enddo
       else ! rowwise:
-        do i = 1,nnz
+        do i = 1,Mnnz
           k=M%indi(i)
           ind_beg = M%M_bound(k)
           if (el(k)==0) then ! the first element
@@ -165,7 +197,7 @@ CONTAINS
         enddo
       endif
       ! 3.rearrange arrays:
-      do i = 1,nnz
+      do i = 1,Mnnz
         ind=sortref(i) ! where to get the values for this pos
         indi(i) = M%indi(ind)
         indj(i) = M%indj(ind)
@@ -174,7 +206,7 @@ CONTAINS
       deallocate(sortref)
     else
       el = 0
-      do i = 1,nnz
+      do i = 1,Mnnz
         if (columnwise) then
           k=M%indj(i)
         else
@@ -188,9 +220,9 @@ CONTAINS
       end do
     endif
     !===== finishing ...
-    M%indi(1:nnz) = indi
-    M%indj(1:nnz) = indj
-    M%val(1:nnz) = val
+    M%indi(1:Mnnz) = indi
+    M%indj(1:Mnnz) = indj
+    M%val(1:Mnnz) = val
     deallocate(val,indj,indi)    
     deallocate(el)
   end subroutine SpMtx_arrange
@@ -199,22 +231,24 @@ CONTAINS
 ! Matrix consolidation:
 !   find duplicate elements and add them together
 !------------------------------------------------------
-  subroutine SpMtx_consolidate(M)
+  subroutine SpMtx_consolidate(M,add)
     use RealKind
     use SpMtx_class
     use Mesh_class
     Implicit None
     Type(SpMtx), intent(inout)        :: M        !Initial matrix
+    logical :: add
     integer :: i, k
     
     ! Sort the matrix by indices (I pray it works for duplicates too)
     call SpMtx_arrange(M,sort=.true.)
-
     ! Consolidate it in one pass
     k=1; 
     do i=2,M%nnz
         if (M%indi(i)==M%indi(k) .and. M%indj(i)==M%indj(k)) then
+          if (add) then
             M%val(k)=M%val(k)+M%val(i);
+          endif
         else
             k=k+1;
             if (k/=i) then
@@ -731,7 +765,7 @@ CONTAINS
       endif
       if (A%nnz>A%mtx_bbe(2,2)) then
         write(stream,*)'A additional in case of ol==0:'
-        call SpMtx_printRaw(A=A,startnz=A%mtx_bbe(2,2)+1,endnz=A%nnz)
+        call SpMtx_printRaw(A=A,startnz=A%mtx_bbe(2,2)+1,endnz=A%ol0nnz)
       endif
     endif
     ! Localise A:
@@ -759,11 +793,11 @@ CONTAINS
         M%ol_solve(k)%inds=M%gl_fmap(M%ol_solve(k)%inds)
       enddo
     endif
-    do i=1,A%nnz
+    do i=1,A%ol0nnz
       A%indi(i)=M%gl_fmap(A%indi(i))
       A%indj(i)=M%gl_fmap(A%indj(i))
     enddo
-    A%nrows=maxval(A%indi)
+    A%nrows=maxval(A%indi(1:A%nnz))
     A%ncols=maxval(A%indj)
     A%arrange_type=D_SpMTX_ARRNG_NO
     if (ol>0) then
@@ -790,7 +824,7 @@ CONTAINS
       endif
       if (A%nnz>A%mtx_bbe(2,2)) then
         write(stream,*)'localised A additional in case of ol==0:'
-        call SpMtx_printRaw(A=A,startnz=A%mtx_bbe(2,2)+1,endnz=A%nnz)
+        call SpMtx_printRaw(A=A,startnz=A%mtx_bbe(2,2)+1,endnz=A%ol0nnz)
       endif
       write(stream,*)'gl_fmap:',M%gl_fmap
       write(stream,*)'gl_fmap(lg_fmap):',M%gl_fmap(M%lg_fmap)
@@ -938,7 +972,7 @@ CONTAINS
     integer,dimension(:),pointer       :: clrstarts  !(allocated earlier)
     !local:
     integer :: i,j,jj,k,clrnode,clrneigh,nfront,layer,lastlayer,neigh,node,nnz
-    integer :: maxleadind,sendcnt,nfront1,sendnodecnt,recvcnt,neighnum
+    integer :: maxleadind,sendcnt,nfront1,sendnodecnt,recvcnt,neighnum,ol0nnz
     integer :: hl,offset,klayer
     integer,dimension(:),pointer :: neighmap,front
     integer,dimension(:),pointer :: onfront
@@ -946,8 +980,8 @@ CONTAINS
     integer,dimension(:),pointer :: sendnodes,sendnodeidx ! to mark fred.s that
             ! will be communicated from my subdomain wherever (Ax op)
     integer,dimension(:),pointer :: frontstart,frontend
-    integer :: a_ghostsz,a_gsz,ol0connfrom_outside
-    integer :: ol0cfo,nol_on_neigh,nol_off_neigh
+    integer :: a_ghostsz,a_gsz,ol0connfrom_outside,ol0connfrom_inside
+    integer :: ol0cfo,ol0cfi,nol_on_neigh,nol_off_neigh
     integer,dimension(:),pointer :: itmp,jtmp,btmp
     float(kind=rk),dimension(:),pointer :: rtmp
     integer,dimension(:), pointer :: nnodesonclrol,ccount
@@ -1354,6 +1388,7 @@ CONTAINS
       endif
     enddo
     ! now go outside:
+    ol0connfrom_inside=0
     do k=1,M%nnghbrs
       !clrnode=M%nghbrs(k)+1
       do i=clrstarts(k),clrstarts(k+1)-1
@@ -1368,6 +1403,11 @@ CONTAINS
               if (modulo(onfront(neigh),hl)<=lastlayer) then 
                 a_ghostsz=a_ghostsz+1
               endif
+            elseif (sendnodes(neigh)==1) then !conn.from clr
+              if (node>maxleadind) then
+                maxleadind=node
+              endif
+              ol0connfrom_inside=ol0connfrom_inside+1
             endif
           enddo
         elseif (layer<lastlayer) then
@@ -1400,7 +1440,10 @@ CONTAINS
                     !   participate in solves but still in the Ax-operation between 
                     !   A%mtx_bbe(2,2) and A%nnz
       nnz=A%mtx_bbe(2,2)+ol0connfrom_outside
+      ol0nnz=nnz+ol0connfrom_inside
+!write(stream,*)'ol0connfrom_inside=',ol0connfrom_inside
       ol0cfo=A%mtx_bbe(2,2)
+      ol0cfi=nnz
     else
       nnz=A%mtx_bbe(2,2)
       a_gsz=0 
@@ -1410,9 +1453,15 @@ CONTAINS
     bbe(2,1)=A%mtx_bbs(2,1)-1
     bbe(2,2)=A%mtx_bbs(2,2)-1
     A%nnz=nnz
-    allocate(itmp(nnz))
-    allocate(jtmp(nnz))
-    allocate(rtmp(nnz))
+    if (ol==0) then
+      A%ol0nnz=ol0nnz
+    else
+      A%ol0nnz=nnz
+      ol0nnz=nnz
+    endif
+    allocate(itmp(ol0nnz))
+    allocate(jtmp(ol0nnz))
+    allocate(rtmp(ol0nnz))
     !write(stream,*)'maxleadind:',maxleadind
     allocate(btmp(maxleadind+1))
     if (ol>0) then
@@ -1491,6 +1540,12 @@ CONTAINS
                 A_ghost%indj(a_gsz)=neigh
                 A_ghost%val(a_gsz)=A%val(j)
               endif
+            elseif (sendnodes(neigh)==1) then !conn.from clr
+              ol0cfi=ol0cfi+1
+              btmp(node+1)=btmp(node+1)+1
+              itmp(ol0cfi)=node
+              jtmp(ol0cfi)=neigh
+              rtmp(ol0cfi)=A%val(j)
             endif
           enddo
         elseif (layer<lastlayer) then
@@ -1540,8 +1595,10 @@ CONTAINS
     endif
     if (ol==0) then
       if (ol0cfo/=ol0connfrom_outside+A%mtx_bbe(2,2)) then
-        write(stream,*)'ol0cfo,ol0connfrom_outside+A%mtx_bbe(2,2):',a_gsz,a_ghostsz+A%mtx_bbe(2,2)
         call DOUG_abort('SpMtx_build_ghost -- ol0cfo!',67)
+      endif
+      if (ol0cfi/=ol0connfrom_outside+A%mtx_bbe(2,2)+ol0connfrom_inside) then
+        call DOUG_abort('SpMtx_build_ghost -- ol0cfi!',67)
       endif
     else
       if (a_gsz/=a_ghostsz) then
@@ -1553,13 +1610,13 @@ CONTAINS
     ! Resize actually the matrix:
     ! indi
     deallocate(A%indi)
-    allocate(A%indi(1:A%nnz))
-    A%indi(1:A%nnz)=itmp(1:nnz)
+    allocate(A%indi(1:A%ol0nnz))
+    A%indi(1:A%ol0nnz)=itmp(1:ol0nnz)
     deallocate(itmp)
     ! indj
     deallocate(A%indj)
-    allocate(A%indj(1:A%nnz))
-    A%indj(1:A%nnz)=jtmp(1:nnz)
+    allocate(A%indj(1:A%ol0nnz))
+    A%indj(1:A%ol0nnz)=jtmp(1:ol0nnz)
     deallocate(jtmp)
     !M_bound
     btmp(1)=1
@@ -1572,8 +1629,8 @@ CONTAINS
     deallocate(btmp)
     ! val
     deallocate(A%val)
-    allocate(A%val(1:A%nnz))
-    A%val(1:A%nnz)=rtmp(1:nnz)
+    allocate(A%val(1:A%ol0nnz))
+    A%val(1:A%ol0nnz)=rtmp(1:ol0nnz)
     deallocate(rtmp)
 
     deallocate(frontend)

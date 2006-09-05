@@ -48,7 +48,7 @@ CONTAINS
     integer :: nneigs
     integer :: nagrs
     integer, dimension(:), allocatable :: nodes
-    integer :: i,j,k,kk,kkk,node,n,sn,nsa,noffdels,unaggregated,dist,nisolated,ni
+    integer :: i,j,k,kk,kkk,node,n,nn,sn,nsa,noffdels,unaggregated,dist,nisolated,ni
     integer :: nisoneigs,nfullisoneigs,mnstructneigs
     integer :: rs,re,cn,colr,fullj
     integer,dimension(:),pointer :: aggrnum,fullaggrnum ! aggregate # for each node
@@ -71,11 +71,12 @@ CONTAINS
     logical :: toosmall
     float(kind=rk),dimension(:),pointer :: connweightsums ! used in version 4
     integer :: ncolsaround,agrisize,maxstructlen,eater,nleft
-    integer :: nagrs_new,naggregatednodes,maxasizelargest
+    integer :: nagrs_new,full_nagrs_new,naggregatednodes,maxasizelargest
     integer :: ntoosmall,neaten,noccupied
     integer,dimension(:),pointer :: aggrsize,colsaround
     integer :: version=4
     integer,dimension(:,:),pointer :: structnodes
+    integer :: cnt,col,thiscol
     
     if (sctls%debug==-3) then
       version=3
@@ -87,15 +88,15 @@ CONTAINS
       allocate(moviecols(A%nrows))
     endif
     if (numprocs>1) then
-      allocate(aggrnum(M%nlf))
-      allocate(fullaggrnum(M%nlf))
+      nn=M%nlf
     else
-      allocate(aggrnum(A%nrows))
-      allocate(fullaggrnum(A%nrows))
+      nn=n
     endif
+    allocate(aggrnum(nn))
+    allocate(fullaggrnum(n))
     aggrnum=0
     sn=sqrt(1.0*n)
-    if (alpha>=0.or.sn**2/=n) then
+    if (alpha>=0.or.sn**2/=n) then !{ else do Cartesian aggr...
       if (.not.associated(A%strong_rowstart)) then
         if (version==1) then
           call SpMtx_build_refs_symm(A,noffdels, &
@@ -1010,7 +1011,7 @@ endif
       deallocate(aggrneigs)
       deallocate(nodes)
       deallocate(stat)
-    else 
+    else !}{
       write(stream,*) 'Building Cartesian aggregates...'
       nsa=(sn+neighood-1)/neighood
       k=0
@@ -1024,7 +1025,7 @@ endif
       enddo
       nagrs=maxval(aggrnum)
       nisolated=0
-    endif
+    endif !}
     if (sctls%debug==-5.and.n==65025) then ! read in the aggregate numbers:
       write(stream,*)'##############################################'
       write(stream,*)'##############################################'
@@ -1044,42 +1045,15 @@ endif
       unaggregated=0
     endif
     if (version<=3.or.(version.eq.4.and..not.toosmall)) then ! {
-      ! build the aggregate reference structure
-      allocate(aggrstarts(nagrs+1))
-      allocate(stat(nagrs)) ! stat gets different meaning here...
-      stat=0
-      do i=1,n ! find the #nodes for each color
-        j=aggrnum(i)
-        if (j>0) then
-          stat(j)=stat(j)+1
-        endif
-      enddo
-      aggrstarts(1)=1
-      do i=1,nagrs
-        aggrstarts(i+1)=aggrstarts(i)+stat(i)
-        stat(i)=aggrstarts(i) ! shows the place to fill the nodes
-      enddo
-      allocate(aggrnodes(aggrstarts(nagrs+1)-1))
-      do i=1,n ! put the node#-s in
-        j=aggrnum(i)
-        if (j>0) then
-          aggrnodes(stat(j))=i
-          stat(j)=stat(j)+1
-        endif
-      enddo
-      deallocate(stat)
-      if (sctls%verbose>=2) then
-        do i=1,nagrs
-          write(stream,*) &
-            'aggregate',i,':',(aggrnodes(j),j=aggrstarts(i),aggrstarts(i+1)-1)
-        enddo
+      if (version==4) then ! in fullaggrnum we need only local aggrs
+        fullaggrnum=aggrnum(1:A%nrows)
+        full_nagrs_new=maxval(fullaggrnum)
       endif
-      call setup_aggr_cdat(nagrs,n,aggrnum,M)
-      call Construct_Aggrs(A%aggr,nagrs,n,neighood,nisolated,aggrnum,aggrstarts,aggrnodes)
-      deallocate(aggrnodes) 
-      deallocate(aggrstarts)
-      if (version==4) then
-        fullaggrnum=aggrnum
+      call Form_Aggr(A%aggr,nagrs,n,neighood,nisolated,aggrnum)
+      ! communicate the neighbours' aggregate numbers and renumber:
+      if (numprocs>1) then 
+        call setup_aggr_cdat(nagrs,n,aggrnum,M)
+        call Form_Aggr(A%expandedaggr,nagrs,nn,neighood,nisolated,aggrnum)
       endif
     elseif (version==4.and.toosmall) then ! }{
       ! build the aggregate reference structure
@@ -1241,53 +1215,63 @@ endif
           endif
         endif
       enddo ! }
-      ! build the aggregate reference structure
-      allocate(aggrstarts(nagrs_new+1))
       naggregatednodes=sum(aggrsize(1:nagrs))
-      allocate(aggrnodes(naggregatednodes))
-      k=0
-      aggrstarts(1)=1
-      do i=1,nagrs
-        if (aggrsize(i)>0) then
-          k=k+1
-          aggrstarts(k+1)=aggrstarts(k)+aggrsize(i)
-          aggrnodes(aggrstarts(k):aggrstarts(k+1)-1)=structnodes(1:aggrsize(i),i)
-          !aggrnum(structnodes(1:aggrsize(i),i))=k
-          do j=1,aggrsize(i)
-            aggrnum(structnodes(j,i))=k
-          enddo
-        endif
-      enddo
-      if (sctls%verbose>=2) then
-        do i=1,nagrs_new
-          write(stream,*) &
-            'aggregate',i,':',(aggrnodes(j),j=aggrstarts(i),aggrstarts(i+1)-1)
+      full_nagrs_new=nagrs_new
+!write(stream,*)'aaaa nagrs=',nagrs_new
+!write(stream,*)'aaaa aggrnum=',aggrnum
+      ! compress the local numbers if needed
+      cnt=maxval(aggrnum(1:n))
+      if (cnt>nagrs_new) then
+        allocate(stat(cnt))
+        stat=0
+        col=0
+        do i=1,n
+          if (aggrnum(i)>0) then
+            if (stat(aggrnum(i))==0) then
+              col=col+1
+              stat(aggrnum(i))=col
+              thiscol=col
+            else
+              thiscol=stat(aggrnum(i))
+            endif
+            aggrnum(i)=thiscol
+          endif
         enddo
+        deallocate(stat)
+!      else
+!col=nagrs_new
       endif
-      call setup_aggr_cdat(nagrs_new,n,aggrnum,M)
-      call Construct_Aggrs(aggr=A%aggr,             &
-                           nagr=nagrs_new,          &
-                              n=n,                  &
-                         radius=neighood,           &
-                      nisolated=n-naggregatednodes, &
-                            num=aggrnum,            &
-                         starts=aggrstarts,         &
-                          nodes=aggrnodes)
-      deallocate(aggrnodes) 
-      deallocate(aggrstarts)
+!write(stream,*)'bbbb nagrs=',col
+!write(stream,*)'bbbb aggrnum=',aggrnum
       if (n==naggregatednodes) then
         aggrarefull=.true.
-        fullaggrnum=aggrnum
+        fullaggrnum=aggrnum(1:A%nrows)
+        full_nagrs_new=maxval(fullaggrnum)
       else
         aggrarefull=.false.
         do i=1,n 
           if (aggrnum(i)>0) then
             fullaggrnum(i)=aggrnum(i)
           else
-            nagrs_new=nagrs_new+1
-            fullaggrnum(i)=nagrs_new
+            full_nagrs_new=full_nagrs_new+1
+            fullaggrnum(i)=full_nagrs_new
           endif
         enddo
+      endif
+      call Form_Aggr(aggr=A%aggr,             &
+                    nagrs=nagrs_new,          &
+                        n=n,                  &
+                   radius=neighood,           &
+                nisolated=n-naggregatednodes, &
+                  aggrnum=aggrnum)
+      if (numprocs>1) then 
+        call setup_aggr_cdat(nagrs_new,n,aggrnum,M)
+        call Form_Aggr(aggr=A%expandedaggr,     &
+                      nagrs=nagrs_new,          &
+                          n=nn,                 &
+                     radius=neighood,           &
+                  nisolated=n-naggregatednodes, &
+                    aggrnum=aggrnum)
       endif
       deallocate(connweightsums) ! weight sums to each colour!
       deallocate(colsaround) ! lists the colors
@@ -1298,46 +1282,12 @@ endif
                     ' #occupied:',noccupied, &
                     ' # remaining:',ntoosmall-neaten-noccupied
     endif !}
-    ! Now build the fully aggregate reference structure
-    allocate(aggrstarts(nagrs+1))
-    allocate(stat(nagrs)) ! stat gets different meaning here...
-    stat=0
-    do i=1,n ! find the #nodes for each color
-      j=fullaggrnum(i)
-!if (j>nagrs) then
-! print *,i,j,nagrs,nagrs_new,aggrarefull,maxval(fullaggrnum),maxval(aggrnum)
-!endif
-      if (j>0) then
-        stat(j)=stat(j)+1
-      else
-        write(stream,*)'there must not be any holes in the full aggregates...!'
-        stop
-      endif
-    enddo
-    aggrstarts(1)=1
-    do i=1,nagrs
-      aggrstarts(i+1)=aggrstarts(i)+stat(i)
-      stat(i)=aggrstarts(i) ! shows the place to fill the nodes
-    enddo
-    allocate(aggrnodes(aggrstarts(nagrs+1)-1))
-    do i=1,n ! put the node#-s in
-      j=fullaggrnum(i)
-      if (j>0) then
-        aggrnodes(stat(j))=i
-        stat(j)=stat(j)+1
-      endif
-    enddo
-    deallocate(stat)
-    if (sctls%verbose>=2) then
-      do i=1,nagrs
-        write(stream,*) &
-          'aggregate',i,':',(aggrnodes(j),j=aggrstarts(i),aggrstarts(i+1)-1)
-      enddo
-    endif
-    call Construct_Aggrs(A%fullaggr,nagrs,n,neighood,nisolated,fullaggrnum,aggrstarts,aggrnodes)
-
-    deallocate(aggrnodes) 
-    deallocate(aggrstarts)
+    call Form_Aggr(aggr=A%fullaggr,     &
+                  nagrs=full_nagrs_new, &
+                      n=n,              &
+                 radius=neighood,       &
+              nisolated=nisolated,      &
+                aggrnum=fullaggrnum)
     deallocate(fullaggrnum)
     deallocate(aggrnum)
     

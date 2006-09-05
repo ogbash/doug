@@ -26,9 +26,10 @@ module CoarseMtx_mod
 contains
 
   ! Build the restriction matrix for the aggregation method
-  subroutine IntRestBuild(A, Restrict)
+  subroutine IntRestBuild(A,aggr,Restrict)
     implicit none
     Type(SpMtx), intent(in) :: A ! our fine level matrix
+    Type(Aggrs), intent(in) :: aggr
     Type(SpMtx), intent(out) :: Restrict ! Our restriction matrix
     integer :: nagr,nz,nagrnodes ! # aggregated nodes (there can be some isol.)
     integer, dimension(:), allocatable :: indi,indj
@@ -48,26 +49,27 @@ contains
 
     smoothers=sctls%smoothers
     if (smoothers==0) then
-      nz=A%aggr%starts(A%aggr%nagr+1)-1 ! is actually A%nrows-nisolated
-      nagr=A%aggr%nagr
+      nz=aggr%starts(aggr%nagr+1)-1 ! is actually A%nrows-nisolated
+      nagr=aggr%nagr
       allocate(indi(nz))
       do i=1,nagr
-        j=A%aggr%starts(i)
-        k=A%aggr%starts(i+1)-1
+        j=aggr%starts(i)
+        k=aggr%starts(i+1)-1
         indi(j:k)=i
       enddo
       Restrict = SpMtx_newInit(            &
                    nnz=nz,                 & ! non-overlapping simple case
                nblocks=1,                  &
                  nrows=nagr,               &
-                 ncols=A%nrows,            & ! should match for sparse Mult eg.
+                 ncols=maxval(A%indj),     & ! should match for sparse Mult eg.
             symmstruct=.false.,            &
            symmnumeric=.false.,            &
                   indi=indi,               &
-                  indj=A%aggr%nodes,       & ! what todo with indi?
+                  indj=aggr%nodes,         & 
           arrange_type=D_SpMtx_ARRNG_NO,   &
-               M_bound=A%aggr%starts       &
+               M_bound=aggr%starts       &
                             )
+      !Restrict%mtx_bbe(2,2)=A%aggr%starts(A%aggr%nagr_local+1)-1 
       Restrict%val(1:nz)=1.0_rk
       !do i=1,nz ! trying averages instead...
       !  k=indi(i) ! aggrnumber
@@ -94,12 +96,12 @@ contains
       deallocate(indi)
     elseif (smoothers>0) then ! smoothen:
       ! build Restrict:
-      nz=A%aggr%starts(A%aggr%nagr+1)-1 ! is actually A%nrows-nisolated
-      nagr=A%aggr%nagr
+      nz=aggr%starts(aggr%nagr+1)-1 ! is actually A%nrows-nisolated
+      nagr=aggr%nagr
       allocate(indi(nz))
       do i=1,nagr
-        j=A%aggr%starts(i)
-        k=A%aggr%starts(i+1)-1
+        j=aggr%starts(i)
+        k=aggr%starts(i+1)-1
         indi(j:k)=i
       enddo
       T = SpMtx_newInit(                 &
@@ -110,9 +112,9 @@ contains
           symmstruct=.false.,            &
          symmnumeric=.false.,            &
                 indi=indi,               &
-                indj=A%aggr%nodes,       & ! what todo with indi?
+                indj=aggr%nodes,       & ! what todo with indi?
         arrange_type=D_SpMtx_ARRNG_NO, &
-             M_bound=A%aggr%starts       &
+             M_bound=aggr%starts       &
                           )
       T%val=1.0_rk
       deallocate(indi)
@@ -350,7 +352,6 @@ contains
     integer :: i
     real(kind=rk), dimension(:), pointer :: xc,x,y1,y2,zc1,zc2
 
-
     ! SORRY but as the author of geometric coarse grid code,
     !   it seems somewhat unfair to me to have this used implicitly
     !  Made its use explicit in aggr.f90
@@ -367,71 +368,20 @@ contains
     !call SpMtx_Destroy(TT)
 
     !t1 = MPI_WTIME()
-    T = SpMtx_AB(A=A,        &
+    ! we need to work with a copy to preserve the structure and ordering of A:
+    TT=SpMtx_Copy(A)
+    T = SpMtx_AB(A=TT,        &
                  B=Restrict, &
                 AT=.false.,  &
                 BT=.true.)
-
-!! !Testing the coarse matrix:
-!! !allocate(xc(AC%nrows))
-!! allocate(xc(Restrict%nrows))
-!! allocate(x(A%nrows))
-!! allocate(y1(A%nrows))
-!! allocate(y2(A%nrows))
-!! !allocate(zc1(AC%nrows))
-!! allocate(zc1(Restrict%nrows))
-!! !allocate(zc2(AC%nrows))
-!! allocate(zc2(Restrict%nrows))
-!! !do i=1,AC%nrows
-!! !  xc(i)=1.0_rk*i
-!! !enddo
-!! xc=1.0_rk
-!! call SpMtx_Ax(x,Restrict,xc,dozero=.true.,transp=.true.)
-!! call SpMtx_Ax(y1,A,x,dozero=.true.,transp=.false.)
-!!
-!! call SpMtx_Ax(y2,T,xc,dozero=.true.,transp=.false.)
-
-!! !print *,'maxdiff(y1-y2)',maxval(abs(y1-y2)),T%nrows,T%ncols,T%nnz
-
+    call SpMtx_Destroy(TT)
+!write(stream,*)'TTTTT T is:'
+!call SpMtx_printRaw(A=T)
     !write(*,*) 'A Restrict* time:',MPI_WTIME()-t1
     !t1 = MPI_WTIME()
-
     AC = SpMtx_AB(A=Restrict,B=T)
     !write(*,*) 'Restrict A time:',MPI_WTIME()-t1
     call SpMtx_Destroy(T)
-
-!!   call SpMtx_Ax(zc1,Restrict,y1,dozero=.true.,transp=.false.)
-!!   call SpMtx_Ax(zc2,AC,xc,dozero=.true.,transp=.false.)
-!!   write(stream,*) AC%nrows,'maxdiff:',maxval(abs(zc1-zc2))
-!!   !do i=1,AC%nrows
-!!   !  print *,zc1(i),zc2(i)
-!!   !enddo
-!!   !x=1.0_rk
-!!   !call SpMtx_Ax(xc,Restrict,x,dozero=.true.,transp=.false.)
-!!   !write(stream,*)'xc=',xc
-!!   !call SpMtx_Ax(y1,Restrict,xc,dozero=.true.,transp=.true.)
-!!   !write(stream,*)'1-R^TR1 maxdiff:',maxval(abs(x-y1))
-!!   !write(stream,*)'y1=',y1
-!!   !!call SpMtx_printRaw(AC)
-!!   !call SpMtx_printMat(AC)
-!!   !
-!!   !call SpMtx_SymmTest(A)
-!!   call SpMtx_SymmTest(AC,eps=1.0E-12_rk)
-!!   !call SpMtx_printMat(Restrict)
-!!   !TT = SpMtx_Copy(Restrict)
-!!   !T = SpMtx_AB(A=Restrict,B=TT,AT=.false.,BT=.true.)
-!!   !call SpMtx_SymmTest(T)
-!!   !call SpMtx_printRaw(T)
-!!   !call SpMtx_printMat(T)
-!!   !call SpMtx_Destroy(TT)
-!!   !call SpMtx_Destroy(T)
-!!   deallocate(zc2)
-!!   deallocate(zc1)
-!!   deallocate(y2)
-!!   deallocate(y1)
-!!   deallocate(x)
-!!   deallocate(xc)
-
   end subroutine CoarseMtxBuild
 
 !  subroutine IntRest_Destroy()

@@ -94,9 +94,17 @@ module SpMtx_class
     ! index 'be' for 'indi(be)', 'indj(be)' and 'val(be)'
     integer, dimension(:,:), pointer :: mtx_bbe
     ! Permutation map for freedoms : perm_map[M%nlf]
+    integer                          :: ol0nnz = -1
+    ! this is needed in parallel aggregation case with zero overlap.
+    !   then A%mtx_bbe(2,2)+1,...,A%nnz holds the "incoming" nonzeroes,
+    !                            ie, indi \in local, indj \in ghost
+    !        A%nnz+1,...,A%ol0nnz holds the "outgoing" nonzeroes,
+    !                            ie, indi \in ghost, indj \in local
     integer,   dimension(:), pointer :: perm_map
 
-    type(Aggrs)                      :: aggr,fullaggr
+    type(Aggrs) :: aggr ! aggregates (on all inner freedoms)
+    type(Aggrs) :: fullaggr ! aggr with holes painted over
+    type(Aggrs) :: expandedaggr ! aggr + neighbours' on overlap
 
     ! data associated with subsolves:
     integer                          :: nsubsolves = 0
@@ -438,7 +446,9 @@ contains
     Type(SpMtx), intent(in):: IM !Initial Sparse matrix(in)
     Type(SpMtx)            :: FM !copy of sparse matrix(out)
     !- - - - - - - - - - - - - - - - -
-    FM=SpMtx_newInit(IM%nnz)
+    FM=SpMtx_newInit(max(IM%nnz,IM%ol0nnz))
+    FM%nnz=IM%nnz
+    FM%ol0nnz=IM%ol0nnz
     FM%nrows=IM%nrows; FM%ncols=IM%ncols
     FM%Arrange_Type=IM%Arrange_Type
     if (FM%Arrange_Type /=0) then

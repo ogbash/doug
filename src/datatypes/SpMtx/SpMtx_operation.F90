@@ -452,7 +452,7 @@ CONTAINS
       n=M%ax_sendidx(i)%ninds
       allocate(ioutbufs(i)%inds(n))
       p=M%nghbrs(i)
-      outbufs(i)%arr(1:M%ax_sendidx(i)%ninds)=aggr(M%ax_sendidx(i)%inds)
+      ioutbufs(i)%inds(1:M%ax_sendidx(i)%ninds)=aggr(M%ax_sendidx(i)%inds)
       call MPI_ISEND(ioutbufs(i)%inds,n,MPI_INTEGER, &
                p,D_TAG_FREE_INTERFFREE,MPI_COMM_WORLD,out_reqs(i),ierr)
 !write(stream,*) '**** sending to ',p,outbufs(i)%arr

@@ -363,20 +363,26 @@ contains
     end if
   end subroutine Vect_Gather
 
-  subroutine Print_Glob_Vect(x,M,text,rows)
+  subroutine Print_Glob_Vect(x,M,text,rows,chk_endind)
     float(kind=rk),dimension(:),intent(in) :: x
     type(Mesh),intent(in) :: M ! Mesh
     character*(*),intent(in) :: text
     logical,intent(in),optional :: rows
+    integer,intent(in),optional :: chk_endind
     logical :: rw
     float(kind=rk),dimension(:),pointer :: x_glob
-    integer :: i,ierr
+    integer :: i,ierr,ei
     allocate(x_glob(M%ngf))
     call Vect_Gather(x,x_glob,M)
     if (present(rows).and.rows) then
       rw=.true.
     else
       rw=.false.
+    endif
+    if (present(chk_endind)) then
+      ei=chk_endind
+    else
+      ei=M%ngf
     endif
     if (ismaster()) then
       if (rw) then
@@ -391,7 +397,7 @@ contains
     ! Perform also integrity check on the overlap:
     call MPI_BCAST(x_glob,M%ngf,MPI_fkind,D_MASTER,MPI_COMM_WORLD,ierr)
     do i=1,size(M%gl_fmap)
-      if (M%gl_fmap(i)/=0) then
+      if (M%gl_fmap(i)/=0.and.M%gl_fmap(i)<=ei) then
         if (abs(x(M%gl_fmap(i))-x_glob(i))>1d-14) then
           write (*,*)'!!!!!### value mismatch on subd.',myrank,' globind=',i,&
           ' loc:',x(M%gl_fmap(i)),' glob:',x_glob(i)

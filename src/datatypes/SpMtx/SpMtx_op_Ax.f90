@@ -25,7 +25,6 @@ CONTAINS
     type(SpMtx), intent(in)                :: A        !sparse matrix
     real(kind=rk),dimension(:),pointer     :: x        !vector (in)
     real(kind=rk),dimension(:),pointer     :: y        !result vector
-    integer                                :: xsize    !result vector size
     integer                                :: i,ii,j,arrtype,ncols,nrows
     logical, optional, intent(in)          :: dozero   !
     logical, optional, intent(in)          :: transp   !
@@ -66,6 +65,9 @@ CONTAINS
         end do
       end do
     elseif (arrtype==D_SpMtx_ARRNG_COLS) then
+!rite(stream,*)'ncols:',ncols
+!rite(stream,*)'size(y):',size(y),y(1:5)
+!rite(stream,*)'y(1:5):',y(1:5)
       do j=1,ncols
         do i=A%M_bound(j),A%M_bound(j+1)-1
           ii=indi(i)

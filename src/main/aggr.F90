@@ -25,7 +25,8 @@ program main
 
   type(SpMtx)    :: A,A_interf,A_ghost  ! System matrix (parallel sparse matrix)
   type(SpMtx)    :: AC  ! coarse matrix
-  type(SpMtx)    :: Restrict ! Restriction matrix
+  type(SpMtx)    :: Restrict ! Restriction matrix (for operation)
+  type(SpMtx)    :: Rest_cmb ! Restriction matrix (for coarse matrix build)
 
   float(kind=rk), dimension(:), pointer :: b  ! local RHS
   float(kind=rk), dimension(:), pointer :: xl ! local solution vector
@@ -94,7 +95,7 @@ program main
   !if (numprocs==1.or.sctls%levels>1) then !todo remove
   if (sctls%levels>1) then !todo remove
     ! Testing aggregation: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-    if (sctls%strong1>0) then
+    if (sctls%strong1/=0.0_rk) then
       strong_conn1=sctls%strong1
     else
       strong_conn1=0.67_rk
@@ -140,19 +141,23 @@ program main
     
     ! Testing coarse matrix and aggregation through it:
     if (numprocs>1) then
-      call IntRestBuild(A,Restrict)
-      call CoarseMtxBuild(A,cdat%LAC,Restrict)
-     
-      write(stream,*)'A coarse (local) is:=================='
-      call SpMtx_printRaw(A=cdat%LAC)
+      call IntRestBuild(A,A%expandedaggr,Rest_cmb)
+      call CoarseMtxBuild(A,cdat%LAC,Rest_cmb)
+      call IntRestBuild(A,A%aggr,Restrict)
+      if (sctls%verbose>3.and.cdat%LAC%nnz<400) then
+        write(stream,*)'A coarse (local) is:=================='
+        call SpMtx_printRaw(A=cdat%LAC)
+      endif
       !call MPI_BARRIER(MPI_COMM_WORLD,i)
       !call DOUG_abort('testing parallel AC',0)
     else 
-      call IntRestBuild(A,Restrict)
+      call IntRestBuild(A,A%aggr,Restrict)
       call CoarseMtxBuild(A,AC,Restrict)
      
-      write(stream,*)'A coarse (local) is:=================='
-      call SpMtx_printRaw(A=AC)
+      if (sctls%verbose>3.and.AC%nnz<400) then
+        write(stream,*)'A coarse is:=================='
+        call SpMtx_printRaw(A=AC)
+      endif
     endif
     
     if (numprocs==1) then
@@ -310,9 +315,9 @@ program main
       allocate(x(M%ngf)); x = 0.0_rk
     end if
     call Vect_Gather(xl, x, M)
-    if (ismaster().and.(size(x) <= 100)) &
+    if (ismaster().and.sctls%verbose>2.and.(size(x) <= 100)) &
       call Vect_Print(x, 'sol > ')
-  elseif (size(xl)<=100) then
+  elseif (sctls%verbose>2.and.size(xl)<=100) then
     call Vect_Print(xl, 'sol > ')
   endif
   deallocate(xchk)

@@ -166,6 +166,11 @@ contains
                  val_interf=A_interf_%val)
         else
           if (A%arrange_type==D_SpMtx_ARRNG_ROWS) then
+!write(stream,*)'######## calling 1  multi_subsolve',A%mtx_bbe(2,2)
+!write(stream,*)'M%ninner,M%nlf:',M%ninner,M%nlf
+!write(stream,*)'A to be solved with is:'
+!call SpMtx_printRaw(A=A,startnz=1,endnz=A%mtx_bbe(2,2))
+!call doug_abort('testing...',5342)
             call multi_subsolve(               &
                    nids=A%nsubsolves,          &
                    ids=A%subsolve_ids,         &
@@ -1579,6 +1584,7 @@ contains
   subroutine factorise_and_solve(id,sol,rhs,nfreds,nnz,indi,indj,val)
     ! For adding a new factorised matrix id must be 0.
     !   id > 0 will be returned as a handle for the factors
+!use SpMtx_util
     integer,intent(inout) :: id
     real(kind=rk),dimension(:),pointer :: sol,rhs
     integer,intent(in) :: nfreds
