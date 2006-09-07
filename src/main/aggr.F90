@@ -1,4 +1,4 @@
-program main
+program aggr
 
   use doug
   use main_drivers
@@ -335,4 +335,4 @@ program main
   call DOUG_Finalize()
 
 
-end program main
+end program aggr

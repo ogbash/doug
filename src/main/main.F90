@@ -1,3 +1,35 @@
+!> \mainpage
+!> DOUG - Domain Decomposition on Unstructured Grids
+
+!> Main program for running DOUG with input files in elemental form.
+!> \section running Running the code: (example)
+!>   <tt>mpirun -np 3 doug_main -f doug.ctl</tt>
+!>     where \c doug.ctl contains the following fields
+!>   \subsection example Example of input-file
+!> \code
+!> solver 2
+!> method 1
+!> input_type 1
+!> matrix_type 1
+!> info_file doug_info.dat
+!> freedom_lists_file doug_element.dat
+!> elemmat_rhs_file doug_system.dat
+!> coords_file doug_coord.dat
+!> freemap_file doug_freemap.dat
+!> freedom_mask_file ./NOT.DEFINED.freedom_mask_file
+!> number_of_blocks 1
+!> initial_guess 2
+!> start_vec_file ./NOT.DEFINED.start_vec_file
+!> start_vec_type 2
+!> solve_tolerance 1.0e-6
+!> solution_format 2
+!> solution_file ./solution.file
+!> debug 0
+!> verbose 5
+!> plotting 0
+!> \endcode
+
+
 program main
 
   use doug
@@ -24,7 +56,7 @@ program main
 #define float real
 #endif
 
-  type(Mesh), target     :: M  ! Mesh
+  type(Mesh), target     :: M  !< Mesh
 
   type(SpMtx)    :: A, A_interf  ! System matrix (parallel sparse matrix)
   type(SpMtx)    :: AC  ! Coarse matrix
