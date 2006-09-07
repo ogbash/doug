@@ -1,0 +1,24 @@
+
+ * Generating documentation
+
+Doxygen config file is Doxyfile which is generated from Doxyfile.in by
+config.status (configure generated script). If you change configuration file
+Doxyfile.in then rerun config.status.
+
+To generate documentation run doxygen from this directory. Directory 'html'
+and others are recreated and documentation is updated. See 'html/index.html'
+for html main page.
+
+Source directories and files are specified in Doxyfile.in as INPUT_*
+configuration parameters.
+
+ * Documenting DOUG
+
+Fortran parser for doxygen currently understands special comments
+ 1) !> as documentation block start, !> or !! (or !!!) as continuation
+!> Brief documentation is first sentence.
+!> Continuation ...
+!! Continuation ...
+ 2) !< as back documentation which comes after member to document.
+integer :: i !< Documentation for \a i.
+
