@@ -1,4 +1,3 @@
-!program aggr
 !> Main program for running DOUG with input files in assembled form.
 !> \section aggregation_running Running the aggregation-based DOUG code: (example)
 !>   <tt>mpirun -np 3 doug_aggr -f doug.ctl</tt>
