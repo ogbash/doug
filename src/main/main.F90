@@ -1,6 +1,6 @@
 !> \mainpage
-!> DOUG - Domain Decomposition on Unstructured Grids
-program main
+!> DOUG - Domain Decomposition on Unstructured Grids. See also wiki pages for DOUG at: <A HREF="http://kheiron.at.mt.ut.ee/wiki">. 
+
 !> Main program for running DOUG with input files in elemental form.
 !> \section running Running the code: (example)
 !>   <tt>mpirun -np 3 doug_main -f doug.ctl</tt>
@@ -28,6 +28,7 @@ program main
 !> verbose 5
 !> plotting 0
 !> \endcode
+program main
 
   use doug
   use main_drivers

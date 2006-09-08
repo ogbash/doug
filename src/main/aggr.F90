@@ -1,5 +1,5 @@
+!program aggr
 !> Main program for running DOUG with input files in assembled form.
-program aggr
 !> \section aggregation_running Running the aggregation-based DOUG code: (example)
 !>   <tt>mpirun -np 3 doug_aggr -f doug.ctl</tt>
 !>     where \c doug.ctl may contain the following fields
@@ -40,6 +40,7 @@ program aggr
 !> plotting 1
 !> assembled_mtx_file Hetero32.txt
 !> \endcode
+program aggr
 
   use doug
   use main_drivers
