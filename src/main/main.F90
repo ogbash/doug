@@ -1,11 +1,13 @@
+program main
+
 !> \mainpage
 !> DOUG - Domain Decomposition on Unstructured Grids
 
 !> Main program for running DOUG with input files in elemental form.
 !> \section running Running the code: (example)
 !>   <tt>mpirun -np 3 doug_main -f doug.ctl</tt>
-!>     where \c doug.ctl contains the following fields
-!>   \subsection example Example of input-file
+!>     where \c doug.ctl may contain the following fields
+!>   \subsection example Input-file example:
 !> \code
 !> solver 2
 !> method 1
@@ -28,9 +30,6 @@
 !> verbose 5
 !> plotting 0
 !> \endcode
-
-
-program main
 
   use doug
   use main_drivers
