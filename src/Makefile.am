@@ -20,7 +20,5 @@ maintainer-clean-local:
 
 all-recursive: all-am
 
-Make.deps:
+Make.deps: Makefile.am
 	python @top_srcdir@/scripts/amdeps.py
-
-.PHONY: f9xdeps
