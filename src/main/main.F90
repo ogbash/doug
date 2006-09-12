@@ -1,7 +1,10 @@
 !> \mainpage DOUG - Domain Decomposition on Unstructured Grids. 
 !>
 !> See also wiki pages for DOUG at: 
-!> <A HREF="http://kheiron.at.mt.ut.ee/wiki">http://kheiron.at.mt.ut.ee/wiki</A>. 
+!> <A HREF="http://kheiron.at.mt.ut.ee/wiki">http://kheiron.at.mt.ut.ee/wiki</A>.
+!!
+!! \section doc Documentation
+!!
 
 !> Main program for running DOUG with input files in elemental form.
 !> \section running Running the code: (example)
