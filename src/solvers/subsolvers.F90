@@ -1567,7 +1567,7 @@ contains
       if (id<=0) then
         allocate(fakts_temp(fakts_size*3/2+5))
         fakts_temp(1:size(fakts_temp))%solver_type=0
-        fakts_temp(1:fakts_size)=fakts
+        if (associated(fakts)) fakts_temp(1:fakts_size)=fakts
         id=fakts_size+1
         if (associated(fakts)) deallocate(fakts)
         fakts=>fakts_temp

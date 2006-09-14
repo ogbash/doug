@@ -297,11 +297,13 @@ contains
     type(Mesh), intent(in out) :: M ! Mesh
     character*(*)              :: fnInfo
 
+    integer(4) :: tmp(5)
     integer :: nell, ngf, nsd, mfrelt, nnode
 
 
     open(50, FILE=fnInfo, STATUS='OLD', FORM='UNFORMATTED')
-    read (50) nell, ngf, nsd, mfrelt, nnode
+    read (50) tmp
+    nell=tmp(1); ngf=tmp(2); nsd=tmp(3); mfrelt=tmp(4); nnode = tmp(5)
     close(50)
 
     ! To correct ENTWIFE's inexact value of 'ngf' (which comes
@@ -428,6 +430,7 @@ contains
     character*(*)              :: fnFreelists
 
     integer                    :: i
+    integer(4)                 :: nfrelt, mhead(M%mfrelt)
 
     ! Check for errors
     if (M%nell <= 0) &
@@ -445,7 +448,9 @@ contains
          ' numbering ... '
     open(50, FILE=fnFreelists, STATUS='OLD', FORM='UNFORMATTED')
     do i = 1,M%nell
-       read (50) M%nfrelt(i), M%mhead(1:M%nfrelt(i),i)
+       read (50) nfrelt, mhead(1:nfrelt)
+       M%nfrelt(i) = nfrelt
+       M%mhead(1:M%nfrelt(i),i) = mhead
        if (maxval(M%mhead(:,i))>M%ngf) then
           write (*, *) i, M%ngf, maxval(M%mhead(:,i))
           call DOUG_abort('[Mesh_readFileFreelists] - freedom index out of range', -1)
@@ -497,6 +502,7 @@ contains
 
     type(Mesh), intent(in out) :: M ! Mesh
     character*(*)              :: fnFreemap
+    integer(4)                 :: freemap(M%ngf)
 
     if (M%ngf <= 0) &
          call DOUG_abort('[Mesh_readFileFreemap] : Mesh object must be'//&
@@ -506,7 +512,8 @@ contains
 
     write(stream, FMT='(a)', advance='no') 'Reading in freedoms'' map ... '
     open(50, FILE=fnFreemap, STATUS='OLD', FORM='UNFORMATTED')
-    read (50) M%freemap
+    read (50) freemap
+    M%freemap = freemap
     close(50)
     write(stream, *) 'done'
 

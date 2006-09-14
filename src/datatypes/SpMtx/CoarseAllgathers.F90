@@ -55,8 +55,8 @@ module CoarseAllgathers
         type(SendData) :: send          ! Auxilliary struct for sending data
    end type
 
-   type(CoarseData) :: cdat !coarse data -- includes overlap
-   type(CoarseData) :: cdat_vec !coarse data -- w/o overlap, for vector
+   type(CoarseData), save :: cdat !coarse data -- includes overlap
+   type(CoarseData), save :: cdat_vec !coarse data -- w/o overlap, for vector
                                 !                              collects
 contains
     
