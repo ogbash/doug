@@ -1,8 +1,77 @@
-\begin{pspicture}(5cm,4cm)
-\ovalnode{n_ag}{autogen.sh}
-\ovalnode{n_ac}{autogen}
-\ovalnode{n_aclocal}{aclocal}
-\ovalnode{n_am}{automake}
-\ovalnode{n_cnf}{configure}
-\ovalnode{n_cnf.st}{config.status}
+
+\newcommand{\psprocess}[2]{\ovalnode{#1}{#2}}
+\newcommand{\psfile}[2]{\rnode{#1}{\psframebox{#2}}}
+\newcommand{\psfiles}[2]{\rnode{#1}{\psshadowbox{#2}}}
+\newcommand{\psdataflow}[2]{\ncline[arrowsize=6pt]{->}{#1}{#2}}
+
+\newrgbcolor{pssvncolor}{.6 1 .6}
+\newrgbcolor{psexternalcolor}{1 1 .5}
+\newcommand{\psexternal}{\psset{fillcolor=psexternalcolor,fillstyle=solid}}
+\newcommand{\pssvn}{\psset{hatchwidth=2pt,hatchsep=1.5pt,hatchcolor=pssvncolor,fillstyle=vlines}}
+
+\begin{pspicture}(12cm,5cm)
+%\psgrid[gridcolor=gray](0,0)(12,5)
+
+\rput[lb](0,0){\textsl{
+  \mbox{\pssvn\pscircle(0,0.15){0.15}}\hspace{6pt}files from \em SVN,\hspace{12pt}
+  \mbox{\psexternal\pscircle(0,0.15){0.15}}\hspace{6pt}autotools distribution
+}}
+
+\rput(1.5,3.5){
+  \begin{tabular}{c}
+  \pssvn\psfiles{n_config_m4}{config/*.m4}\\
+  \psfile{n_aclocal.m4}{aclocal.m4}
+  \end{tabular}
+}
+
+\rput(1.5,2){
+  \begin{tabular}{c}
+  \pssvn\psfile{n_cnf.ac}{configure.ac}\\
+  \pssvn\psfiles{n_mkf.am}{Makefile.am}\\
+  \end{tabular}
+}
+
+\rput[l](3,2.8){
+  \pssvn\psprocess{n_ag}{
+  \begin{tabular}{c}
+  autogen.sh\\
+  \psexternal\psprocess{n_aclocal}{aclocal}\\
+  \psexternal\psprocess{n_ac}{autoconf}\\
+  \psexternal\psprocess{n_ah}{autoheader}\\
+  \psexternal\psprocess{n_am}{automake}
+  \end{tabular}
+  }
+}
+
+\rput[l](8.5,4){
+  \begin{tabular}{c}
+  \psfile{n_cnf.h.in}{doug\_config.h.in}\\
+  \psfiles{n_mkf.in}{Makefile.in}
+  \end{tabular}
+}
+
+\rput[l](8,2){
+  \begin{tabular}{c}
+  \psprocess{n_cnf}{configure}\\
+  \psprocess{n_cnf.st}{config.status}
+  \end{tabular}
+}
+
+% data flow for aclocal
+\psdataflow{n_config_m4}{n_aclocal}
+\psdataflow{n_cnf.ac}{n_aclocal}
+\psdataflow{n_aclocal}{n_aclocal.m4}
+
+% data flow for autoconf
+\psdataflow{n_aclocal.m4}{n_ac}
+\psdataflow{n_cnf.ac}{n_ac}
+\psdataflow{n_ac}{n_cnf}
+
+\psdataflow{n_cnf.ac}{n_ah}
+\psdataflow{n_ah}{n_cnf.h.in}
+
+\psdataflow{n_cnf.ac}{n_am}
+\psdataflow{n_mkf.am}{n_am}
+\psdataflow{n_am}{n_mkf.in}
+
 \end{pspicture}

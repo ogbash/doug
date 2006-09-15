@@ -43,14 +43,19 @@ Autotools
 \end_layout
 
 \begin_layout Standard
-some text
+DOUG uses 
+\emph on
+autotools
+\emph default
+ building system to configure and compile DOUG sources.
+ Next chapters gives brief introduction to this system and some internals.
 \end_layout
 
 \begin_layout Standard
 \begin_inset Float figure
 wide false
 sideways false
-status open
+status collapsed
 
 \begin_layout Standard
 \begin_inset Include \input{../pictures/autotools_flow.tex}
@@ -69,9 +74,184 @@ Autotools
  data flow
 \end_layout
 
+\begin_layout Standard
+\begin_inset LatexCommand \label{fig:Autotools-data-flow}
+
 \end_inset
 
 
+\end_layout
+
+\end_inset
+
+
+\emph on
+Autotools
+\emph default
+ contains 3 subsystems which may be used separatelly, but are usually used
+ alltogether.
+\end_layout
+
+\begin_layout Enumerate
+
+\emph on
+Autoconf 
+\emph default
+- provides 
+\emph on
+Bourne Shell 
+\emph default
+tests to detect platform, compilers, libraries and their peculiarities.
+ It uses 
+\emph on
+M4
+\emph default
+ macro engine to reuse tests for different situations and provide simple
+ macros to do common tasks.
+ For example, 
+\emph on
+AM_CHECK_LIBS
+\emph default
+ macro takes function name and list of library names and tries to find function
+ in one of given libraries.
+ It is achieved by constructing very simple 
+\emph on
+C 
+\emph default
+program with corresponding function call - if linkage is successful then
+ it is assumed that library contains given function.
+ This pattern - `create test, run it and see if it fails' is very common
+ to all 
+\emph on
+Autoconf
+\emph default
+ tests.
+\end_layout
+
+\begin_layout Enumerate
+
+\emph on
+Automake 
+\emph default
+- greatly simplifies writing 
+\emph on
+Makefile
+\emph default
+ sources.
+ User is only required to provide target names, their source file names
+ plus some additional info to tune building process.
+ Most common used tasks like 
+\emph on
+install 
+\emph default
+and 
+\emph on
+clean
+\emph default
+ are generated, in addition 
+\emph on
+dist
+\emph default
+ - to make zipped distribution file, 
+\emph on
+tags 
+\emph default
+- to generate tag files for 
+\emph on
+VIM
+\emph default
+ or 
+\emph on
+Emacs 
+\emph default
+and source dependency information are also available.
+\end_layout
+
+\begin_layout Enumerate
+
+\emph on
+Libtool
+\emph default
+ - way to build static and shared libraries on different platforms.
+\end_layout
+
+\begin_layout Standard
+
+\emph on
+Autotools
+\emph default
+ idea is to create project distribution, which only requires tools present
+ on most 
+\emph on
+Unix 
+\emph default
+systems like 
+\emph on
+Bourne shell
+\emph default
+, 
+\emph on
+make
+\emph default
+ program and several others.
+ This is achieved by creating long 
+\emph on
+configure
+\emph default
+ script and set of 
+\emph on
+Makefile.in 
+\emph default
+and other 
+\emph on
+.in
+\emph default
+ files, which are feeded to 
+\emph on
+configure
+\emph default
+ script to generate corresponding files without 
+\emph on
+.in 
+\emph default
+extension.
+ The only thing 
+\emph on
+configure
+\emph default
+ is doing with those files - substitutes expressions like 
+\family typewriter
+@top_srcdir@
+\family default
+, 
+\family typewriter
+@PACKAGE_VERSION@ 
+\family default
+and
+\family typewriter
+ @LDFLAGS@
+\family default
+ with corresponding values calculated in configuration process.
+\end_layout
+
+\begin_layout Standard
+Next we will review steps to create 
+\emph on
+configure
+\emph default
+ script and 
+\emph on
+.in
+\emph default
+ files.
+ These steps are only done by package developer and maintainer, so the user
+ does need to follow these.
+ Most important files and processes are shown on figure 
+\begin_inset LatexCommand \ref{fig:Autotools-data-flow}
+
+\end_inset
+
+.
 \end_layout
 
 \end_body
