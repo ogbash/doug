@@ -464,7 +464,7 @@ WARN_LOGFILE           =
 # directories like "/usr/src/myproject". Separate the files or directories 
 # with spaces.
 
-INPUT                  = @top_srcdir@/src/datatypes @top_srcdir@/src/datatypes/ElemMtxs @top_srcdir@/src/datatypes/SpMtx @top_srcdir@/src/datatypes/drivers @top_srcdir@/src/solvers @top_srcdir@/src/utils @top_srcdir@/src/main
+INPUT                  = @top_srcdir@/src/datatypes @top_srcdir@/src/datatypes/ElemMtxs @top_srcdir@/src/datatypes/SpMtx @top_srcdir@/src/datatypes/drivers @top_srcdir@/src/solvers @top_srcdir@/src/utils @top_srcdir@/src/main @top_srcdir@/doc/general
 
 # If the value of the INPUT tag contains directories, you can use the 
 # FILE_PATTERNS tag to specify one or more wildcard pattern (like *.cpp 
@@ -783,7 +783,7 @@ PAPER_TYPE             = a4wide
 # The EXTRA_PACKAGES tag can be to specify one or more names of LaTeX 
 # packages that should be included in the LaTeX output.
 
-EXTRA_PACKAGES         = 
+EXTRA_PACKAGES         = pstricks
 
 # The LATEX_HEADER tag can be used to specify a personal LaTeX header for 
 # the generated latex document. The header should contain everything until 

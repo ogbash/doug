@@ -1,0 +1,204 @@
+#LyX 1.4.2 created this file. For more info see http://www.lyx.org/
+\lyxformat 245
+\begin_document
+\begin_header
+\textclass report
+\begin_preamble
+\usepackage{pstricks}
+\end_preamble
+\language english
+\inputencoding auto
+\fontscheme default
+\graphics default
+\paperfontsize default
+\spacing single
+\papersize default
+\use_geometry false
+\use_amsmath 1
+\cite_engine basic
+\use_bibtopic false
+\paperorientation portrait
+\secnumdepth 3
+\tocdepth 3
+\paragraph_separation indent
+\defskip medskip
+\quotes_language english
+\papercolumns 1
+\papersides 1
+\paperpagestyle default
+\tracking_changes false
+\output_changes false
+\end_header
+
+\begin_body
+
+\begin_layout Section
+A brief introduction
+\end_layout
+
+\begin_layout Standard
+Many codes exist in the open literature for solving elliptic PDEs using
+ finite element methods.
+ Use of a finite element method reduces the problem to that of solving a
+ (sparse) linear system, often of very large size, expressed in matrix form.
+ Whilst direct factorisation methods may be used to invert this matrix and
+ obtain the solution this is often not practical due to the storage and
+ time requirements for direct factorisation methods.
+\end_layout
+
+\begin_layout Standard
+DOUG provides a framework for the iterative solution, on parallel computer
+ architectures, of these linear systems, using the powerful domain decomposition
+ technique.
+\end_layout
+
+\begin_layout Standard
+By itself DOUG is NOT a package for solving PDEs using finite element methods,
+ in order to be used in this way a finite element package must also be found.
+\end_layout
+
+\begin_layout Standard
+For more extensive details on the methods used in DOUG see the technical
+ report 
+\shape italic
+Automatic Domain Decomposition on Unstructured Grids (DOUG)
+\shape default
+ by M.J.
+ Hagger, available at 
+\family typewriter
+www.maths.bath.ac.uk/MATHEMATICS/preprints.html
+\family default
+ (preprint # maths9706), or by ftp from 
+\family typewriter
+ftp.maths.bath.ac.uk
+\family default
+.
+ The report will also appear in 
+\begin_inset Quotes els
+\end_inset
+
+Advances in Computational Mathematics'.
+\end_layout
+
+\begin_layout Section
+Installing DOUG
+\end_layout
+
+\begin_layout Section
+Running an MPI program
+\end_layout
+
+\begin_layout Section
+Running DOUG
+\end_layout
+
+\begin_layout Section
+The DOUG data files
+\end_layout
+
+\begin_layout Standard
+\begin_inset LatexCommand \label{sec:files}
+
+\end_inset
+
+ Input of the linear system to DOUG is via the format produced, at some
+ stage, by most finite element codes.
+ The stiffness matrix is not assembled but is instead input to DOUG in the
+ form of the element stiffness matrices, together with element right hand
+ side vectors.
+ (The element right hand side vectors are simply the combination of the
+ element load vectors and any Dirichlet boundary conditions that apply to
+ that element.) For example in 2D using linear basis functions on triangles,
+ this would mean that we have 
+\begin_inset Formula $3\times3$
+\end_inset
+
+ matrices, each with a corresponding vector of size 3.
+ This is illustrated in the following example.
+\end_layout
+
+\begin_layout Subsection
+A finite element method example
+\end_layout
+
+\begin_layout Standard
+\begin_inset LatexCommand \label{sec:example}
+
+\end_inset
+
+ Here we demonstrate what is meant by element stiffness matrices and element
+ right hand side vectors for a simple problem.
+\end_layout
+
+\begin_layout Standard
+Consider the partial differential equation (PDE) 
+\begin_inset Formula \begin{equation}
+-\Delta u=1,\label{exam:pde}\end{equation}
+
+\end_inset
+
+ on the domain 
+\begin_inset Formula $\Omega=(0,1)\times(0,1)$
+\end_inset
+
+.
+ With the Dirichlet condition 
+\begin_inset Formula $u=1$
+\end_inset
+
+ on 
+\begin_inset Formula $y=1$
+\end_inset
+
+, and zero Neumann boundary condition elsewhere.
+\end_layout
+
+\begin_layout Standard
+In the usual way we seek a solution 
+\begin_inset Formula $u\in U$
+\end_inset
+
+, where 
+\begin_inset Formula $U$
+\end_inset
+
+ is the Hilbert space 
+\begin_inset Formula $H^{1}(\Omega)$
+\end_inset
+
+.
+ Define a trial space 
+\begin_inset Formula $V\subset U$
+\end_inset
+
+, such that 
+\begin_inset Formula $V=\{ v\in H^{1}:v=0\mbox{ on }y=1\}$
+\end_inset
+
+.
+ By multiplying (
+\begin_inset LatexCommand \ref{exam:pde}
+
+\end_inset
+
+) by 
+\begin_inset Formula $v\in V$
+\end_inset
+
+ we produce the weak form 
+\begin_inset Formula \begin{equation}
+\int_{\Omega}\nabla u.\nabla v=\int_{\Omega}v,\mbox{ for all }v\in V.,\label{exam:weak}\end{equation}
+
+\end_inset
+
+ or, in a more abstract form: 
+\begin_inset Formula \begin{eqnarray*}
+a(u,v)=f(v),\mbox{ for all }v\in V.\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\end_body
+\end_document

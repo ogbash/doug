@@ -25,7 +25,7 @@ contains
 
 
   !----------------------------------------------------------------
-  ! Parallel assemble of system matrix and RHS from elemental input
+  !> Parallel assemble of system matrix and RHS from elemental input
   !----------------------------------------------------------------
   subroutine parallelAssembleFromElemInput(Msh, A, &
                b, nparts, part_opts, A_interf)
