@@ -40,13 +40,8 @@ module SpMtx_class
   integer, parameter :: D_SpMtx_SCALE_DIAG_FILTERED =  2
 
 
-!  type indlist ! moved to module globals
-!    integer :: ninds
-!    integer,dimension(:),pointer :: inds
-!  end type indlist
-
+!> the central structire -- spase matrix:
   type SpMtx
-
     !>Number of non-zero elements
     integer                               :: nnz = -1
     !>Number of rows and columns
@@ -64,19 +59,23 @@ module SpMtx_class
     integer, dimension(:), pointer :: strong_rowstart,strong_colnrs !< !For strong connection reference:
     !> Used for Arranged Matrix
     integer,        dimension(:), pointer :: M_bound
+    !> \code
     !> 0: D_SpMtx_ARRNG_NO   - NO Arrange (default)
     !> 1: D_SpMtx_ARRNG_ROWS - Arranged for rows
     !> 2: D_SpMtx_ARRNG_COLS - Arranged for columns
+    !> \endcode
     integer                               :: arrange_type = -1
 
     !> Undefined, square, rows > columns, columns > rows
     integer :: shape = D_SpMtx_SHAPE_UNDEF
     logical :: symmstruct = .false.
+    !> \code
     !> what kind of symmetry? nonzero structure only or numerical symmetry also
     !> NB: We still assume that all matrices have symmetric
     !>     nonzero structure and posess numerical
     !>     symmetry, which also means that we can
     !>     hold in memory only L or U parts of it.
+    !> \endcode
     logical :: symmnumeric = .false.
     !> scaling of the matrix
     integer :: scaling = D_SpMtx_SCALE_UNDEF
@@ -94,11 +93,13 @@ module SpMtx_class
     !> For the block (i,j) be=mtx_bbe(i,j) gives the ending block
     !> index 'be' for 'indi(be)', 'indj(be)' and 'val(be)'
     integer, dimension(:,:), pointer :: mtx_bbe
+    !> \code
     !>this is needed in parallel aggregation case with zero overlap.
     !>  then A%mtx_bbe(2,2)+1,...,A%nnz holds the "incoming" nonzeroes,
     !>                           ie, indi \in local, indj \in ghost
     !>       A%nnz+1,...,A%ol0nnz holds the "outgoing" nonzeroes,
     !>                           ie, indi \in ghost, indj \in local
+    !> \endcode
     integer                          :: ol0nnz = -1
     !> Permutation map for freedoms : perm_map[M%nlf]
     integer,   dimension(:), pointer :: perm_map
@@ -117,9 +118,7 @@ module SpMtx_class
 contains
 
 
-  !>----------------------------------------------------------
   !> Basic constructor
-  !>----------------------------------------------------------
   function SpMtx_New() result(M)
     implicit none
 
@@ -158,7 +157,7 @@ contains
 
   end function SpMtx_New
 
-
+!> \code
 !>----------------------------------------------------------
 !>Sparse Matrix constructor
 !>  Allocate space for each array
@@ -169,6 +168,7 @@ contains
 !>           ncols   - Number of columns (optional)
 !>    Result: Sparse Matrix
 !>----------------------------------------------------------
+!> \endcode
   Function SpMtx_newInit(nnz,nblocks,nrows,ncols,symmstruct,symmnumeric,&
                       indi,indj,val,arrange_type,M_bound) result(M)
     Implicit None
@@ -298,6 +298,7 @@ contains
 !!$  end subroutine SpMtx_setBlocksBounds
 
 
+  !> \code
   !>-----------------------------------------------
   !> Sets the value of the bound between inner and
   !> interface nodes in the matrix
@@ -315,6 +316,7 @@ contains
   !> So, 'bound' points to the first element in the
   !> inner subpart of sparse matrix.
   !>-----------------------------------------------
+  !> \endcode
   subroutine SpMtx_setMtxInnerBound(A, bound)
     implicit None
     type(SpMtx), intent(in out) :: A
@@ -356,12 +358,14 @@ contains
 
   End subroutine SpMtx_Resize
 
+  !> \code
   !> Reading in matix in assembled format from textfile:
   !> number_of_unknowns nnz
   !> i_1 j_1 val_1
   !> i_2 j_2 val_2
   !> . . . . . . . 
   !> i_nnz j_nnz val_nnz
+  !> \endcode
   subroutine ReadInSparseAssembled(A,filename)
     implicit none
     type(SpMtx),intent(in out) :: A   ! System matrix
@@ -409,11 +413,13 @@ contains
     call DOUG_abort('File '//trim(filename)//' too short! ', -1)
   end subroutine ReadInSparseAssembled
 
+!> \code
 !>----------------------------------------------------------
 !>Sparse Matrix destructor
 !>    Arguments:
 !>      Matrix - Sparse Matrix
 !>----------------------------------------------------------
+!> \endcode
   Subroutine SpMtx_Destroy(M) ! SpMtx_Destroy
     Implicit None
     type(SpMtx), intent(in out):: M !Sparse matrix (in)
@@ -445,9 +451,7 @@ contains
     if (associated(M%subsolve_ids)) deallocate(M%subsolve_ids)
     if (associated(M%subd))    deallocate(M%subd)
   End Subroutine SpMtx_Destroy
-!>----------------------------------------------------------
 !> Function for coping sparse matrix
-!>----------------------------------------------------------
   Function SpMtx_Copy(IM) result(FM)
     Implicit None
     Type(SpMtx), intent(in):: IM !Initial Sparse matrix(in)
@@ -468,6 +472,7 @@ contains
       allocate(FM%strong(size(IM%strong)))
     endif
   End Function SpMtx_Copy
+!> \code
 !>----------------------------------------------------------
 !>Laplace Matrix Constructor
 !>    Arguments:
@@ -475,6 +480,7 @@ contains
 !>     special - each element are uniqe or NOT (default)
 !>    Result: Sparse Matrix (Laplace Matrix)
 !>----------------------------------------------------------
+!> \endcode
   Function LaplSpMtx_New(N, special) result(M)
     Implicit None
     type(SpMtx)           :: M       !Sparse matrix (out:Laplace)
@@ -554,6 +560,7 @@ contains
     M%nrows = N**2;
     M%ncols = N**2;
   End Function LaplSpMtx_New
+!> \code
 !>----------------------------------------------------------
 !>Another Laplace Matrix Constructor
 !>    Arguments:
@@ -561,6 +568,7 @@ contains
 !>     special - each element are uniqe or NOT (default)
 !>    Result: Sparse Matrix (Laplace Matrix)
 !>----------------------------------------------------------
+!> \endcode
   Function order_laplace_m(N) result(M)
     Implicit None
     type(SpMtx)           :: M     !Sparse matrix
