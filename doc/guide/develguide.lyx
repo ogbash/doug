@@ -52,38 +52,6 @@ autotools
 \end_layout
 
 \begin_layout Standard
-\begin_inset Float figure
-wide false
-sideways false
-status collapsed
-
-\begin_layout Standard
-\begin_inset Include \input{../pictures/autotools_flow.tex}
-preview false
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Caption
-
-\shape italic
-Autotools
-\shape default
- data flow
-\end_layout
-
-\begin_layout Standard
-\begin_inset LatexCommand \label{fig:Autotools-data-flow}
-
-\end_inset
-
-
-\end_layout
-
-\end_inset
-
 
 \emph on
 Autotools
@@ -235,6 +203,38 @@ and
 \end_layout
 
 \begin_layout Standard
+\begin_inset Float figure
+wide false
+sideways false
+status open
+
+\begin_layout Standard
+\begin_inset Graphics
+	filename ../pictures/autotools_flow.eps
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Caption
+
+\shape italic
+Autotools
+\shape default
+ data flow
+\end_layout
+
+\begin_layout Standard
+\begin_inset LatexCommand \label{fig:Autotools-data-flow}
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
 Next we will review steps to create 
 \emph on
 configure
@@ -252,6 +252,211 @@ configure
 \end_inset
 
 .
+\end_layout
+
+\begin_layout Enumerate
+First, the preparation step is done by running 
+\emph on
+aclocal
+\emph default
+ progam, which collects all 
+\emph on
+M4
+\emph default
+ macros used in 
+\emph on
+configure.ac 
+\emph default
+from known locations (like 
+\emph on
+config
+\emph default
+ directory) and stores them to 
+\emph on
+aclocal.m4
+\emph default
+.
+ This is needed because 
+\emph on
+M4
+\emph default
+ engine expects to see them there.
+\end_layout
+
+\begin_layout Enumerate
+Then 
+\emph on
+autoconf
+\emph default
+ invokes 
+\emph on
+M4
+\emph default
+ macro engine to generate 
+\emph on
+configure
+\emph default
+ from 
+\emph on
+configure.ac
+\emph default
+ whereas it substitutes all macros.
+ Resulting 
+\emph on
+configure
+\emph default
+ script is nothing more than expanded 
+\emph on
+configure.ac
+\emph default
+, so if you want to know what actions are done during configuration just
+ look into 
+\emph on
+configure.ac
+\emph default
+.
+\end_layout
+
+\begin_layout Enumerate
+
+\emph on
+Autoheader
+\emph default
+ program takes all preprocessor
+\emph on
+ 
+\emph default
+related macros from 
+\emph on
+configure.ac 
+\emph default
+and prepares 
+\emph on
+doug_config.h.in
+\emph default
+ file which contains all preprocessor symbols to be used later during compilatio
+n, but all symbols are undefined at this step.
+ Later, during configuration process 
+\emph on
+configure
+\emph default
+ will define all symbols and generates 
+\emph on
+doug_config.h
+\emph default
+ from this file.
+\end_layout
+
+\begin_layout Enumerate
+
+\emph on
+Automake
+\emph default
+ program takes small 
+\emph on
+Makefile.am 
+\emph default
+files with information what should be compiled and generates large 
+\emph on
+Makefile.in 
+\emph default
+files.
+ Resulting file is almost like actual 
+\emph on
+Makefile, 
+\emph default
+except it contains some symbols like 
+\family typewriter
+@top_srcdir@ 
+\family default
+which will be defined and replaced during configuration process.
+ 
+\end_layout
+
+\begin_layout Enumerate
+The only step that is missing from the picture is 
+\emph on
+libtoolize
+\emph default
+ which is way to prepare files for libtool work.
+ Created files in current or 
+\emph on
+config 
+\emph default
+directory starting with 
+\emph on
+lt
+\emph default
+ are libtool related.
+\end_layout
+
+\begin_layout Standard
+All these steps are contained within 
+\emph on
+autogen.sh
+\emph default
+ script, which runs corresponding programs in order.
+ Refer to 
+\emph on
+autotools
+\emph default
+ documentation and DOUG source code for more information.
+\end_layout
+
+\begin_layout Subsection
+Configuration process 
+\begin_inset Note Note
+status open
+
+\begin_layout Standard
+TODO
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+When 
+\emph on
+configure
+\emph default
+ script is generated it is time to run configuration process.
+\end_layout
+
+\begin_layout Standard
+Configure flags
+\end_layout
+
+\begin_layout Standard
+Building to other directory
+\end_layout
+
+\begin_layout Subsection
+Compilation 
+\begin_inset Note Note
+status open
+
+\begin_layout Standard
+TODO
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+By simply running 
+\emph on
+make
+\emph default
+ from project root directory should do compilation and linking.
+\end_layout
+
+\begin_layout Standard
+where files are placed, libtool files
 \end_layout
 
 \end_body
