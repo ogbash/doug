@@ -653,7 +653,6 @@ CONTAINS
     integer, dimension(:), allocatable :: ccount !count colors
     integer,dimension(4)           :: buf
     
-!    integer, dimension(:), pointer :: itmp
     ol=max(sctls%overlap,sctls%smoothers)
     if (ismaster()) then ! Here master simply splits the matrix into pieces
                          !   using METIS
@@ -684,40 +683,37 @@ CONTAINS
       M%eptnmap(1:A%nrows) = G%part(1:A%nrows)
       call Graph_Destroy(G)
     endif
-    ! TODO TODO TODO -- something more efficient need to be devised ----+
-    call MPI_BCAST(buf,4,MPI_INTEGER,D_MASTER,MPI_COMM_WORLD,ierr)      !
-    if (.not.ismaster()) then                                           !
-      A = SpMtx_newInit(nnz=buf(3),nblocks=sctls%number_of_blocks, &    !
-                         nrows=buf(1),                             &    !
-                         ncols=buf(2),                             &    !
-                    symmstruct=sctls%symmstruct,                   &    !
-                   symmnumeric=sctls%symmnumeric                   &    !
-                        )                                               !
-      M=Mesh_newInit(nell=A%nrows,ngf=A%nrows,nsd=-2,mfrelt=-1,&        !
-                     nnode=A%nrows)                                     !
-      !call Mesh_allocate(M,eptnmap=.true.)                              !
+
+    ! Distribute assembled matrix; first distribute essential matrix parameters and then distribute contents
+    call MPI_BCAST(buf,4,MPI_INTEGER,D_MASTER,MPI_COMM_WORLD,ierr)
+    if (.not.ismaster()) then
+      A = SpMtx_newInit(nnz=buf(3),nblocks=sctls%number_of_blocks, &
+                        nrows=buf(1),                              &
+                        ncols=buf(2),                              &
+                        symmstruct=sctls%symmstruct,               &
+                        symmnumeric=sctls%symmnumeric              &
+                       )
+      M=Mesh_newInit(nell=A%nrows,ngf=A%nrows,nsd=-2,mfrelt=-1,    &
+                     nnode=A%nrows)
       allocate(M%eptnmap(A%nrows))
-      M%parted  = .true.                                                !
-      M%nparts  = buf(4)                                                !
-    endif                                                               !
-    call MPI_BCAST(M%eptnmap,A%nrows,MPI_INTEGER,D_MASTER,&               !
-                   MPI_COMM_WORLD,ierr)                                 !
-    call MPI_BCAST(A%indi,A%nnz,MPI_INTEGER,D_MASTER,&                  !
-                   MPI_COMM_WORLD,ierr)                                 !
-    call MPI_BCAST(A%indj,A%nnz,MPI_INTEGER,D_MASTER,&                  !
-                   MPI_COMM_WORLD,ierr)                                 !
-    call MPI_BCAST(A%val,A%nnz,MPI_fkind,D_MASTER,&                     !
-                   MPI_COMM_WORLD,ierr)                                 !
+      M%parted  = .true.
+      M%nparts  = buf(4)
+    endif
+    call MPI_BCAST(M%eptnmap,A%nrows,MPI_INTEGER,D_MASTER,&
+                   MPI_COMM_WORLD,ierr)
     if (sctls%verbose>3.and.A%nrows<200) then 
       write(stream,*)'A orig:'
       call SpMtx_printRaw(A)
     endif
-    call SpMtx_arrange(A,arrange_type=D_SpMtx_ARRNG_ROWS,sort=.true.)   !
+    call SpMtx_distributeWithOverlap(A, M, ol)
+
     !========= count color elements ============
     if (A%arrange_type==D_SpMtx_ARRNG_ROWS) then
       n=A%nrows
     elseif (A%arrange_type==D_SpMtx_ARRNG_COLS) then
       n=A%ncols
+    else
+      call DOUG_abort('[SpMtx_DistributeAssembled] : matrix not arranged')
     endif
 
     allocate(ccount(numprocs))
@@ -743,6 +739,7 @@ CONTAINS
       enddo                                                               !
     endif
     deallocate(ccount)
+
     !-------------------------------------------------------------------+
     if (sctls%verbose>3.and.A%nrows<200) then 
       write(stream,*)'A after arrange:'
@@ -956,6 +953,156 @@ CONTAINS
       write(stream,*)'inner freedoms:',M%lg_fmap(1:M%ninner)
     endif
   end subroutine SpMtx_Build_lggl
+
+  !> A helper procedure for marking all nodes within overlap distance
+  !> in distribution mask
+  recursive subroutine SpMtx_addFront(sendmask, A, M, i, p, ol)
+    integer(kind=1), dimension(:), pointer :: sendmask !< distribution mask
+    type(SpMtx), intent(in) :: A !< original matrix
+    type(Mesh), intent(in) :: M !< mesh corresponding to A
+    integer, intent(in) :: i !< freedom
+    integer, intent(in) :: p !< processor id (1..)
+    integer, intent(in) :: ol !< overlap, non-negative
+    !------------------------------------------- 
+    integer :: j, k
+
+    sendmask(p+i*numprocs)=max(ol+1, sendmask(p+i*numprocs))
+    if (ol>0) then 
+      do k=A%M_bound(i),A%M_bound(i+1)-1
+        j=A%indj(k)
+        if (p/=M%eptnmap(j) .and. sendmask(p+j*numprocs)<ol) then
+          call SpMtx_addFront(sendmask, A, M, j, p, ol-1)
+        end if
+      end do
+    end if
+  end subroutine SpMtx_addFront
+
+  !> Distribute assembled matrix from master to slaves;
+  !> distribute by taking overlap into account
+  !> NOTE: as a sideeffect, the returned matrix is arranged by rows
+  subroutine SpMtx_distributeWithOverlap(A, M, ol)
+    type(SpMtx), intent(inout) :: A !< original matrix in case of master; in case of slave matrix data is ignored but structure (dimensions, symmetry, etc) should be initialized
+    type(Mesh), intent(in) :: M !< mesh corresponding to A
+    integer, intent(in) :: ol !< overlap
+    !------------------------------------
+    integer(kind=1), dimension(:), pointer :: sendmask
+    integer, dimension(:), pointer :: nnz_p
+    float(kind=rk), dimension(:), pointer :: val
+    integer, dimension(:), pointer :: indi, indj
+    integer :: i, j, k, p, ierr, status
+
+    ! Number of nodes to distribute to each processor
+    allocate(nnz_p(numprocs))
+
+    if (ismaster()) then
+      call SpMtx_arrange(A,arrange_type=D_SpMtx_ARRNG_ROWS,sort=.true.)
+
+      ! Create send vector for each node
+      allocate(sendmask((A%nrows+1)*numprocs))
+      sendmask=0
+      do k=1,A%nnz
+        i=A%indi(k)
+        call SpMtx_addFront(sendmask, A, M, i, M%eptnmap(i), max(1,ol*2))
+      end do
+
+      ! Calculate total number of nodes for each process
+      nnz_p=0
+      do p=1,numprocs
+        do i=1,A%nrows
+          if (sendmask(p+i*numprocs)>0) then
+            do k=A%M_bound(i),A%M_bound(i+1)-1
+              if (sendmask(p+A%indj(k)*numprocs)>0) then
+                nnz_p(p)=nnz_p(p)+1
+              end if
+            end do
+          end if
+        end do
+      end do
+
+      ! Debugging
+      if (sctls%verbose>3) then
+        write(stream,*) 'nnz_p:',nnz_p(1:numprocs)
+      end if
+    end if
+
+    ! Broadcast number of nodes for each processor
+    call MPI_BCAST(nnz_p, numprocs, MPI_INTEGER, D_MASTER, MPI_COMM_WORLD, ierr)
+
+    ! Send/receive matrix nodes
+    if (ismaster()) then
+      do p=numprocs,1,-1
+        allocate(val(nnz_p(p)), indi(nnz_p(p)), indj(nnz_p(p)))
+        j=0
+        do i=1,A%nrows
+          if (sendmask(p+i*numprocs)>0) then
+            do k=A%M_bound(i),A%M_bound(i+1)-1
+              if (sendmask(p+A%indj(k)*numprocs)>0) then
+                j=j+1
+                val(j)=A%val(k)
+                indi(j)=A%indi(k)
+                indj(j)=A%indj(k)
+              end if
+            end do
+          end if
+        end do
+        if (j/=nnz_p(p)) call DOUG_abort('[SpMtx_distributeWithOverlap] : j/=nnz_p(p)')
+        if (p/=1) then
+          call MPI_SEND(val, nnz_p(p), MPI_fkind, p-1, &
+		D_TAG_ASSEMBLED_VALS, MPI_COMM_WORLD, status, ierr)
+          call MPI_SEND(indi, nnz_p(p), MPI_INTEGER, p-1, &
+		D_TAG_ASSEMBLED_IDXS_I, MPI_COMM_WORLD, status, ierr)
+          call MPI_SEND(indj, nnz_p(p), MPI_INTEGER, p-1, &
+		D_TAG_ASSEMBLED_IDXS_J, MPI_COMM_WORLD, status, ierr)
+          deallocate(val, indi, indj)
+        else
+          deallocate(A%val, A%indi, A%indj)
+          A%nnz=nnz_p(p)
+          A%val=>val
+          A%indi=>indi
+          A%indj=>indj
+        end if
+      end do
+      deallocate(sendmask)
+    else
+      p=myrank+1
+      allocate(val(nnz_p(p)), indi(nnz_p(p)), indj(nnz_p(p)))
+      call MPI_RECV(val, nnz_p(p), MPI_fkind, D_MASTER, &
+		D_TAG_ASSEMBLED_VALS, MPI_COMM_WORLD, status, ierr)
+      call MPI_RECV(indi, nnz_p(p), MPI_INTEGER, D_MASTER, &
+                D_TAG_ASSEMBLED_IDXS_I, MPI_COMM_WORLD, status, ierr)
+      call MPI_RECV(indj, nnz_p(p), MPI_INTEGER, D_MASTER, &
+                D_TAG_ASSEMBLED_IDXS_J, MPI_COMM_WORLD, status, ierr)
+      A%nnz=nnz_p(p)
+      A%val=>val
+      A%indi=>indi
+      A%indj=>indj
+    end if
+
+    deallocate(nnz_p)
+
+    ! rebuild A%M_bound
+    if (associated(A%M_bound)) deallocate(A%M_bound)
+    if (A%nnz>0) then
+      allocate(A%M_bound(A%indi(A%nnz)+1))
+      j=1
+      A%M_bound(j)=1
+      do i=1,A%nnz
+        do while (j<A%indi(i))
+          j=j+1
+          A%M_bound(j)=i
+        end do
+      end do
+      A%M_bound(j+1)=A%nnz+1
+      if (j/=A%indi(A%nnz)) call DOUG_abort('[SpMtx_distributeWithOverlap] : j/=A%indi(A%nnz)')
+    else
+      allocate(A%M_bound(1))
+      A%M_bound(1)=1
+    end if
+    A%arrange_type=D_SpMtx_ARRNG_ROWS
+
+  end subroutine SpMtx_distributeWithOverlap
+
+
 
   ! Take away from matrix unneeded elements...
   ! (the matrix should be arranged into row format with SpMtx_arrange_clrorder)
