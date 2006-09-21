@@ -39,6 +39,10 @@ module parameters
 
   integer :: D_TAG_FREE_INTERFFREE   = 601
 
+  integer :: D_TAG_ASSEMBLED_VALS    = 701
+  integer :: D_TAG_ASSEMBLED_IDXS_I  = 702
+  integer :: D_TAG_ASSEMBLED_IDXS_J  = 703
+
   ! DOUG initialization
   integer, parameter :: D_INIT_PARALLEL = 1
   integer, parameter :: D_INIT_SERIAL   = 2
