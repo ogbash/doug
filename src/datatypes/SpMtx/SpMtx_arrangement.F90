@@ -114,7 +114,6 @@ CONTAINS
 
 
     !===== 1.find how many elements are every row/col
- 
     if (.not.present(nnz).and.associated(M%mtx_bbe)) then
       if (M%mtx_bbe(2,2)>0) then
         Mnnz=M%mtx_bbe(2,2)
@@ -130,7 +129,7 @@ CONTAINS
       el(k)=el(k)+1
     end do
     !===== generate M_bound vector
-    M%M_bound(1) = 1
+    if (size(M%M_bound)>0) M%M_bound(1) = 1
     do i = 1, size(M%M_bound) - 1
       M%M_bound(i+1) = M%M_bound(i) + el(i)
     end do
@@ -794,16 +793,16 @@ CONTAINS
       A%indi(i)=M%gl_fmap(A%indi(i))
       A%indj(i)=M%gl_fmap(A%indj(i))
     enddo
-    A%nrows=maxval(A%indi(1:A%nnz))
-    A%ncols=maxval(A%indj)
+    if (A%nnz>0) A%nrows=maxval(A%indi(1:A%nnz))
+    if (size(A%indj)>0) A%ncols=maxval(A%indj)
     A%arrange_type=D_SpMTX_ARRNG_NO
     if (ol>0) then
       do i=1,A_ghost%nnz
         A_ghost%indi(i)=M%gl_fmap(A_ghost%indi(i))
         A_ghost%indj(i)=M%gl_fmap(A_ghost%indj(i))
       enddo
-      A_ghost%nrows=maxval(A_ghost%indi)
-      A_ghost%ncols=maxval(A_ghost%indj)
+      if (size(A_ghost%indi)>0) A_ghost%nrows=maxval(A_ghost%indi)
+      if (size(A_ghost%indj)>0) A_ghost%ncols=maxval(A_ghost%indj)
       call SpMtx_arrange(A_ghost,D_SpMtx_ARRNG_ROWS,sort=.true.)
     endif
     if (sctls%verbose>3.and.A%nrows<200) then 
