@@ -465,7 +465,7 @@ WARN_LOGFILE           =
 # with spaces.
 
 INPUT                  = @top_srcdir@/src/datatypes @top_srcdir@/src/datatypes/ElemMtxs @top_srcdir@/src/datatypes/SpMtx @top_srcdir@/src/datatypes/drivers @top_srcdir@/src/solvers @top_srcdir@/src/utils @top_srcdir@/src/main @top_srcdir@/doc/general
-#INPUT = @top_srcdir@/src/datatypes/SpMtx/CreateCoarse.f90
+#INPUT = @top_srcdir@/src/main @top_srcdir@/doc/general @top_srcdir@/src/datatypes/Mesh.F90 @top_srcdir@/src/utils
 
 # If the value of the INPUT tag contains directories, you can use the 
 # FILE_PATTERNS tag to specify one or more wildcard pattern (like *.cpp 
@@ -671,7 +671,7 @@ HTML_FOOTER            =
 # the style sheet file to the HTML output directory, so don't put your own 
 # stylesheet in the HTML output directory as well, or it will be erased!
 
-HTML_STYLESHEET        = 
+HTML_STYLESHEET        = doxygen.css
 
 # If the HTML_ALIGN_MEMBERS tag is set to YES, the members of classes, 
 # files or namespaces will be aligned in HTML using tables. If set to 

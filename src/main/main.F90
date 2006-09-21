@@ -1,38 +1,10 @@
-!> \mainpage DOUG - Domain Decomposition on Unstructured Grids. 
-!>
-!> See also wiki pages for DOUG at: 
-!> <A HREF="http://kheiron.at.mt.ut.ee/wiki">http://kheiron.at.mt.ut.ee/wiki</A>.
-!!
-!! \section doc Documentation
-!!
-
 !> Main program for running DOUG with input files in elemental form.
-!> \section running Running the code: (example)
+!> Running the code: (example)
 !>   <tt>mpirun -np 3 doug_main -f doug.ctl</tt>
 !>     where \c doug.ctl may contain the following fields
-!>   \subsection example Input-file example:
-!> \code
-!> solver 2
-!> method 1
-!> input_type 1
-!> matrix_type 1
-!> info_file doug_info.dat
-!> freedom_lists_file doug_element.dat
-!> elemmat_rhs_file doug_system.dat
-!> coords_file doug_coord.dat
-!> freemap_file doug_freemap.dat
-!> freedom_mask_file ./NOT.DEFINED.freedom_mask_file
-!> number_of_blocks 1
-!> initial_guess 2
-!> start_vec_file ./NOT.DEFINED.start_vec_file
-!> start_vec_type 2
-!> solve_tolerance 1.0e-6
-!> solution_format 2
-!> solution_file ./solution.file
-!> debug 0
-!> verbose 5
-!> plotting 0
-!> \endcode
+!!
+!! See \ref p_inputformat page for input description.
+
 program main
 
   use doug

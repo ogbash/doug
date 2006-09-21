@@ -284,10 +284,16 @@ contains
   end subroutine Mesh_Destroy
   !========================================
   !
-  !! File I/O
+  ! File I/O
   !
   !----------------------------------------
-  !! Initialise from a file
+  !> Initialize mesh from a file.
+  !! File must contain 5 32-bit little endian integers:
+  !!  - \em nell - number of elements
+  !!  - \em ngf - number of global freedoms
+  !!  - \em  nsd - number of spatial dimensions (ie 2 or 3)
+  !!  - \em mfrelt - maximum number of freedoms in node
+  !!  - \em nnode - number of nodes
   !----------------------------------------
   subroutine Mesh_initFromFile(M, fnInfo)
     use globals, only: mctls, sctls ! To correct ENTWIFE's inexact value of
@@ -322,7 +328,7 @@ contains
 
 
   !------------------------------------------------
-  !! Construct a rectangular mesh object for assembled 2D matrix
+  !> Construct a rectangular mesh object for assembled 2D matrix
   !------------------------------------------------
   subroutine Mesh_BuildSquare(M,n)
     implicit none
@@ -349,7 +355,7 @@ contains
   end subroutine Mesh_BuildSquare
 
   !------------------------------------------------
-  !! Construct and initialise from a file
+  !> Construct and initialise from a file
   !------------------------------------------------
   function Mesh_newInitFromFile(fnInfo) result(M)
     implicit none
@@ -364,7 +370,7 @@ contains
 
 
   !--------------------------------
-  !! Read mesh from files
+  !> Read mesh from files several files in order.
   !--------------------------------
   subroutine Mesh_readFromFile(M, &
        fnFreelists, &
@@ -417,8 +423,9 @@ contains
 
 
   !--------------------------------------------
-  !! Reads in element nodes numbering file,
-  !! allocates and fills in 'nfrelt' and 'mhead'
+  !> Reads in element nodes numbering file,
+  !! allocates and fills in 'nfrelt' and 'mhead'.
+  !! \todo document input format
   !--------------------------------------------
   subroutine Mesh_readFileFreelists(M, fnFreelists)
 
@@ -464,7 +471,8 @@ contains
 
 
   !------------------------------------------
-  !! Reads in nodes coordinates
+  !> Reads in nodes coordinates
+  !! \todo document input format
   !------------------------------------------
   subroutine Mesh_readFileCoords(M, fnCoords)
 
@@ -492,7 +500,8 @@ contains
 
 
   !--------------------------------------------
-  !! Reads in data associated with freedoms
+  !> Reads in data associated with freedoms.
+  !! \todo document input format
   !--------------------------------------------
   subroutine Mesh_readFileFreemap(M, fnFreemap)
 
@@ -521,7 +530,8 @@ contains
 
 
   !--------------------------------------------------------
-  !! Reads in data associated with freedoms' block structure
+  !> Reads in data associated with freedoms' block structure.
+  !! \todo document input format
   !--------------------------------------------------------
   subroutine Mesh_readFileFreemask(M, fnFreemask)
 
