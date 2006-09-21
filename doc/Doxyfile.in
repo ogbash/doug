@@ -465,6 +465,7 @@ WARN_LOGFILE           =
 # with spaces.
 
 INPUT                  = @top_srcdir@/src/datatypes @top_srcdir@/src/datatypes/ElemMtxs @top_srcdir@/src/datatypes/SpMtx @top_srcdir@/src/datatypes/drivers @top_srcdir@/src/solvers @top_srcdir@/src/utils @top_srcdir@/src/main @top_srcdir@/doc/general
+#INPUT = @top_srcdir@/src/datatypes/SpMtx/CreateCoarse.f90
 
 # If the value of the INPUT tag contains directories, you can use the 
 # FILE_PATTERNS tag to specify one or more wildcard pattern (like *.cpp 

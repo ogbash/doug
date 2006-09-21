@@ -1,16 +1,17 @@
+!> Coarse grid implementation and utility functions.
+!! To familiarize yourself with the geometric coarse grid implementation,
+!! we recommend you get a printout of the type descriptions for
+!! CoarseGrid, Mesh and SpMtx and then proceed through the following files
+!! CreateCoarse->TransmitCoarse->CreateRestrict->GeomInterp->CoarseAllgathers
+!! It might be wise to also follow the flow of functions in main.F90 in parallel
+!! with the above process. This file mainly contains utility functions.
+!!
+!! Some comments about the comments in the coarse grid code:
+!! -# There is a distinct difference between (Coarse) \b Grid Elements and 
+!!               (Coarse) \b Refined Elements
+!! -# Nodes \b belong to only one element (the deepest if refined).
+!!               They can <b>be within</b> many however.
 module CoarseGrid_class
- ! To familiarize yourself with the geometric coarse grid implementation,
-! we recommend you get a printout of the type descriptions for
-! CoarseGrid, Mesh and SpMtx and then proceed through the following files
-! CreateCoarse->TransmitCoarse->CreateRestrict->GeomInterp->CoarseAllgathers
-! It might be wise to also follow the flow of functions in main.f90 in parallel
-! with the above process. This file mainly contains utility functions.
-
-! Some comments about the comments in the coarse grid code:
-! A) There is a distinct difference between (Coarse) GRID Elements and 
-!               (Coarse) REFINED Elements
-! B) Nodes BELONG to only one element (the deepest if refined).
-!               They can BE WITHIN many however.
   
     use Mesh_class
     use SpMtx_class
@@ -21,82 +22,83 @@ module CoarseGrid_class
 
 #include<doug_config.h>
 
-    ! Center choosing options
+    !> Center choosing options
     integer, parameter :: COARSE_CENTER_GEOM  = 1
     integer, parameter :: COARSE_CENTER_MEAN  = 2
     integer, parameter :: COARSE_CENTER_MERID = 3
 
-    ! Interpolation variants
+    !> Interpolation variants
     integer, parameter :: COARSE_INTERPOLATION_MULTLIN  = 1
     integer, parameter :: COARSE_INTERPOLATION_INVDIST  = 2
     integer, parameter :: COARSE_INTERPOLATION_KRIGING  = 3
 
+    !> Coarse grid element.
+    !! A small comment about the linked list - it is organized so 
+    !! A child is always initially placed directly after its parent 
+    !! (The node of the previous division level)
+    !! This serves the purpouse of having all the children of a parent
+    !! following it in the list before the next element of equal or lower
+    !! level than that of the current parent
     type CoarseGridElem
-        integer :: nfs ! number of fine mesh nodes within 
-        integer, dimension(:), pointer :: n ! nodes in the corners
-        integer :: nref ! number of refined elems within
-        integer :: rbeg ! beginning of the contained refined element list
-        ! A small comment about the linked list - it is organized so 
-        ! A child is always initially placed directly after its parent 
-        ! (The node of the previous division level)
-        ! This serves the purpouse of having all the children of a parent
-        ! following it in the list before the next element of equal or lower
-        ! level than that of the current parent
-        integer :: lbeg ! beginning of its nodes in elmap
+        integer :: nfs !< number of fine mesh nodes within 
+        integer, dimension(:), pointer :: n !< nodes in the corners
+        integer :: nref !< number of refined elems within
+        integer :: rbeg !< beginning of the contained refined element list
+        integer :: lbeg !< beginning of its nodes in elmap
     end type
 
     type RefinedElem
-        integer :: level ! the level of subdivision it is on
-        integer :: node ! index of the node this element corresponds to
-        integer :: next ! as they are held in a linked list
-        integer :: parent ! the direct parent it belongs to
-                          ! if it is an initial grid element, it is negative
+        integer :: level !< the level of subdivision it is on
+        integer :: node !< index of the node this element corresponds to
+        integer :: next !< as they are held in a linked list
+        integer :: parent !< the direct parent it belongs to
+                          !< if it is an initial grid element, it is negative
         ! The next three are into CoarseGrid%elmap
-        integer :: lbeg, lend ! indices to list indicating nodes belonging to el
-        integer :: lstop ! index to indicate the end of nodes within this el
-        integer,pointer :: hnds(:) ! indices to hanging nodes (into coords)
+        integer :: lbeg, lend !< indices to list indicating nodes belonging to el
+        integer :: lstop !< index to indicate the end of nodes within this el
+        integer,pointer :: hnds(:) !< indices to hanging nodes (into coords)
     end type
 
-    ! Used for both global and local coarse grids
+    !> Used for both global and local coarse grids
     type CoarseGrid
-        integer :: ncti=-1 ! number of nodes in the initial grid mesh
-        integer :: nct=-1 ! number of nodes in the mesh (total)
-        integer :: elnum=-1 ! number of elements in the initial grid
-        integer :: refnum=-1 ! number of refined elements
-        integer :: nhn=-1 ! number of hanging nodes
-        integer :: ngfc=-1 ! number of global coarse freedoms
-        integer :: nlfc=-1 ! number of local coarse freedoms
-        integer :: mlvl=-1 ! maximum level of refinement (global value)
+        integer :: ncti=-1 !< number of nodes in the initial grid mesh
+        integer :: nct=-1 !< number of nodes in the mesh (total)
+        integer :: elnum=-1 !< number of elements in the initial grid
+        integer :: refnum=-1 !< number of refined elements
+        integer :: nhn=-1 !< number of hanging nodes
+        integer :: ngfc=-1 !< number of global coarse freedoms
+        integer :: nlfc=-1 !< number of local coarse freedoms
+        integer :: mlvl=-1 !< maximum level of refinement (global value)
 
-        !! Coordinates : coord[nsd,nct]
+        !> Coordinates : coord[nsd,nct]
         real(kind=xyzk), dimension(:,:), pointer :: coords
-        !! Grid step size : h0[nsd]
+        !> Grid step size : h0[nsd]
         real(kind=xyzk), dimension(:), pointer :: h0
-        !! Minimum and maximum coordinates : minvg/maxvg[nsd]
+        !> Minimum and maximum coordinates : minvg/maxvg[nsd]
         real(kind=xyzk), dimension(:), pointer :: minvg, maxvg
-        !! Number of grid points in each direction : nc[nsd]
+        !> Number of grid points in each direction : nc[nsd]
         integer, dimension(:), pointer :: nc
-        !! Initial grid elements : els[elnum]
+        !> Initial grid elements : els[elnum]
         type(CoarseGridElem), dimension(:), pointer :: els
-        !! Refined elements : refels[refnum]
+        !> Refined elements : refels[refnum]
         type(RefinedElem), dimension(:), pointer :: refels 
-        !! Mapping of coarse grid elements to fine nodes: elmap[nnode]
+        !> Mapping of coarse grid elements to fine nodes: elmap[nnode]
         !!      Used in conjuncition with lbeg and lend-s
         integer, dimension(:), pointer :: elmap
         
-        !! Mapping of freedoms to nodes : cfreemap[nlfc] (or [ngfc] if global)
+        !> Mapping of freedoms to nodes : cfreemap[nlfc] (or [ngfc] if global)
         integer, dimension(:), pointer :: cfreemap
 
-        !! Map of global freedoms to local freedoms : gl_map[ngfc]
+        !> Map of global freedoms to local freedoms : gl_map[ngfc]
         integer, dimension(:), pointer :: gl_fmap
-        !! Map of local freedoms to global freedoms : lg_map[nlfc]
+        !> Map of local freedoms to global freedoms : lg_map[nlfc]
         integer, dimension(:), pointer :: lg_fmap
 
     end type
 
 contains
 
-    !! Allocate memory for CoarseGrid
+    !> Allocate memory for CoarseGrid
     subroutine CoarseGrid_allocate(C, nsd, nnode, coords, els, &
                                         refels,cfreemap, local)
         implicit none
@@ -152,10 +154,10 @@ contains
 
     end subroutine CoarseGrid_allocate
 
-    !! Free memory used by CoarseGrid
+    !> Free memory used by CoarseGrid
     subroutine CoarseGrid_Destroy(C)
         implicit none
-        !! The CoarseGrid to deallocate
+        !> The CoarseGrid to deallocate
         type(CoarseGrid), intent(inout) :: C
 
         integer :: i
@@ -349,7 +351,7 @@ contains
     end subroutine CoarseGrid_pl2D_plotMesh
 
 
-    !! Get the initial coarse grid element the fine node lies in
+    !> Get the initial coarse grid element the fine node lies in.
     !! Only valid for global mesh, assumes all elems to be present 
     function getelem(coords,mins,h,nc) result (ind)
         use RealKind
@@ -374,7 +376,7 @@ contains
         ind=ind+1        
     end function getelem
             
-    ! Calculate the bounds of the given refined coarse element
+    !> Calculate the bounds of the given refined coarse element.
     subroutine getRefBounds(refi,C,nsd,minv,maxv)
         integer, intent(in) :: refi
         type(CoarseGrid), intent(in) :: C
@@ -423,8 +425,8 @@ contains
         enddo
     end subroutine getRefBounds
 
-    ! Create the bounds for the element whose one corner is ct,
-    !  that is otherwise bounded by minv/maxv and contains pt
+    !> Create the bounds for the element whose one corner is ct,
+    !!  that is otherwise bounded by minv/maxv and contains pt.
     subroutine adjustBounds(ct,pt,nsd,minv,maxv)
         real(kind=xyzk),intent(in) :: ct(nsd), pt(nsd)
         integer, intent(in) :: nsd
@@ -441,10 +443,11 @@ contains
         enddo
     end subroutine adjustBounds
 
-    ! Caluclate the direction number (1-4 or 1-7)
-    ! 2 ^ 1
-    ! --+->   in the 2D case
-    ! 4 | 3
+    !> Caluclate the direction number (1-4 or 1-7).
+    !! \verbatim
+    !! 2 ^ 1
+    !! --+->   in the 2D case
+    !! 4 | 3 \endverbatim
     function getDir(ds,nsd) result (n)
         real(kind=xyzk), intent(in) :: ds(:)
         integer, intent(in) :: nsd
@@ -458,9 +461,9 @@ contains
          endif
     end function getDir
 
-    !! get the next coarse element in that direction
-    !! Directions are 1,2,4 and -1,-2,-4
-    !! Only valid for global mesh, assumes all elems to be present 
+    !> Get the next coarse element in that direction.
+    !! Directions are 1,2,4 and -1,-2,-4.
+    !! Only valid for global mesh, assumes all elems to be present.
     function getNextElem(eli,dir,nsd,C) result (nel)
         integer,intent(in) :: eli
         integer,intent(in) :: dir
@@ -510,15 +513,15 @@ contains
 
     end function getNextElem
         
-    ! Locate the neighbour of a refined node in a given direction
-    ! Uses getNextElem, so some restrictions apply
+    !> Locate the neighbour of a refined node in a given direction.
+    !! Uses getNextElem, so some restrictions apply.
     function  getNeighbourEl(el,dir,nsd,nsame,C) result (nb)
-        integer, intent(in) :: el ! the element whose neighbour we want
-        integer, intent(in) :: dir ! the direction to get the neighbour from
-        integer, intent(in) :: nsd ! num of dimensions
-        integer, intent(in) :: nsame(:) ! next refinements of same level
-        type(CoarseGrid),intent(in) :: C ! the coarse grid itself
-        integer :: nb ! The neighbours index in refels 
+        integer, intent(in) :: el !< the element whose neighbour we want
+        integer, intent(in) :: dir !< the direction to get the neighbour from
+        integer, intent(in) :: nsd !< num of dimensions
+        integer, intent(in) :: nsame(:) !< next refinements of same level
+        type(CoarseGrid),intent(in) :: C !< the coarse grid itself
+        integer :: nb !< The neighbours index in refels 
 
         integer :: stack(C%mlvl)
         integer :: i,j,k

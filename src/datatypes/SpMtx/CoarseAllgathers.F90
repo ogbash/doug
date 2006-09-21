@@ -1,23 +1,23 @@
+!> This module contains a number of utility functions with the main intent
+!! of being able to nonblockingly distribute the whole coarse problem and
+!! its rhs vectors to every thread. 
+!!
+!! The functions here are quite straightforward, except maybe the last.
+!! CleanCoarse finds freedoms which noone uses by a two phase system:
+!! First, everyone tells everyone else what nodes he doesnt need and thinks
+!! should be deleted. Second, everyone looks through the first list and if he
+!! objects to something being deleted tells the others. Only freedoms
+!! someone wanted deleted and noone objects to get deleted. The code
+!! itself is again quite straightforward.
+!!
+!! About nonblocking allgather: the nonblockingness is achieved by 
+!! moving it to another thread. That however means that
+!! - The memory it uses needs to be kept constant for longer 
+!!     ( so we cant change the arrays we pass to it before it is done )
+!! - No other MPI operations can be done between sends and recieves
+!!     ( that includes other nonblocking gathers, which can be chained
+!!       after the first one however )
 module CoarseAllgathers
-! This module contains a number of utility functions with the main intent
-! of being able to nonblockingly distribute the whole coarse problem and
-! its rhs vectors to every thread. 
-
-! The functions here are quite straightforward, except maybe the last.
-! CleanCoarse finds freedoms which noone uses by a two phase system:
-! First, everyone tells everyone else what nodes he doesnt need and thinks
-! should be deleted. Second, everyone looks through the first list and if he
-! objects to something being deleted tells the others. Only freedoms
-! someone wanted deleted and noone objects to get deleted. The code
-! itself is again quite straightforward.
-
-! About nonblocking allgather: the nonblockingness is achieved by 
-! moving it to another thread. That however means that
-! a) The memory it uses needs to be kept constant for longer 
-!     ( so we cant change the arrays we pass to it before it is done )
-! b) No other MPI operations can be done between sends and recieves
-!     ( that includes other nonblocking gathers, which can be chained
-!       after the first one however )
 
     use RealKind
     use SpMtx_class
@@ -32,7 +32,7 @@ module CoarseAllgathers
 #define float real
 #endif
 
-    ! Datatype for us with nonblocking alltoalls 
+    !> Datatype for us with nonblocking alltoalls.
     type SendData
         integer :: ssize
         integer, pointer :: rsizes(:), rdisps(:)
@@ -42,21 +42,21 @@ module CoarseAllgathers
 
     type CoarseData
         logical :: active=.false.
-        integer :: nprocs               ! Number of processes
-        integer :: ngfc,nlfc            ! numbers of freedoms
-        integer, pointer :: cdisps(:)    ! Coarse node displacements in array
-        integer, pointer :: glg_cfmap(:)   ! global lg coarse freemap
-        integer, pointer :: lg_cfmap(:), gl_cfmap(:) ! local coarse maps
+        integer :: nprocs               !< Number of processes
+        integer :: ngfc,nlfc            !< numbers of freedoms
+        integer, pointer :: cdisps(:)    !< Coarse node displacements in array
+        integer, pointer :: glg_cfmap(:)   !< global lg coarse freemap
+        integer, pointer :: lg_cfmap(:), gl_cfmap(:) !< local coarse maps
 
-        type(SpMtx) :: LAC      ! Local coarse matrix piece
-        type(SpMtx) :: AC       ! Global coarse matrix
-        type(SpMtx) :: R        ! Restriction matrix
+        type(SpMtx) :: LAC      !< Local coarse matrix piece
+        type(SpMtx) :: AC       !< Global coarse matrix
+        type(SpMtx) :: R        !< Restriction matrix
  
-        type(SendData) :: send          ! Auxilliary struct for sending data
+        type(SendData) :: send          !< Auxilliary struct for sending data
    end type
 
-   type(CoarseData), save :: cdat !coarse data -- includes overlap
-   type(CoarseData), save :: cdat_vec !coarse data -- w/o overlap, for vector
+   type(CoarseData), save :: cdat !<coarse data -- includes overlap
+   type(CoarseData), save :: cdat_vec !<coarse data -- w/o overlap, for vector
                                 !                              collects
 contains
     
@@ -89,17 +89,17 @@ contains
         use Mesh_class
         use globals, only: stream
  
-        !! Local-global coarse freedom map
+        !> Local-global coarse freedom map
         integer, intent(in) :: lg_cfmap(:)
-        !! Number of local coarse freedoms 
+        !> Number of local coarse freedoms 
         integer, intent(in) :: nlfc
-        !! Number of processes
+        !> Number of processes
         integer, intent(in) :: nproc
-        !! Displacements of coarse freemaps of other nodes in acfmap
+        !> Displacements of coarse freemaps of other nodes in acfmap
         integer, intent(out) :: cdisps(:)
-        !! Coarse freemaps of other processes (global local-to-global crse fmap)
+        !> Coarse freemaps of other processes (global local-to-global crse fmap)
         integer, pointer :: glg_cfmap(:)
-        !! A structure for passing info to AllRecvCoarselgmap
+        !> A structure for passing info to AllRecvCoarselgmap
         type(SendData), intent(out) :: send
         
         integer :: i
@@ -130,7 +130,7 @@ contains
     end subroutine AllSendCoarselgmap
 
     subroutine AllRecvCoarselgmap(send)
-        !! The sends argument output by correspondind AllSendCoarselgmap
+        !> The sends argument output by correspondind AllSendCoarselgmap
         type(SendData), intent(in) :: send
 
         call MPI_ALLGATHERV_NB_WAIT(send%send)
@@ -144,15 +144,15 @@ contains
         use Mesh_class
         use globals, only: stream
  
-        !! The coarse matrix - initially local, later unusable til AllRecv
+        !> The coarse matrix - initially local, later unusable til AllRecv
         type(SpMtx), intent(inout) :: A, AG
-        !! Local-global coarse freedom map
+        !> Local-global coarse freedom map
         integer, intent(in) :: lg_cfmap(:)
-        !! Number of global coarse freedoms
+        !> Number of global coarse freedoms
         integer, intent(in) :: ngfc
-        !! Number of processes
+        !> Number of processes
         integer, intent(in) :: nproc
-        !! A structure for passing info to AllRecvCoarseMtx
+        !> A structure for passing info to AllRecvCoarseMtx
         type(SendData), intent(out) :: send
         
         integer :: i, b, e, cnt
@@ -195,9 +195,9 @@ contains
 
     subroutine AllRecvCoarseMtx(A,send,add)
         !use SpMtx_arrangement
-        !! The coarse matrix - initially unusable, later global coarse matrix
+        !> The coarse matrix - initially unusable, later global coarse matrix
         type(SpMtx), intent(inout) :: A 
-        !! The sends argument output by correspondind AllSendCoarseMtx
+        !> The sends argument output by correspondind AllSendCoarseMtx
         type(SendData), intent(in) :: send
         logical,intent(in) :: add
 
@@ -227,15 +227,15 @@ contains
         use Mesh_class
         use globals, only: stream
  
-        !! The local coarse vector
+        !> The local coarse vector
         float(kind=rk), intent(in) :: xl(:) 
-        !! Number of processes
+        !> Number of processes
         integer, intent(in) :: nproc
-        !! Displacements of coarse vector data
+        !> Displacements of coarse vector data
         integer, intent(in) :: cdisps(:)
-        !! A variable for passing info to AllRecvCoarseVector
+        !> A variable for passing info to AllRecvCoarseVector
         type(SendData), intent(out) :: send
-        !! Assume that fbuf is already allocated and rsizes filled correctly
+        !> Assume that fbuf is already allocated and rsizes filled correctly
         logical, intent(in), optional :: useprev
 
 
@@ -261,15 +261,15 @@ contains
         use Mesh_class
         use globals, only: stream
  
-        !! The global coarse vector
+        !> The global coarse vector
         float(kind=rk), intent(out) :: xg(:) 
-        !! Number of processes
+        !> Number of processes
         integer, intent(in) :: nproc
-        !! Displacements of coarse data recieved
+        !> Displacements of coarse data recieved
         integer, intent(in) :: cdisps(:)
-         !! Coarse freemaps of other processes (assembled coarse fmap)
+        !> Coarse freemaps of other processes (assembled coarse fmap)
         integer, intent(in) :: glg_cfmap(:)       
-        !! The send argument of the correspondind AllSendCoarseVector
+        !> The send argument of the correspondind AllSendCoarseVector
         type(SendData), intent(in) :: send
         
         integer :: i
@@ -287,11 +287,11 @@ contains
 
     end subroutine AllRecvCoarseVector
 
-   ! Used for cleaning up coarse freedoms which are unused
-   ! It needs to be done, since without it, singularities 
-   ! can and do occur in the coarse matrix
-   ! TODO:  for current implementation which needs glg map,
-   !  this could be done in that function
+   !> Used for cleaning up coarse freedoms which are unused.
+   !! It needs to be done, since without it, singularities 
+   !! can and do occur in the coarse matrix.
+   !! \todo  for current implementation which needs glg map,
+   !!  this could be done in that function
    subroutine CleanCoarse(C,R,M)
         use RealKind
         use CoarseGrid_class
@@ -301,11 +301,11 @@ contains
         
         implicit none
 
-        !! Coarse Grid whose structure to modify
+        !> Coarse Grid whose structure to modify
         type(CoarseGrid), intent(inout) :: C
-        !! Fine Mesh for which to build
+        !> Fine Mesh for which to build
         type(Mesh), intent(in) :: M
-        !! The restriction matrix for finding useless freedoms
+        !> The restriction matrix for finding useless freedoms
         type(SpMtx), intent(inout) :: R
 
         integer :: used(C%nlfc)

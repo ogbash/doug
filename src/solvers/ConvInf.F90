@@ -1,6 +1,6 @@
-!!----------------------------------
-!! Some basic statistics on solution
-!!----------------------------------
+!----------------------------------
+!> Some basic statistics on solution
+!----------------------------------
 module ConvInf_mod
 
   use RealKind
@@ -15,18 +15,18 @@ module ConvInf_mod
 #define float real
 #endif
 
-  integer, parameter :: D_SOLVE_CONV_UNDEF      = -1 ! Undefined
-  integer, parameter :: D_SOLVE_CONV_CONV       =  0 ! Method converged
-  integer, parameter :: D_SOLVE_CONV_NOTCONV    =  1 ! Method didn't converge
-  integer, parameter :: D_SOLVE_CONV_ILLPRECOND =  2 ! Preconditioner was ill-conditioned
-  integer, parameter :: D_SOLVE_CONV_STAGN      =  3 ! Method stagnated
+  integer, parameter :: D_SOLVE_CONV_UNDEF      = -1 !< Undefined
+  integer, parameter :: D_SOLVE_CONV_CONV       =  0 !< Method converged
+  integer, parameter :: D_SOLVE_CONV_NOTCONV    =  1 !< Method didn't converge
+  integer, parameter :: D_SOLVE_CONV_ILLPRECOND =  2 !< Preconditioner was ill-conditioned
+  integer, parameter :: D_SOLVE_CONV_STAGN      =  3 !< Method stagnated
   
-  ! Simple statistics on solution
+  !> Simple statistics on solution
   type ConvInf
-     ! Convergence flag
+     !> Convergence flag
+     !! 0 - converged to the desired tolerance 'tol' within 'maxit' iterations 
+     !! 1 - iterated 'maxit' times but did not converge
      integer :: flag  = D_SOLVE_CONV_UNDEF
-      ! 0 - converged to the desired tolerance 'tol' within 'maxit' iterations 
-      ! 1 - iterated 'maxit' times but did not converge
      ! Residual
      float(kind=rk) :: residual   = 1.0e+10
      ! Number of performed interatoins

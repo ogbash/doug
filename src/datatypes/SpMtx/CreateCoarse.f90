@@ -1,121 +1,125 @@
+!> Module responsible for creation of the global coarse mesh structure.
+!!
+!! \section idea General idea
+!! First, the fine nodes which have freedoms attached are located. They are used
+!! to find the minimal and maximal coordinate in all dimensions. Based on these
+!! a square/cubic grid structure is superimposed on the fine problem mesh such
+!! that every fine node is within at least one grid box. Initial (grid) coarse
+!! nodes are added to all the corners and intersections of the grid. After that,
+!! a refinement process occurs, which finds the elements with the most nodes and
+!! splits them in 4 or 8 new elements. For this splitting, a new coarse node is
+!! added at the division point, and if hanging nodes are enabled then some extra
+!! nodes may also be added to the previous element borders, if both the elements
+!! at the border are subdivided. As a final structural step, all the initial 
+!! grid nodes known to be obsolete are removed. After that, freedoms are
+!! associated with each of the nodes and appropriate mapping is created to match
+!! freedoms to nodes.
+!!
+!! \section details Details
+!! Coarse nodes are arranged in blocks, such that initial nodes are at the
+!! beginning, refined nodes in the middle and hanging nodes (if present) at the
+!! end of the array. 
+!!
+!! Refined elements form a treelike structure. Each initial coarse element that
+!! is refined has its first subdivision as the root of a subdivision tree, which
+!! we define to be level 1 of the tree. Any direct subdivision of the elements
+!! it created would be level 2 and a subdivision of elements created there at
+!! level 3 (and so on). The whole tree is housed in a list, which has the root
+!! as its first element. Every subdivision of an element is located after the
+!! element it subdivides and before the next element of itsown (the one being
+!! divided) level.
+!!
+!! One possible order of refinements (there are others) 
+!! ('X' denotes a center node, 'O' a grid node and '+' a hanging node)
+!! \verbatim
+!! O-----------------------O
+!! |     | 3|  |           |
+!! |     |--X--|           |
+!! |    2|  |4X|           |
+!! |-----X--+--|           |
+!! |     | 5|  |           |
+!! |     |--X--|           |
+!! |     |  | 1|           |
+!! |-----+-----X-----------|
+!! |10|  | 8|  |     |     |
+!! |--X--+--X--|     |     |
+!! |  | 6|  |  |   11|     |
+!! |--+--X--+--+-----X-----|
+!! | 7|  | 9|  |     |     |
+!! |--X--+--X--|     |     |
+!! |  |  |  |  |     |     |
+!! O-----------------------O \endverbatim
+!!
+!! One can move up in the tree by following the "parent" pointer. Parent of the
+!! root is the index of the grid element, but with the sign turned negative to
+!! distinguish it. There is currently no direct way to get to the next element
+!! at the same level (but inside some functions "nsame" array is used for that).
+!!
+!! Each element has a list of fine nodes housed inside it, For storing all these
+!! lists "elmap" is used, and for each node, a beginning and an ending index of
+!! its nodes are given. The interval between "lbeg" and "lend" in "elmap" has
+!! all the fine nodes which are not in any finer (higher level) coarse elements
+!! ("belong" to that element). The interval from "lbeg" to "lstop" has <all>
+!! the fine nodes inside the element ( implying lend<=lstop ). For initial
+!! coarse grid elements the list of fine nodes within them is in the "elmap"
+!! from "lbeg" to "lbeg+nfs-1". 
+!!
+!! Although refinements themselves are held in no particular order, a word about
+!! the direction mechanisms is in order. Namely, to translate a direction element
+!! lies in into an integer number, this code uses a flag method
+!! if the direction is negative in the first direction, 1 is added
+!! if in the second, 2 is added and if in third, then 4 is added.
+!! Since fortran arrays usually start at 1, the flag is also added that
+!! so the range is 1-4 in 2d and 1-8 in 3d case.
+!!
+!! Hanging nodes are added on the edges(faces) on both sides of which a
+!! subdivision has occured in the directly corresponding places (see the
+!! previous diagram). They are also inserted on initial grid element boundaries
+!! where appropriate by the same rule. Hanging nodes are connected to refinements
+!! between which they lie via "hnds" array. If a refined element has no 
+!! adjacent nodes, the hnds is nullified, but otherwise is of length 2*M%nsd
+!! If the node is on the positive side and in direction i then a pointer to it
+!! is at i-th place in hnds. If it is on the negative side, then at (M%nsd+i)-th.
+!!
+!! Currently, freedoms are added one per node. For problems using multiple
+!! freedoms per node, this behaviour would probably need to be altered in
+!! some way.
+!!
+!! \section confparams Configuration parameters
+!! Initial grid is built to have elements that are shaped as much as 
+!! squares/cubes as can be expected whilst using no more than "maxcie" coarse 
+!! grid elements. No refined element is built containing less than "cutbal" 
+!! elements. The total number of coarse nodes is not allowed to exceed "maxnd" 
+!! (which may result in a few hanging nodes being distinctly absent due to the
+!! limit being reached before they could be added), except in the case where
+!! initial grid already has more nodes in it (in which case at least no further
+!! nodes are added).
+!!
+!! Three different methods are possible for choosing the splitting points for
+!! refinement, and the method can be chosen with "center_type" varible. 
+!! Different values are:
+!! -# - Geometric center - Simply use the geometric center point
+!! -# - Mean center - Average the coordinates of the fine nodes inside
+!! -# - Median center - Use the median value of coordinates in all dimensions
+!!
+!! It should be noted that 2 and 3 use measures to avoid a very 
+!!  geometrically uneven division.
+!! Hanging nodes can be turned off via "hanging_nodes" parameter (true/false).
+!! At this time the hanging nodes only help if bi/trilinear interpolation is 
+!! used, preferrably with geometric centers being used for refinement.
+
 module CreateCoarseGrid
-
-! This module is responsible for creation of the global coarse mesh structure
-
-! General idea:
-! First, the fine nodes which have freedoms attached are located. They are used
-! to find the minimal and maximal coordinate in all dimensions. Based on these
-! a square/cubic grid structure is superimposed on the fine problem mesh such
-! that every fine node is within at least one grid box. Initial (grid) coarse
-! nodes are added to all the corners and intersections of the grid. After that,
-! a refinement process occurs, which finds the elements with the most nodes and
-! splits them in 4 or 8 new elements. For this splitting, a new coarse node is
-! added at the division point, and if hanging nodes are enabled then some extra
-! nodes may also be added to the previous element borders, if both the elements
-! at the border are subdivided. As a final structural step, all the initial 
-! grid nodes known to be obsolete are removed. After that, freedoms are
-! associated with each of the nodes and appropriate mapping is created to match
-! freedoms to nodes.
-
-! Details:
-! Coarse nodes are arranged in blocks, such that initial nodes are at the
-! beginning, refined nodes in the middle and hanging nodes (if present) at the
-! end of the array. 
-! Refined elements form a treelike structure. Each initial coarse element that
-! is refined has its first subdivision as the root of a subdivision tree, which
-! we define to be level 1 of the tree. Any direct subdivision of the elements
-! it created would be level 2 and a subdivision of elements created there at
-! level 3 (and so on). The whole tree is housed in a list, which has the root
-! as its first element. Every subdivision of an element is located after the
-! element it subdivides and before the next element of itsown (the one being
-! divided) level.
-
-! One possible order of refinements (there are others) 
-! ('X' denotes a center node, 'O' a grid node and '+' a hanging node)
-! O-----------------------O
-! |     | 3|  |           |
-! |     |--X--|           |
-! |    2|  |4X|           |
-! |-----X--+--|           |
-! |     | 5|  |           |
-! |     |--X--|           |
-! |     |  | 1|           |
-! |-----+-----X-----------|
-! |10|  | 8|  |     |     |
-! |--X--+--X--|     |     |
-! |  | 6|  |  |   11|     |
-! |--+--X--+--+-----X-----|
-! | 7|  | 9|  |     |     |
-! |--X--+--X--|     |     |
-! |  |  |  |  |     |     |
-! O-----------------------O
-
-! One can move up in the tree by following the "parent" pointer. Parent of the
-! root is the index of the grid element, but with the sign turned negative to
-! distinguish it. There is currently no direct way to get to the next element
-! at the same level (but inside some functions "nsame" array is used for that).
-
-! Each element has a list of fine nodes housed inside it, For storing all these
-! lists "elmap" is used, and for each node, a beginning and an ending index of
-! its nodes are given. The interval between "lbeg" and "lend" in "elmap" has
-! all the fine nodes which are not in any finer (higher level) coarse elements
-! ("belong" to that element). The interval from "lbeg" to "lstop" has <all>
-! the fine nodes inside the element ( implying lend<=lstop ). For initial
-! coarse grid elements the list of fine nodes within them is in the "elmap"
-! from "lbeg" to "lbeg+nfs-1". 
-
-! Although refinements themselves are held in no particular order, a word about
-! the direction mechanisms is in order. Namely, to translate a direction element
-! lies in into an integer number, this code uses a flag method
-! if the direction is negative in the first direction, 1 is added
-! if in the second, 2 is added and if in third, then 4 is added.
-! Since fortran arrays usually start at 1, the flag is also added that
-! so the range is 1-4 in 2d and 1-8 in 3d case.
-
-! Hanging nodes are added on the edges(faces) on both sides of which a
-! subdivision has occured in the directly corresponding places (see the
-! previous diagram). They are also inserted on initial grid element boundaries
-! where appropriate by the same rule. Hanging nodes are connected to refinements
-! between which they lie via "hnds" array. If a refined element has no 
-! adjacent nodes, the hnds is nullified, but otherwise is of length 2*M%nsd
-! If the node is on the positive side and in direction i then a pointer to it
-! is at i-th place in hnds. If it is on the negative side, then at (M%nsd+i)-th.
-
-! Currently, freedoms are added one per node. For problems using multiple
-! freedoms per node, this behaviour would probably need to be altered in
-! some way.
-
-! Configuration parameters:
-! Initial grid is built to have elements that are shaped as much as 
-! squares/cubes as can be expected whilst using no more than "maxcie" coarse 
-! grid elements. No refined element is built containing less than "cutbal" 
-! elements. The total number of coarse nodes is not allowed to exceed "maxnd" 
-! (which may result in a few hanging nodes being distinctly absent due to the
-! limit being reached before they could be added), except in the case where
-! initial grid already has more nodes in it (in which case at least no further
-! nodes are added). 
-! Three different methods are possible for choosing the splitting points for
-! refinement, and the method can be chosen with "center_type" varible. 
-! Different values are:
-! 1 - Geometric center - Simply use the geometric center point
-! 2 - Mean center - Average the coordinates of the fine nodes inside
-! 3 - Median center - Use the median value of coordinates in all dimensions
-! It should be noted that 2 and 3 use measures to avoid a very 
-!  geometrically uneven division.
-! Hanging nodes can be turned off via "hanging_nodes" parameter (true/false).
-! At this time the hanging nodes only help if bi/trilinear interpolation is 
-! used, preferrably with geometric centers being used for refinement.
 
 use RealKind
 
-    ! This can be used to use a mean other than arithmetic one
-    ! -1 would be harmonic, 0 geometric, 1 arithmetic and 2 quadric
+    !> This can be used to use a mean other than arithmetic one
+    !! -1 would be harmonic, 0 geometric, 1 arithmetic and 2 quadric
     real(kind=xyzk), parameter :: meanpow=1.0_xyzk
 
     private :: CreateHangingNodes, CreateCoarseMesh, CreateCoarseFreemap
 contains
 
-!! Create the Coarse Mesh 
+!> Create the Coarse Mesh.
 subroutine CreateCoarse(M,C)
         use RealKind
         use CoarseGrid_class
@@ -123,9 +127,9 @@ subroutine CreateCoarse(M,C)
         
         implicit none
 
-        !! The Coarse Grid to create
+        !> The Coarse Grid to create
         type(CoarseGrid), intent(inout) :: C
-        !! The fine mesh for which it is made
+        !> The fine mesh for which it is made
         type(Mesh), intent(in) :: M
 
         ! Make a choice between different possibilities
@@ -144,7 +148,7 @@ subroutine CreateCoarse(M,C)
         call CreateCoarseFreemap(C,M)
 end subroutine CreateCoarse
 
-!! Create the Coarse Mesh structure (nodes, elements)
+!> Create the Coarse Mesh structure (nodes, elements).
 subroutine CreateCoarseMesh(M, C, choosecenter)
         use RealKind
         use CoarseGrid_class
@@ -152,25 +156,25 @@ subroutine CreateCoarseMesh(M, C, choosecenter)
         
         implicit none
 
-        !! The Coarse Grid to create
+        !> The Coarse Grid to create
         type(CoarseGrid), intent(inout) :: C
 
-        !! The fine mesh for which it is made
+        !> The fine mesh for which it is made
         type(Mesh), intent(in) :: M
 
-        !! The function to choose midpoints in subdividing coarse grid
         interface
+            !> The function to choose midpoints in subdividing coarse grid
             subroutine ChooseCenter(pt,cpt,pts,elmap,el,refels,flags,minv,maxv)
                 use RealKind
                 use CoarseGrid_class
-                real(kind=xyzk), intent(out) :: pt(:) ! the new center to output
-                real(kind=xyzk), intent(in) :: cpt(:) ! coordinates of the prev cn
-                real(kind=xyzk), intent(in) :: pts(:,:) ! points array
-                integer, intent(in) :: elmap(:) ! indices to pts
-                integer, intent(in) :: el ! index of the element being divided
-                type(RefinedElem), intent(in) :: refels(:) ! refined elements 
-                integer, intent(in) :: flags ! flags saying which dir to div
-                real(kind=xyzk), intent(in) :: minv(:), maxv(:)  ! elem bounds
+                real(kind=xyzk), intent(out) :: pt(:) !< the new center to output
+                real(kind=xyzk), intent(in) :: cpt(:) !< coordinates of the prev cn
+                real(kind=xyzk), intent(in) :: pts(:,:) !< points array
+                integer, intent(in) :: elmap(:) !< indices to pts
+                integer, intent(in) :: el !< index of the element being divided
+                type(RefinedElem), intent(in) :: refels(:) !< refined elements 
+                integer, intent(in) :: flags !< flags saying which dir to div
+                real(kind=xyzk), intent(in) :: minv(:), maxv(:)  !< elem bounds
            end subroutine ChooseCenter
         end interface
         
@@ -762,16 +766,15 @@ subroutine CreateHangingNodes(refpt,coordpt,nsd,nsame,minv,maxv,C)
 
 end subroutine CreateHangingNodes
 
-!! Generate the coarse freedom map
+!> Generate the coarse freedom map.
 subroutine CreateCoarseFreemap(C,M)
         use RealKind
         use CoarseGrid_class
         
         implicit none
 
-        !! The Coarse Grid to generate it for
-        type(CoarseGrid), intent(inout) :: C
-        !! The fine mesh for which it is made
+        type(CoarseGrid), intent(inout) :: C !< The Coarse Grid to generate it for.
+        !> The fine mesh for which it is made.
         type(Mesh), intent(in) :: M
 
         integer :: i
@@ -789,21 +792,21 @@ end subroutine CreateCoarseFreemap
 
 ! Some choices for choosing the center
 
-!! Choose the geometric centers of the elements (to be used consistently!!)
+!> Choose the geometric centers of the elements (to be used consistently!!).
 subroutine ChooseGeometricCenter(pt,cpt,pts,elmap,el,refels,flags,minv,maxv)
     use RealKind
     use CoarseGrid_class
 
     implicit none
     
-    real(kind=xyzk), intent(out) :: pt(:) ! the new center to output
-    real(kind=xyzk), intent(in) :: cpt(:) ! coordinates of the prev cn
-    real(kind=xyzk), intent(in) :: pts(:,:) ! points array
-    integer, intent(in) :: elmap(:) ! indices to pts
-    integer, intent(in) :: el ! index of the element being divided
-    type(RefinedElem), intent(in) :: refels(:) ! refined elements 
-    integer, intent(in) :: flags ! flags saying which dir to div
-    real(kind=xyzk), intent(in) :: minv(:),maxv(:) ! elem bounds
+    real(kind=xyzk), intent(out) :: pt(:) !< the new center to output
+    real(kind=xyzk), intent(in) :: cpt(:) !< coordinates of the prev cn
+    real(kind=xyzk), intent(in) :: pts(:,:) !< points array
+    integer, intent(in) :: elmap(:) !< indices to pts
+    integer, intent(in) :: el !< index of the element being divided
+    type(RefinedElem), intent(in) :: refels(:) !< refined elements 
+    integer, intent(in) :: flags !< flags saying which dir to div
+    real(kind=xyzk), intent(in) :: minv(:),maxv(:) !< elem bounds
 
     real(kind=xyzk) :: h(size(minv))
     integer :: i, fl
@@ -813,7 +816,7 @@ subroutine ChooseGeometricCenter(pt,cpt,pts,elmap,el,refels,flags,minv,maxv)
 
 end subroutine ChooseGeometricCenter
 
-!! Choose the center using some mean of the fine node coordinates
+!> Choose the center using some mean of the fine node coordinates.
 subroutine ChooseMeanCenter(pt,cpt,pts,elmap,el,refels,flags,minv,maxv)
     use RealKind
     use CoarseGrid_class
@@ -875,22 +878,23 @@ subroutine ChooseMeanCenter(pt,cpt,pts,elmap,el,refels,flags,minv,maxv)
  
 end subroutine ChooseMeanCenter
 
+!> Finding the mean value of an array in expected O(n) time.
+!! This function uses a method described in chapter 9 of  
+!! "Introduction to algorithms, sec. ed." by Cormen, Leiserson, Rivest, Stein
+!! for finding the mean value of an array in expected O(n) time.
 subroutine ChooseMeridianCenter(pt,cpt,pts,elmap,el,refels,flags,minv,maxv)
-    ! This function uses a method described in chapter 9 of  
-    ! "Introduction to algorithms, sec. ed." by Cormen, Leiserson, Rivest, Stein
-    ! for finding the mean value of an array in expected O(n) time
     use RealKind
     use CoarseGrid_class
 
     implicit none
 
-    real(kind=xyzk), intent(out) :: pt(:) ! the new center to output
-    real(kind=xyzk), intent(in) :: cpt(:) ! coordinates of the prev cn
-    real(kind=xyzk), intent(in) :: pts(:,:) ! points array
-    integer, intent(in) :: elmap(:) ! indices to pts
-    integer, intent(in) :: el ! index of the element being divided
-    type(RefinedElem), intent(in) :: refels(:) ! refined elements 
-    integer, intent(in) :: flags ! flags saying which dir to div
+    real(kind=xyzk), intent(out) :: pt(:) !< the new center to output
+    real(kind=xyzk), intent(in) :: cpt(:) !< coordinates of the prev cn
+    real(kind=xyzk), intent(in) :: pts(:,:) !< points array
+    integer, intent(in) :: elmap(:) !< indices to pts
+    integer, intent(in) :: el !< index of the element being divided
+    type(RefinedElem), intent(in) :: refels(:) !< refined elements 
+    integer, intent(in) :: flags !< flags saying which dir to div
     real(kind=xyzk), intent(in) :: minv(:),maxv(:)
 
     integer :: i,k,j,c,frml,tol

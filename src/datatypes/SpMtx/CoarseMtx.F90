@@ -25,12 +25,12 @@ module CoarseMtx_mod
 
 contains
 
-  ! Build the restriction matrix for the aggregation method
+  !> Build the restriction matrix for the aggregation method.
   subroutine IntRestBuild(A,aggr,Restrict)
     implicit none
-    Type(SpMtx), intent(in) :: A ! our fine level matrix
+    Type(SpMtx), intent(in) :: A !< our fine level matrix
     Type(Aggrs), intent(in) :: aggr
-    Type(SpMtx), intent(out) :: Restrict ! Our restriction matrix
+    Type(SpMtx), intent(out) :: Restrict !< Our restriction matrix
     integer :: nagr,nz,nagrnodes ! # aggregated nodes (there can be some isol.)
     integer, dimension(:), allocatable :: indi,indj
     integer :: i,j,k

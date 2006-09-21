@@ -1,24 +1,25 @@
+!> The main aim of this module is to create the restriction matrix.
+!! In the bi/trilinear case some of this functionality is moved to GeomInterp.
+!! The main framework, however, resides here.
+!!
+!! \section idea General idea
+!! First the prolongation matrix is created for nodes that would
+!! interpolate values from coarse nodes to fine nodes. That matrix is then
+!! transposed and translated from nodes to freedoms, thus giving the proper
+!! Restriction matrix required. The resulting matrix is such that it can 
+!! interpolate the value of every fine node based on the coarse nodes. 
+!! That restrict is used to create the coarse matrix. However, to create
+!! coarse vectors, some rows need to be removed so there wouldnt be any value
+!! overlap for the freedoms present on many different processes. That is
+!! achieved by the function stripRestrict.
+!!
+!! Restriction matrix itself is currently created in a top down way -
+!! the points used in interpolation for a fine node are the centers of
+!! elements that are passed in descending in the refinement tree.
+!! The sad thing is that inverse distances and kriging dont really provide
+!! a continuos interpolation (in fact, contrasts can be quite sharp), so
+!! their practicality in this implementation is doubtful.
 module CoarseCreateRestrict
-! The main aim of this module is to create the restriction matrix.
-! In the bi/trilinear case some of this functionality is moved to GeomInterp.
-! The main framework, however, resides here.
-
-! General idea:
-! First the prolongation matrix is created for nodes that would
-! interpolate values from coarse nodes to fine nodes. That matrix is then
-! transposed and translated from nodes to freedoms, thus giving the proper
-! Restriction matrix required. The resulting matrix is such that it can 
-! interpolate the value of every fine node based on the coarse nodes. 
-! That restrict is used to create the coarse matrix. However, to create
-! coarse vectors, some rows need to be removed so there wouldnt be any value
-! overlap for the freedoms present on many different processes. That is
-! achieved by the function stripRestrict.
-! Restriction matrix itself is currently created in a top down way -
-! the points used in interpolation for a fine node are the centers of
-! elements that are passed in descending in the refinement tree.
-! The sad thing is that inverse distances and kriging dont really provide
-! a continuos interpolation (in fact, contrasts can be quite sharp), so
-! their practicality in this implementation is doubtful.
     use RealKind
 
 #include<doug_config.h>
