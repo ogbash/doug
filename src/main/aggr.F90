@@ -134,7 +134,7 @@ program aggr
      call DOUG_abort('[DOUG main] : Unrecognised input type.', -1)
   end select
   !if (numprocs==1.or.sctls%levels>1) then !todo remove
-  if (sctls%levels>1) then !todo remove
+  if (sctls%levels>1.or.(numprocs==1.and.sctls%levels==1)) then !todo remove
     ! Testing aggregation: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
     if (sctls%strong1/=0.0_rk) then
       strong_conn1=sctls%strong1
