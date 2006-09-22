@@ -300,17 +300,6 @@ CONTAINS
           call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS,sort=.false.)        
           ni=nisolated
           do i=1,nisolated
-            !j=nodes(i)
-            !do k=A%M_bound(j),A%M_bound(j+1)-1
-            !  kk=A%indj(k)
-            !  if (aggrnum(k)>0) then
-            !    aggrnum(j)=aggrnum(kk)
-            !    write (stream,*) 'isolated node ',j,' cleared'
-            !    ni=ni-1
-            !    exit
-            !  endif
-            !enddo
-            ! 2nd. possibility:
             dist=neighood-1
             if (.not.aggregate_to_neighbour(nodes(i),dist,aggrnum, &
                   A%M_bound,A%indj)) then
