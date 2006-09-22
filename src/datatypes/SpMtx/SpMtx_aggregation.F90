@@ -433,19 +433,6 @@ CONTAINS
               !startnode=nextgoodstart(ngoodstarts)
             endif
           endif
-!if (track_print) then
-!  write(stream,*)'startnode is taken to:',startnode, &
-!            ' (',(startnode-1)/sn+1,',', &
-!             modulo((startnode-1),sn)+1,')'
-!  write(stream,*)'  OF: ---------------------------------'
-!  do i=1,ngoodstarts
-!    j=nextgoodstart(i)
-!    write(stream,*)i,':',j, &
-!            ' (',(j-1)/sn+1,',', &
-!             modulo((j-1),sn)+1,')'
-!  enddo
-!  write(stream,*)'========================================='
-!endif
           ok=lets_colour3(startnode,neighood,minasize,maxasize,nneigs,nodes,&
               stat,distance,A%strong_rowstart,A%strong_colnrs)
           mindistance=D_MAXINT
