@@ -116,7 +116,9 @@ AC_CONFIG_HEADERS([src/doug_config.h])
 AC_CONFIG_FILES([Makefile
         src/Makefile
         src/main/Makefile
-        doc/Doxyfile])
+        doc/Doxyfile
+        doc/Makefile
+        doc/pictures/Makefile])
 
 AC_OUTPUT
 

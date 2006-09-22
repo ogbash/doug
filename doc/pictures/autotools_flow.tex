@@ -1,5 +1,5 @@
 \documentclass{article}
-\usepackage{pstricks,pst-node}
+\usepackage{pstricks,pst-node,pst-eps}
 
 \begin{document}
 
@@ -14,8 +14,9 @@
 \newcommand{\psexternal}{\psset{fillcolor=psexternalcolor,fillstyle=solid}}
 \newcommand{\pssvn}{\psset{hatchwidth=2pt,hatchsep=1.5pt,hatchcolor=pssvncolor,fillstyle=vlines}}
 
-\begin{pspicture}(12cm,5cm)
-\rput[lb](0,0){\color{white}a} \rput[rt](12,5){\color{white}a} % this is hack to make dvips render whole picture
+\TeXtoEPS
+
+\begin{pspicture}(0,0)(12cm,5cm)
 %\psgrid[gridcolor=gray](0,0)(12,5)
 
 \rput[lb](0,0){\textsl{
@@ -81,5 +82,7 @@
 \psdataflow{n_am}{n_mkf.in}
 
 \end{pspicture}
+
+\endTeXtoEPS
 
 \end{document}
