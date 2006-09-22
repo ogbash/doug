@@ -195,9 +195,6 @@ CONTAINS
             write (stream,*) '########### # nodes remaining in isol. :',ni
           endif
         endif
-        !do i=1,A%nrows
-        !  write(stream,*) i,' in aggregate ',aggrnum(i),stat(i),nodes(i)
-        !enddo
         write(stream,*) '#unaggregated bef.last step:',unaggregated
       elseif (version==2) then ! }{v 22222222222222222222222222222222222222222
         stat=0
@@ -217,10 +214,6 @@ CONTAINS
         endif
         ngoodstarts=0
         allocate(nextgoodstart(n)) ! todo: could be done much less
-        !do i=1,n
-        !  print *,i,'strongngs:', &
-        !     A%strong_colnrs(A%strong_rowstart(i):A%strong_rowstart(i+1)-1)
-        !enddo
         firstwocol=1
   outer:do while (firstwocol<=n)
           ! try to start from last aggr neigh
