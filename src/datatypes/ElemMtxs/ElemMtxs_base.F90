@@ -1,5 +1,6 @@
-!! Have to be parsed with preprocessor: -fpp [-DD_COMPLEX]
-
+!-------------------------------------------------------
+!> Base types for element matrices and matrix distribution
+!-------------------------------------------------------
 module ElemMtxs_base
 
   use DOUG_utils
@@ -18,48 +19,48 @@ module ElemMtxs_base
   implicit none
 
   !--------------------------------------------------------------------
-  ! Element types:
-  !  element is considered 'interface' element when some of its 
-  !  freedoms are shared with elements from other partitions.
+  !> Element types:
+  !>  element is considered 'interface' element when some of its 
+  !>  freedoms are shared with elements from other partitions.
   !--------------------------------------------------------------------
   integer(kind=1), parameter :: D_ELEM_INNER  = 0
   integer(kind=1), parameter :: D_ELEM_INTERF = 1
 
 
   !--------------------------------------------------------------------
-  ! Packet size - element matrices are distributed with this granularity
+  !> Packet size - element matrices are distributed with this granularity
   !--------------------------------------------------------------------
   integer, parameter :: D_ELEMMTXS_IN_PACKET = 1024
 
 
   !--------------------------------------------------------------------
-  ! ElemMtxsChunk type
-  ! A helper structure used for distributing matrices
+  !> ElemMtxsChunk type
+  !> A helper structure used for distributing matrices
   !--------------------------------------------------------------------
   type ElemMtxsChunk
-     integer :: nell ! number of elements currently used in elem_idx and elem arrays
+     integer :: nell !< number of elements currently used in elem_idx and elem arrays
 
-     ! Data
+     !> Data
      float(kind=rk), dimension(:,:,:), pointer :: elem
      float(kind=rk), dimension(:,:),   pointer :: elemrhs
 
-     ! Mapping to global element indices
+     !> Mapping to global element indices
      integer, dimension(:), pointer :: lg_emap
   end type ElemMtxsChunk
 
 
   !--------------------------------------------------------------------
-  ! ElemMtxsPacket type
-  ! A structure for tracking element matrix packets being sent
+  !> ElemMtxsPacket type
+  !> A structure for tracking element matrix packets being sent
   !--------------------------------------------------------------------
   type ElemMtxsPacket
-     ! Element data
+     !> Element data
      type(ElemMtxsChunk)           :: chunk
-     ! True when buffers are in use - used for tracking non-blocking communication
+     !> True when buffers are in use - used for tracking non-blocking communication
      logical                       :: request_in_progress 
-     ! MPI request handles for non-blocking sends
+     !> MPI request handles for non-blocking sends
      integer, dimension(3)         :: request 
-     ! Pointer to next packet structure in use
+     !> Pointer to next packet structure in use
      type(ElemMtxsPacket), pointer :: next
   end type ElemMtxsPacket
 
@@ -70,14 +71,14 @@ contains
   !=============================================
 
   !---------------------------------------------
-  ! Initialization
+  !> Initialization
   !---------------------------------------------
   subroutine ElemMtxsChunk_Init(chunk, nell, Msh)
     implicit none
 
-    type(ElemMtxsChunk), intent(in out) :: chunk
-    integer,             intent(in)     :: nell
-    type(Mesh),          intent(in)     :: Msh
+    type(ElemMtxsChunk), intent(in out) :: chunk !< chunk to initialize
+    integer,             intent(in)     :: nell !< number of elements to allocate in chunk
+    type(Mesh),          intent(in)     :: Msh !< mesh corresponding to elements
 
     chunk%nell = 0
     allocate(chunk%elem(Msh%mfrelt, Msh%mfrelt, nell))
@@ -87,7 +88,7 @@ contains
 
 
   !---------------------------------------------
-  ! Destructor
+  !> Destructor
   !---------------------------------------------
   subroutine ElemMtxsChunk_Destroy(chunk)
     implicit none
@@ -101,14 +102,14 @@ contains
 
 
   !---------------------------------------------
-  ! Wait for chunk from other processor
-  ! When p is not specified, a chunk from any processor is accepted
+  !> Wait for chunk from other processor
+  !> When p is not specified, a chunk from any processor is accepted
   !---------------------------------------------
   subroutine ElemMtxsChunk_recv(chunk, Msh, p)
     implicit none
 
     type(ElemMtxsChunk), intent(in out) :: chunk
-    type(Mesh),          intent(in)     :: Msh
+    type(Mesh),          intent(in)     :: Msh !< mesh associated with element matrices
     integer,             intent(in), optional :: p
 
     integer :: ierr
@@ -135,26 +136,26 @@ contains
 
 
   !---------------------------------------------
-  ! Fill in dense matrix out of element matrices
+  !> Fill in dense matrix out of element matrices
   !---------------------------------------------
-  subroutine ElemMtxsChunk_fillInDense(D, E, M)
+  subroutine ElemMtxsChunk_fillInDense(D, chunk, M)
     implicit none
 
-    float(kind=rk), dimension(:,:), intent(in out) :: D ! dense matrix
-    type(ElemMtxsChunk),                intent(in) :: E ! Element matrices
-    type(Mesh),                         intent(in) :: M ! Mesh
+    float(kind=rk), dimension(:,:), intent(in out) :: D !< dense matrix
+    type(ElemMtxsChunk),                intent(in) :: chunk !< element matrices
+    type(Mesh),                         intent(in) :: M !< mesh associated with element matrices
 
     integer :: k, i, j, g, il, jl
     
-    do k = 1,E%nell ! cycle through local elements
-       g = E%lg_emap(k) ! map index of element to global numbering
+    do k = 1,chunk%nell ! cycle through local elements
+       g = chunk%lg_emap(k) ! map index of element to global numbering
        
        do j = 1,M%nfrelt(g)
           do i = 1,M%nfrelt(g)
              il = M%gl_fmap(M%mhead(i,g))
              jl = M%gl_fmap(M%mhead(j,g))
-             if (E%elem(i,j,k) /= 0.0_rk) then
-                D(il,jl) = D(il,jl) + E%elem(i,j,k) ! k <- local index
+             if (chunk%elem(i,j,k) /= 0.0_rk) then
+                D(il,jl) = D(il,jl) + chunk%elem(i,j,k) ! k <- local index
              end if
           end do
        end do
@@ -163,30 +164,30 @@ contains
 
 
   !---------------------------------------------
-  ! I/O, debugging
+  !> Print out element matrix chunk
   !---------------------------------------------
-  subroutine ElemMtxsChunk_print(E)
+  subroutine ElemMtxsChunk_print(chunk)
     implicit none
 
-    type(ElemMtxsChunk), intent(in) :: E
+    type(ElemMtxsChunk), intent(in) :: chunk 
 
     integer :: nell, el, i, j
 
-    write(stream,*) E%nell ,' element matrices:'
+    write(stream,*) chunk%nell ,' element matrices:'
     call flush(stream)
 
-    nell = E%nell
-    if (E%nell > 25) then
+    nell = chunk%nell
+    if (chunk%nell > 25) then
        nell = 25
        write(stream,'(a,i4,a)') '[',nell,' matrices will be printed]'
     end if
 
     do el = 1,nell
        write(stream,*) 'element matrix:',el
-       do i = 1,size(E%elem, dim=1)
-          do j = 1,size(E%elem, dim=2)
-             write(stream, '(f7.4)', advance='no') E%elem(i,j,el)
-             if (j /= size(E%elem, dim=2)) write(stream,'(a)', advance='no') ', '
+       do i = 1,size(chunk%elem, dim=1)
+          do j = 1,size(chunk%elem, dim=2)
+             write(stream, '(f7.4)', advance='no') chunk%elem(i,j,el)
+             if (j /= size(chunk%elem, dim=2)) write(stream,'(a)', advance='no') ', '
           end do
           write(stream,*)
           call flush(stream)
@@ -200,7 +201,7 @@ contains
   !=============================================
 
   !---------------------------------------------
-  ! Initialize packet
+  !> Initialize packet
   !---------------------------------------------
   subroutine ElemMtxsPacket_Init(packet, Msh, nelems)
     implicit none
@@ -219,7 +220,7 @@ contains
   end subroutine ElemMtxsPacket_Init
 
   !---------------------------------------------
-  ! Destructor
+  !> Destructor
   !---------------------------------------------
   subroutine ElemMtxsPacket_Destroy(packet)
     implicit none
@@ -231,7 +232,7 @@ contains
 
 
   !---------------------------------------------
-  ! Send packet to processor p
+  !> Send packet to processor p
   !---------------------------------------------
   subroutine ElemMtxsPacket_send(packet, Msh, p)
     implicit none
@@ -259,7 +260,7 @@ contains
 
 
   !---------------------------------------------
-  ! Check if packet sending is still in progress
+  !> Check if packet sending is still in progress
   !---------------------------------------------
   function ElemMtxsPacket_sendInProgress(packet) result(b)
     implicit none
@@ -282,7 +283,7 @@ contains
 
 
   !---------------------------------------------
-  ! Wait for packet sending to finish
+  !> Wait for packet send request to finish
   !---------------------------------------------
   subroutine ElemMtxsPacket_wait(packet)
     implicit none

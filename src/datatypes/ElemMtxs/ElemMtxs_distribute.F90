@@ -1,5 +1,5 @@
 !-------------------------------------------------------
-! Element matrix distribution logic
+!> Element matrix distribution logic
 !-------------------------------------------------------
 module ElemMtxs_distribute
 
@@ -22,44 +22,44 @@ module ElemMtxs_distribute
   implicit none
 
   !--------------------------------------------------------------------
-  ! ElemMtxsIntf type.
-  ! Structure containing information about interface elements
+  !> ElemMtxsIntf type.
+  !> Structure containing information about interface elements
   !--------------------------------------------------------------------
   type ElemMtxsIntf
-     integer :: nell   ! Number of interface elements
+     integer :: nell   !< Number of interface elements
      integer :: mfrelt
 
-     !! Shared with neighbours data
-     ! Numbers of elements to send to particular neighbour :
-     ! nellsend_map[nparts] - zero indicates no elements to send
+     !> Shared with neighbours data
+     !> Numbers of elements to send to particular neighbour :
+     !> nellsend_map[nparts] - zero indicates no elements to send
      integer, dimension(:), pointer :: nellsend_map
-     ! Numbers of elements to receive from particular neighbour :
-     ! nfreerecv_map[nparts] - zero indicates no elements to recieve
+     !> Numbers of elements to receive from particular neighbour :
+     !> nfreerecv_map[nparts] - zero indicates no elements to recieve
      integer, dimension(:), pointer :: nellrecv_map
-     ! requests for non-blocking interface element exchange
+     !> requests for non-blocking interface element exchange
      integer, dimension(:), pointer :: request_nellrecv_map, request_nellsend_map
 
 
-     !! Maps, masks
-     ! Global to local (local to process/partition) map
-     ! for elements : gl_emap[global nell]
+     !> Maps, masks
+     !> Global to local (local to process/partition) map
+     !> for elements : gl_emap[global nell]
      integer, dimension(:), pointer :: gl_emap
-     ! Local to global map for elements : lg_emap[local nell]s
+     !> Local to global map for elements : lg_emap[local nell]s
      integer, dimension(:), pointer :: lg_emap
 
-     !! Interface elements
+     !> Interface elements
      integer :: nellintf ! Number of interface elements
-     ! Element is an inner element (D_ELEM_INNER)
-     ! or an interface element (D_ELEM_INTERF) : inner_interf_emask[nell]
+     !> Element is an inner element (D_ELEM_INNER)
+     !> or an interface element (D_ELEM_INTERF) : inner_interf_emask[nell]
      integer(kind=4), dimension(:),   pointer :: inner_interf_emask ! kind=4 is required, otherwise sum of array may overflow
-     ! Map for local interface elements' ids
-     ! to indexes in 'ElemMtxs%intfsend_emask' : intfell2indx[ElemMtxs%nell]
+     !> Map for local interface elements' ids
+     !> to indexes in 'ElemMtxs%intfsend_emask' : intfell2indx[ElemMtxs%nell]
      integer,         dimension(:),   pointer :: intfell2indx
-     ! Mask for interface elements, which show whom the
-     ! particular interface element will be sent to :
-     ! intfsend_emask[ElemMtxs%nellintf,Mesh%nnghbrs]
+     !> Mask for interface elements, which show whom the
+     !> particular interface element will be sent to :
+     !> intfsend_emask[ElemMtxs%nellintf,Mesh%nnghbrs]
      integer(kind=4), dimension(:,:), pointer :: intfsend_emask ! kind=4 is required, otherwise sum of array may overflow
-     ! temporary buffer for exchanging interface elements : intfsend_packets[Mesh%nnghbrs]
+     !> temporary buffer for exchanging interface elements : intfsend_packets[Mesh%nnghbrs]
      type(ElemMtxsPacket), dimension(:), pointer :: intfsend_packets
   end type ElemMtxsIntf
 
@@ -76,7 +76,7 @@ contains
   !=================================================================
 
   !-----------------------------
-  ! Basic constructor
+  !> Basic constructor for interface elements
   !-----------------------------
   function ElemMtxsIntf_newInit(Msh) result(E)
     implicit none
@@ -117,7 +117,7 @@ contains
   end function ElemMtxsIntf_newInit
 
   !-----------------------------
-  ! Basic destructor
+  !> Destructor
   !-----------------------------
   subroutine ElemMtxsIntf_Destroy(E)
     implicit none
@@ -154,9 +154,9 @@ contains
   !==========================================
 
   !------------------------------------------
-  ! Builds inner/interface masks for elements
-  ! Allocates and fills in:
-  !   inner_interf_emask
+  !> Builds inner/interface masks for elements
+  !> Allocates and fills in:
+  !>   inner_interf_emask
   !----------------------------------------------
   subroutine ElemMtxsIntf_buildInnerInterfEMask(E, M)
     implicit none
@@ -200,11 +200,11 @@ contains
 
 
   !-------------------------------------------
-  ! Build global to local, local to global and
-  ! inner/interface maps for elements
-  ! Allocates and fills in:
-  !   gl_emap, lg_emap, inner_interf_emask,
-  !   intfsend_emask, intfell2indx
+  !> Build global to local, local to global and
+  !> inner/interface maps for elements
+  !> Allocates and fills in:
+  !>   gl_emap, lg_emap, inner_interf_emask,
+  !>   intfsend_emask, intfell2indx
   !------------------------------------------
   subroutine ElemMtxsIntf_buildMapsMasks(E, M)
     use globals
@@ -315,7 +315,7 @@ contains
 
 
   !----------------------------------------------
-  ! Synchronize send/receive maps (non-blocking)
+  !> Synchronize send/receive maps (non-blocking)
   !----------------------------------------------
   subroutine ElemMtxsIntf_exchangeMapsMasks(E, M)
     implicit none
@@ -356,7 +356,7 @@ contains
 
 
   !----------------------------------------------
-  ! Wait until send/receive maps have been synchronized
+  !> Wait until send/receive maps have been synchronized
   !----------------------------------------------
   subroutine ElemMtxsIntf_waitMapsMasks(E, M)
     implicit none
@@ -379,14 +379,14 @@ contains
 
 
   !------------------------------------------
-  ! Add chunk to interface elements
-  ! Chunk may contain non-interface elements - these fill be filtered out
+  !> Add chunk to interface elements
+  !> Chunk may contain non-interface elements - these fill be filtered out
   !------------------------------------------
   subroutine ElemMtxsIntf_addChunk(E, chunk, Msh)
     implicit none
 
     type(ElemMtxsIntf),      intent(in out) :: E
-    type(ElemMtxsChunk), intent(in)     :: chunk
+    type(ElemMtxsChunk), intent(in)     :: chunk !< chunk of elements to be added to E
     type(Mesh),     intent(in)     :: Msh
     
     integer :: i, j, p
@@ -412,7 +412,7 @@ contains
 
 
   !------------------------------------------
-  ! Distribute and assemble interface elements
+  !> Distribute and assemble interface elements
   !------------------------------------------
   subroutine ElemMtxsIntf_distAndAssemble(E, A_interf, Msh)
     use globals, only : stream
@@ -481,20 +481,19 @@ contains
   !=================================================================
 
   !-----------------------------------------------------------------
-  ! Reads in element stiffness/mass matrices and their RHSs and
-  ! then distributes data to slaves by chunks
-  !
-  ! Intended for master only!
+  !> Reads in element stiffness/mass matrices and their RHSs and
+  !> then distributes data to slaves by chunks
+  !> Intended for master only!
   !-----------------------------------------------------------------
   subroutine ElemMtxs_readAndDistribute(Msh, fnElemMatrs, A, b, A_intf)
     use globals, only : stream
     implicit none
 
     type(Mesh),                   intent(in)      :: Msh
-    character*(*),                intent(in)      :: fnElemMatrs
-    type(SpMtx),                  intent(out)     :: A
-    float(kind=rk), dimension(:), intent(out)     :: b
-    type(SpMtx),                  intent(out), optional :: A_intf
+    character*(*),                intent(in)      :: fnElemMatrs !< name of the file containing element matrices
+    type(SpMtx),                  intent(out)     :: A !< assembled non-interface elements
+    float(kind=rk), dimension(:), intent(out)     :: b !< assembled RHS vector
+    type(SpMtx),                  intent(out), optional :: A_intf !< optional matrix containing assembled interface elements
 
     integer                                     :: elemMatrs = 50
     integer                                     :: npackets
@@ -607,19 +606,18 @@ contains
 
   
   !-----------------------------------------------------------------
-  ! Waits for element matrix chunks from master - final matrix is
-  ! assembled bit by bit.
-  !
-  ! Intended for slaves only!
+  !> Waits for element matrix chunks from master - final matrix is
+  !> assembled bit by bit.
+  !> Intended for slaves only!
   !-----------------------------------------------------------------
   subroutine ElemMtxs_recvAndAssemble(Msh, A, b, A_intf)
     use globals, only : stream
     implicit none
 
     type(Mesh),                   intent(in)     :: Msh
-    type(SpMtx),                  intent(out)    :: A
-    float(kind=rk), dimension(:), intent(out)    :: b
-    type(SpMtx),                  intent(out), optional :: A_intf
+    type(SpMtx),                  intent(out)    :: A !< assembled non-interface elements
+    float(kind=rk), dimension(:), intent(out)    :: b !< assembled RHS vector
+    type(SpMtx),                  intent(out), optional :: A_intf !< optional matrix containing assembled interface elements
 
     integer                       :: i, j, p
     integer                       :: nell, nelemsend, ge, le

@@ -1,5 +1,5 @@
 !-------------------------------------------------------
-! Global matrix assembling methods from element matrices
+!> Global matrix assembling methods from element matrices
 !-------------------------------------------------------
 module ElemMtxs_assemble
 
@@ -22,29 +22,29 @@ module ElemMtxs_assemble
 #endif
 
   !---------------------------------------------
-  ! SpMtxPartAssembleBlock type
-  !  Sparse matrix assembling context (for single inner/interf block)
+  !> SpMtxPartAssembleBlock type
+  !>  Sparse matrix assembling context (for single inner/interf block)
   !---------------------------------------------
   type ElemMtxsAssembleBlock
-     ! number of values in array 'val'
+     !> number of values in array 'val'
      integer :: val_count
-     ! assembled sparse matrix values
+     !> assembled sparse matrix values
      float(kind=rk), dimension(:), pointer :: val
-     ! for each row, index map for column -> index in val
+     !> for each row, index map for column -> index in val
      type(IdxMap), dimension(:), pointer :: idx_map
   end type ElemMtxsAssembleBlock
 
 
   !---------------------------------------------
-  ! ElemMtxsAssembleContext type
-  !  Assembling context
+  !> ElemMtxsAssembleContext type
+  !>  Assembling context
   !---------------------------------------------
   type ElemMtxsAssembleContext
-     ! blocks (inner/interf)x(inner/interf)
+     !> blocks (inner/interf)x(inner/interf)
      type(ElemMtxsAssembleBlock), dimension(2, 2) :: blocks
-     ! assembled RHS
+     !> assembled RHS
      float(kind=rk), dimension(:), pointer     :: rhs
-     ! inverse permutation map for freedoms
+     !> inverse permutation map for freedoms
      integer, dimension(:), pointer :: inv_perm_map
   end type ElemMtxsAssembleContext
 
@@ -56,7 +56,7 @@ contains
 
 
   !----------------------------------------------------------------
-  ! Create and initialize new assembling context
+  !> Create and initialize new assembling context
   !----------------------------------------------------------------
   function ElemMtxsAssembleContext_newInit(Msh) result(AC)
     implicit none
@@ -103,7 +103,7 @@ contains
 
 
   !----------------------------------------------------------------
-  ! Destroy existing assembling context
+  !> Destroy existing assembling context
   !----------------------------------------------------------------
   subroutine ElemMtxsAssembleContext_Destroy(AC)
     implicit none
@@ -132,7 +132,7 @@ contains
 
 
   !----------------------------------------------------------------
-  ! Add element matrices to assembling context
+  !> Add element matrices to assembling context
   !----------------------------------------------------------------
   subroutine ElemMtxsAssembleContext_addChunk(AC, E, Msh)
     implicit none
@@ -196,7 +196,7 @@ contains
 
 
   !----------------------------------------------------------------
-  ! Extract final sparse matrix structure from assembling context
+  !> Extract final sparse matrix structure from assembling context
   !  --- -----
   ! | 1 |  3  |  1-3 - interf., inner/interf., interf./inner
   !  ---+-----   4   - inner
@@ -210,8 +210,8 @@ contains
     implicit none
   
     type(ElemMtxsAssembleContext), intent(in),target  :: AC
-    type(SpMtx),                intent(out) :: A ! System matrix, should be uninitialized before calling
-    type(Mesh),                 intent(in)  :: Msh ! Mesh
+    type(SpMtx),                intent(out) :: A !< system matrix, should be uninitialized before calling
+    type(Mesh),                 intent(in)  :: Msh
 
     integer :: i, j, k, n, m
     integer :: nnz, indi, indj, idx, bbe
@@ -255,14 +255,14 @@ contains
 
 
   !----------------------------------------------------------------
-  ! Extract final RHS vector from assembling context
+  !> Extract final RHS vector from assembling context
   !----------------------------------------------------------------
   subroutine ElemMtxsAssembleContext_extractVect(AC, b, Msh)
     implicit none
 
     type(ElemMtxsAssembleContext),   intent(in)  :: AC
     float(kind=rk), dimension(:), intent(out) :: b
-    type(Mesh),                   intent(in)  :: Msh ! Mesh
+    type(Mesh),                   intent(in)  :: Msh
 
     b = AC%rhs
   end subroutine ElemMtxsAssembleContext_extractVect
