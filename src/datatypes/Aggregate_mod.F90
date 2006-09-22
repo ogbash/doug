@@ -1,8 +1,7 @@
+!> Module for defining datastructures needed for aggregation
 Module Aggregate_mod
   use RealKind
   use globals
-  !use SpMtx_class
-  !use SpMtx_arrangement
 
   Implicit None
 
@@ -14,12 +13,12 @@ Module Aggregate_mod
 #else
 #define float real
 #endif
-  Type Aggrs
-    integer                       :: nagr ! #aggregates
-    integer                       :: radius ! radius of aggregation
-    integer                       :: nisolated ! # of isolated nodes
-    integer, dimension(:),pointer :: num  ! aggregate # for each node
-    integer, dimension(:),pointer :: starts,nodes
+  Type Aggrs !< Aggregates type
+    integer                       :: nagr !< #aggregates
+    integer                       :: radius !< radius of aggregation
+    integer                       :: nisolated !< # of isolated nodes
+    integer, dimension(:),pointer :: num  !< aggregate # for each node
+    integer, dimension(:),pointer :: starts,nodes !< compressed storage
   end Type Aggrs
 
   logical :: debu = .false.
