@@ -62,20 +62,20 @@ program aggr
 #define float real
 #endif
 
-  type(Mesh)     :: M  ! Mesh
+  type(Mesh)     :: M  !< Mesh
 
-  type(SpMtx)    :: A,A_interf,A_ghost  ! System matrix (parallel sparse matrix)
-  type(SpMtx)    :: AC  ! coarse matrix
-  type(SpMtx)    :: Restrict ! Restriction matrix (for operation)
-  type(SpMtx)    :: Rest_cmb ! Restriction matrix (for coarse matrix build)
+  type(SpMtx)    :: A,A_interf,A_ghost  !< System matrix (parallel sparse matrix)
+  type(SpMtx)    :: AC  !< coarse matrix
+  type(SpMtx)    :: Restrict !< Restriction matrix (for operation)
+  type(SpMtx)    :: Rest_cmb !< Restriction matrix (for coarse matrix build)
 
-  float(kind=rk), dimension(:), pointer :: b  ! local RHS
-  float(kind=rk), dimension(:), pointer :: xl ! local solution vector
-  float(kind=rk), dimension(:), pointer :: x  ! global solution on master
-  float(kind=rk), dimension(:), pointer :: sol,rhs  ! for testing solver
+  float(kind=rk), dimension(:), pointer :: b  !< local RHS
+  float(kind=rk), dimension(:), pointer :: xl !< local solution vector
+  float(kind=rk), dimension(:), pointer :: x  !< global solution on master
+  float(kind=rk), dimension(:), pointer :: sol,rhs  !< for testing solver
 
   ! Partitioning
-  integer               :: nparts ! number of partitons to partition a mesh
+  integer               :: nparts !< number of partitons to partition a mesh
   integer, dimension(6) :: part_opts = (/0,0,0,0,0,0/)
 
   type(ConvInf) :: resStat

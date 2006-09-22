@@ -1,3 +1,4 @@
+!> Aggregation procedures
 Module SpMtx_aggregation
 !!--------------------------------------------------------
 !!Arrange elements in sparse matrix
@@ -23,9 +24,7 @@ Module SpMtx_aggregation
 
 CONTAINS
 
-!------------------------------------------------------
-! Finding aggregates
-!------------------------------------------------------
+!> Finding aggregates
   subroutine SpMtx_aggregate(A,neighood,minaggrsize,maxaggrsize,alpha,Afine,M)
     use globals
     use CoarseAllgathers
