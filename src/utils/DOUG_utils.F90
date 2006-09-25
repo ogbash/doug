@@ -1396,6 +1396,56 @@ contains
     enddo
 
   end function tolower
+  
+  !-------------------------------------
+  ! Writes vector x and its norm to the solution file.
+  ! No code reuse of Vect_Print, becasue solution file format should be
+  ! independent of screen output format!
+  ! solution_format is ignored
+  !-------------------------------------
+  subroutine WriteSolutionToFile(x, res_norm)
+  	implicit none
+  	   
+    float(kind=rk), dimension(:), intent(in) :: x
+    float(kind=rk), intent(in)               :: res_norm
+
+    integer :: i,n,iounit
+	logical :: exi,ope,io,opened
+
+	! find free I/O-Unit starting with 7
+	io = .true.
+	do iounit=7,99
+	   inquire(unit=iounit,exist=exi) 
+	   if( exi ) inquire(unit=iounit,opened=ope)
+	   if( exi.and..not.ope) &
+	      exit
+	   if( iounit .eq. 99) then
+	      write(stream, *) 'Could not find free I/O-Unit!'
+	      io = .false.
+	   endif
+	enddo
+	
+	if (io) then
+       ! open file
+	   open(unit=iounit,iostat=opened,file=mctls%solution_file)
+
+       if (opened.eq.0) then
+	      ! write solution
+	      n = size(x)
+	      write(iounit,'(/a,i6,a)') 'solution :size [',n,']:'
+	      do i = 1,n
+	         write(iounit, '(a,i6,a,e21.14)') ' [',i,']=',x(i)
+	      end do
+	   
+	      ! write norm
+	      write(iounit,*) 'dsqrt(res_norm) =',dsqrt(res_norm)
+	    
+	      ! flush and close
+	      call flush(iounit)
+	      close(iounit)
+	   endif
+    endif
+  end subroutine WriteSolutionToFile
 
   !-------------------------------------
   !> sort integer array using quicksort algorithm

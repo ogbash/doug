@@ -204,15 +204,17 @@ program main
   res_norm = Vect_dot_product(r, r)
   deallocate(r, y)
 
-  ! Assemble result on master
+  ! Assemble result on master and write it to screen and/or file
   if (ismaster()) then
      allocate(x(M%ngf)); x = 0.0_rk
   end if
   call Vect_Gather(xl, x, M)
   if (ismaster().and.(size(x) <= 100).and.(D_MSGLVL > 0)) &
        call Vect_Print(x, 'solution ')
-  if (ismaster()) &
+  if (ismaster()) then
        write(stream,*) 'dsqrt(res_norm) =',dsqrt(res_norm)
+       call WriteSolutionToFile(x, res_norm)
+  endif
   if (ismaster()) then
      deallocate(x)
   end if
