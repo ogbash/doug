@@ -485,6 +485,7 @@ contains
 
   !----------------------------------
   ! Print control file parameters
+  ! TODO: update list
   !----------------------------------
   subroutine util_printCtrlFileInfo()
     use globals, only: stream
