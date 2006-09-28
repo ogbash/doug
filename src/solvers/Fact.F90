@@ -1,5 +1,6 @@
-!! Needs to be parsed with preprocessor: -fpp [-DD_COMPLEX] [-DD_WANT_MUMPS_YES] [-DDWANT_UMFPACK4_YES]
-
+!-------------------------------------------------------
+!> Module for factorization of sparse matrices
+!-------------------------------------------------------
 module Fact_class
   use globals
   use DOUG_utils
@@ -11,39 +12,44 @@ module Fact_class
 #endif
 
   !--------------------------------------------------------------------
-  ! Solver types
+  !> Solver types
   !--------------------------------------------------------------------
-  integer, parameter :: D_UMFPACK4 = 1
-  integer, parameter :: D_MUMPS    = 2
+  integer, parameter :: D_NULLSOLVER = -1 !< internal
+  integer, parameter :: D_UMFPACK4   = 1  !< UMFPACK v4
+  integer, parameter :: D_MUMPS      = 2  !< MUMPS package
 
   !--------------------------------------------------------------------
-  ! Fact type
-  ! General wrapper for sparse different solvers.
+  !> Fact type
+  !> General wrapper for sparse different solvers.
   !--------------------------------------------------------------------
   type Fact
-    integer :: solver_type = 0
-    integer :: nfreds = 0
+    integer :: solver_type !< solver type (D_MUMPS, D_UMFPACK4, etc)
+    integer :: nfreds !< number of freedom
 #ifdef D_WANT_UMFPACK4_YES
-    integer*8 :: umfpack4_id = 0 !!! ugly hack for 64-bit plaforms (should be pointer)
+    integer(kind=pointerk) :: umfpack4_id !< internal UMFPACK4 factorization object handle
 #endif
 #ifdef D_WANT_MUMPS_YES
-    type (DMUMPS_STRUC), pointer :: mumps_id => NULL()
+    type (DMUMPS_STRUC), pointer :: mumps_id !< internal MUMPS factorization object handle
 #endif
   end type Fact
 
 contains
 
   !--------------------------------------------------------------------
-  ! Factorization constructor
+  !> Factorization constructor
   !--------------------------------------------------------------------
   function Fact_New(solver_type, nfreds, nnz, indi, indj, val) result(fakt)
-    integer, intent(in) :: solver_type, nfreds, nnz
-    integer, dimension(:), intent(inout), target :: indi, indj
-    real(kind=rk), dimension(:), intent(in), target :: val
-    type(Fact) :: fakt
-
+    implicit none
+    integer, intent(in) :: solver_type !< what solver to use (D_UMFPACK4, etc)
+    integer, intent(in) :: nfreds !< number of freedoms in system (matrix rows, columns)
+    integer, intent(in) :: nnz !< number of non-zero elements in matrix
+    integer, dimension(:), intent(inout), target :: indi !< matrix rows indices
+    integer, dimension(:), intent(inout), target :: indj !< matrix column indices
+    real(kind=rk), dimension(:), intent(in), target :: val !< matrix element values
+    type(Fact) :: fakt !< factorization object
+    !-----------------------------
     integer :: i, j, status, nz, n
-    integer*8 :: symbolic = 0 !!! ugly hack for 64-bit platforms (should be pointer)
+    integer(kind=pointerk) :: symbolic
 #ifdef D_WANT_UMFPACK4_YES
     integer, dimension(:), allocatable :: Ap, Ai, Amap
     real(kind=rk), dimension(:), allocatable :: Av
@@ -55,6 +61,12 @@ contains
 
     nz = nnz
     n = nfreds
+    ! If this is degenerate case, use nullsolver
+    if (nz <= 0 .or. n <= 0) then
+       fakt%solver_type = D_NULLSOLVER
+       fakt%nfreds = nfreds
+       return
+    end if
     if (solver_type == D_UMFPACK4) then
 #ifdef D_WANT_UMFPACK4_YES
        ! convert input data
@@ -64,13 +76,8 @@ contains
        allocate(Ap(n+1))
        allocate(Ai(nz))
        allocate(Amap(nz))
-!!write(stream,*)'pweh n,nz:',n,nz
-!!do i=1,nz
-!! write(stream,*)'rowe:',i,indi(i),indj(i),val(i)
-!!enddo
        call umf4triplet2col(n,n,nz,indi,indj,val, &
           Ap,Ai,Av,Amap,status)
-!!write(stream,*)'umf4triplet2col ok'
        if (status /= 0) then
           write(stream,*)'n,nz:',n,nz
           call DOUG_abort('[Fact_New] umf4triplet2col failed',-1)
@@ -80,8 +87,8 @@ contains
        call umf4def(control)
 
        ! pre-order and symbolic analysis
+       symbolic = 0
        call umf4sym(n,n,Ap,Ai,Av,symbolic,control,info90)
-!!write(stream,*)'umf4sym ok'
        if (sctls%verbose > 3) then
           write(stream,70) info90(1), info90(16),            &
             (info90(21) * info90(4)) / 2**20,                &
@@ -187,10 +194,10 @@ contains
   end function Fact_New
 
   !--------------------------------------------------------------------
-  ! Destructor for factorization object
+  !> Destructor for factorization object
   !--------------------------------------------------------------------
   subroutine Fact_Destroy(fakt)
-    type(Fact) :: fakt
+    type(Fact) :: fakt !< factorization object to destroy
 
     if (fakt%solver_type == D_UMFPACK4) then
 #ifdef D_WANT_UMFPACK4_YES
@@ -205,19 +212,19 @@ contains
        fakt%mumps_id => NULL()
 #endif
     end if
-    fakt%solver_type=0
+    fakt%solver_type = D_NULLSOLVER
   end subroutine Fact_Destroy
 
-
   !--------------------------------------------------------------------
-  ! Solve sparse system given RHS vector
+  !> Solve sparse system given RHS vector
   !--------------------------------------------------------------------
   subroutine Fact_solve(fakt, rhs, sol)
-    type(Fact) :: fakt
-    real(kind=rk), dimension(:), pointer :: sol, rhs
-
+    type(Fact) :: fakt !< factorization object (factorized matrix)
+    real(kind=rk), dimension(:), pointer :: sol !< solution vector
+    real(kind=rk), dimension(:), pointer :: rhs !< right-hand side vector
+    !---------------------
 #ifdef D_WANT_UMFPACK4_YES
-    integer :: sys = 0
+    integer :: sys
     real(kind=rk), dimension(:) :: info90(90),control(20)
 #endif
 #ifdef D_WANT_MUMPS_YES
@@ -226,6 +233,7 @@ contains
 
     if (fakt%solver_type == D_UMFPACK4) then
 #ifdef D_WANT_UMFPACK4_YES
+      sys = 0
       call umf4sol(sys, sol, rhs, fakt%umfpack4_id, control, info90)
       if (info90(1) < 0) then
          call DOUG_abort('[Fact_solve] error occurred while solving',-1)
@@ -248,4 +256,3 @@ contains
   end subroutine Fact_solve
 
 end module Fact_class
-
