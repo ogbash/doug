@@ -24,13 +24,14 @@ class Target:
     must read the source file and calculate it's dependency and
     provision logical names."""
     
-    def __init__(self, targetName, sourceName, dir = ''):
-        """dir - directory of Makefile, needed becuase current
+    def __init__(self, targetName, sourceName, targetDir = '', sourceDir = ''):
+        """targetDir - directory of Makefile, needed becuase current
         working directory may be different and target may not find
         it's source."""
         self.targetName = targetName
         self.sourceName = sourceName
-        self.dir = dir
+        self.targetDir = targetDir
+        self.sourceDir = sourceDir
     
     def getDeps(self):
         """Method return logical names that this target depends on
@@ -42,13 +43,13 @@ class Target:
         (these may be file names, eg my.h, or fortran module names)."""
         raise NotImplementedError("Must be implemented in derived class")
 
-def createTarget(targetName, sourceName, dir=''):
+def createTarget(targetName, sourceName, targetDir='', sourceDir=''):
     "Tries to match sourceName extension and target class."
 
     from os.path import splitext
     
     if splitext(sourceName)[1] in [".f90",".F90",".f95",".F95"]:
-        return F9xTarget(targetName, sourceName, dir)
+        return F9xTarget(targetName, sourceName, targetDir, sourceDir)
 
     warn("Unresolved target class for %s" % sourceName)
 
@@ -58,10 +59,10 @@ class F9xTarget(Target):
     re_hasmod = re.compile("^\s*(!?)\s*module\s+(\S*)")
     re_usesmod = re.compile("^\s*(!?)\s*use\s+([^,\s]*),*")
 
-    def __init__(self, targetName, sourceName, dir=''):
+    def __init__(self, targetName, sourceName, targetDir='', sourceDir=''):
         # TODO oleg:all add targetName, sourceName resolving code if None
 
-        Target.__init__(self, targetName, sourceName, dir)
+        Target.__init__(self, targetName, sourceName, targetDir, sourceDir)
         self._scanProvsAndDeps()
 
     def getProvs(self):
@@ -72,7 +73,7 @@ class F9xTarget(Target):
 
     def _scanProvsAndDeps(self):
         "Scan Fortran 90/95 source file for used and contained modules."
-        f = open(os.path.join(self.dir, self.sourceName), 'r')
+        f = open(os.path.join(self.sourceDir, self.sourceName), 'r')
         modhas = []
         moduses = []
         for line in f:
@@ -154,9 +155,10 @@ class AutomakeCollector(Collector):
     re_varCont = re.compile(r"^\s+(?P<val>.*)\n?$")
     re_target = re.compile(r"(\S+)\s*:\s*(\S+)\s*$")
 
-    def __init__(self, fileName="Makefile", binTargets=None):
+    def __init__(self, fileName="Makefile", binTargets=None, sourceDir=''):
         (self.fileDir, self.fileName) = os.path.split(fileName)
         self.binTargets = binTargets
+        self.sourceDir = sourceDir
         self.targets = {}
         
         self._scanMakefile()
@@ -210,6 +212,8 @@ class AutomakeCollector(Collector):
                     self.objs.extend(var[1].split())
 
             # in second scan get targets for sources
+            # with automake sources may lie in another directory
+            srcDir = os.path.join(self.sourceDir, self.fileDir)
             fd.seek(0)
             iter_ = iter(fd)
             for line in iter_:
@@ -217,7 +221,7 @@ class AutomakeCollector(Collector):
                 if match:
                     t,s = match.groups()
                     if s in self.srcs:
-                        self.targets[t] = createTarget(t,s, self.fileDir)
+                        self.targets[t] = createTarget(t,s, targetDir=self.fileDir, sourceDir=srcDir)
 
         finally:
             fd.close()
@@ -291,7 +295,7 @@ class DependencyResolver:
             for dep in t.getDeps():
                 if logprovs.has_key(dep):
                     prov = logprovs[dep]
-                    deps.append(os.path.join(prov.dir, prov.targetName))
+                    deps.append(os.path.join(prov.targetDir, prov.targetName))
                 else:
                     warn("Unresolved dependency %s for %s" %
                          (dep, t.targetName))
@@ -317,18 +321,21 @@ if __name__=="__main__":
 
     amc_names = []
 
-    (opts, args) = getopt.getopt(sys.argv[1:], 'i:')
+    (opts, args) = getopt.getopt(sys.argv[1:], 'i:', ['srcdir='])
     debug(opts)
     debug(args)
-    
+
+    srcDir = ''
     for op, value in opts:
         if op=='-i':
             amc_names.append(value)
+        elif op=='--srcdir':
+            srcDir = value
     
-    amc = AutomakeCollector()
+    amc = AutomakeCollector(sourceDir=srcDir)
     amcs = []
     for amc_name in amc_names:
-        amcs.append(AutomakeCollector(amc_name))
+        amcs.append(AutomakeCollector(amc_name, sourceDir=srcDir))
     
     resolver = DependencyResolver(amc, amcs)
     resolver.save('Make.deps')

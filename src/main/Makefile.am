@@ -21,7 +21,7 @@ doug_aggr_FCFLAGS=-I.. @FCFLAGS_F95@
 doug_aggr_LDADD=../libdoug.la
 
 Make.deps:
-	python @top_srcdir@/scripts/amdeps.py -i../Makefile
+	python @top_srcdir@/scripts/amdeps.py -i../Makefile --srcdir=@srcdir@
 
 mostlyclean-local:
 	rm -f *.mod

@@ -21,4 +21,4 @@ maintainer-clean-local:
 all-recursive: all-am
 
 Make.deps: Makefile.am
-	python @top_srcdir@/scripts/amdeps.py
+	python @top_srcdir@/scripts/amdeps.py --srcdir=@srcdir@
