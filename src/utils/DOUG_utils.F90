@@ -1,3 +1,6 @@
+!-------------------------------------------------------
+!> Module with various helper routines
+!-------------------------------------------------------
 module DOUG_utils
 
   use RealKind
