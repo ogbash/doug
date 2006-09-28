@@ -13,6 +13,8 @@ module globals
 
   include 'mpif.h'
 
+  integer, parameter :: pointerk=8 !< kind corresponding to basic integer  type capable of holding any pointer
+
   real(kind=xyzk), parameter :: eps=0.000000001_xyzk
 
   ! Stdout control
