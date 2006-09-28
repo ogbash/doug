@@ -1015,7 +1015,7 @@ endif
     if (version<=3.or.(version.eq.4.and..not.toosmall)) then ! {
       if (version==4) then ! in fullaggrnum we need only local aggrs
         fullaggrnum=aggrnum(1:A%nrows)
-        full_nagrs_new=maxval(fullaggrnum)
+        full_nagrs_new=max(0, maxval(fullaggrnum))
       endif
       call Form_Aggr(A%aggr,nagrs,n,neighood,nisolated,aggrnum)
       ! communicate the neighbours' aggregate numbers and renumber:

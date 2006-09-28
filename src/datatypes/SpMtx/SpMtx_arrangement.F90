@@ -831,8 +831,9 @@ CONTAINS
   end subroutine SpMtx_DistributeAssembled              
 
   subroutine SpMtx_Build_lggl(A,A_ghost,M)
-    Type(SpMtx), intent(in out)        :: A        !Initial matrix
-    Type(SpMtx), intent(in out)        :: A_ghost  !matrix on ghost nodes
+    implicit none
+    type(SpMtx), intent(in out)        :: A        !Initial matrix
+    type(SpMtx), intent(in out)        :: A_ghost  !matrix on ghost nodes
     type(Mesh)                         :: M        !Mesh object
 
     integer :: i,j,k,ntobsent,ninonol,ninner,indepoutol,nlf
@@ -956,6 +957,7 @@ CONTAINS
   !> A helper procedure for marking all nodes within overlap distance
   !> in distribution mask
   recursive subroutine SpMtx_addFront(sendmask, A, M, i, p, ol)
+    implicit none
     integer(kind=1), dimension(:), pointer :: sendmask !< distribution mask
     type(SpMtx), intent(in) :: A !< original matrix
     type(Mesh), intent(in) :: M !< mesh corresponding to A
@@ -980,6 +982,7 @@ CONTAINS
   !> distribute by taking overlap into account
   !> NOTE: as a sideeffect, the returned matrix is arranged by rows
   subroutine SpMtx_distributeWithOverlap(A, M, ol)
+    implicit none
     type(SpMtx), intent(inout) :: A !< original matrix in case of master; in case of slave matrix data is ignored but structure (dimensions, symmetry, etc) should be initialized
     type(Mesh), intent(in) :: M !< mesh corresponding to A
     integer, intent(in) :: ol !< overlap
@@ -1106,11 +1109,12 @@ CONTAINS
   ! Take away from matrix unneeded elements...
   ! (the matrix should be arranged into row format with SpMtx_arrange_clrorder)
   subroutine SpMtx_build_ghost(clr,ol,A,A_ghost,M,clrorder,clrstarts)
+    implicit none
     !use SpMtx_class, only: indlist
     integer,intent(in)                 :: clr      !the color # we are keeping
     integer,intent(in)                 :: ol       !overlap size
-    Type(SpMtx), intent(in out)        :: A        !Initial matrix
-    Type(SpMtx), intent(in out)        :: A_ghost  !matrix on ghost nodes
+    type(SpMtx), intent(in out)        :: A        !Initial matrix
+    type(SpMtx), intent(in out)        :: A_ghost  !matrix on ghost nodes
     type(Mesh)                         :: M        !Mesh object
     integer,dimension(:),pointer       :: clrorder
      !order of matrix rows (columns) so that color i is found in rows (columns):
@@ -1123,7 +1127,8 @@ CONTAINS
     integer,dimension(:),pointer :: neighmap,front
     integer,dimension(:),pointer :: onfront
                                             !   to each neighbour (Ax op)
-    integer,dimension(:),pointer :: sendnodes,sendnodeidx ! to mark fred.s that
+    integer(kind=1),dimension(:),pointer :: sendnodes
+    integer,dimension(:),pointer :: sendnodeidx ! to mark fred.s that
             ! will be communicated from my subdomain wherever (Ax op)
     integer,dimension(:),pointer :: frontstart,frontend
     integer :: a_ghostsz,a_gsz,ol0connfrom_outside,ol0connfrom_inside
@@ -1787,6 +1792,7 @@ CONTAINS
   end subroutine SpMtx_build_ghost
 
   subroutine SpMtx_build_ghost_v01(clr,ol,A,A_ghost,M,clrorder,clrstarts)
+    implicit none
     !use SpMtx_class, only: indlist
     integer,intent(in)                 :: clr      !the color # we are keeping
     integer,intent(in)                 :: ol       !overlap size
@@ -1803,7 +1809,8 @@ CONTAINS
     integer,dimension(:),pointer :: neighmap,front
     integer,dimension(:),pointer :: onfront
                                             !   to each neighbour (Ax op)
-    integer,dimension(:),pointer :: sendnodes,sendnodeidx ! to mark fred.s that
+    integer(kind=1),dimension(:),pointer :: sendnodes
+    integer,dimension(:),pointer :: sendnodeidx ! to mark fred.s that
             ! will be communicated from my subdomain wherever (Ax op)
     integer,dimension(:),pointer :: frontstart,frontend
     integer,dimension(:,:),pointer :: neigfstart,neigfend

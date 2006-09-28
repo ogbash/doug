@@ -482,7 +482,7 @@ contains
     type(Mesh),optional     :: M  ! Mesh
 
     integer,dimension(:),pointer :: stat
-    integer :: i,maxglaggn,nn,cnt,col,thiscol
+    integer :: i,maxglaggn,nn,cnt,col,thiscol,lg_idx
 
     if (numprocs>1) then 
       nn=size(aggrnum)
@@ -497,11 +497,11 @@ contains
       cdat_vec%ngfc=sum(cdat_vec%send%rsizes)
       allocate(cdat_vec%gl_cfmap(cdat_vec%ngfc))
       cdat_vec%gl_cfmap=0
-      cdat_vec%lg_cfmap(1)=sum(cdat_vec%send%rsizes(1:myrank))+1
-      cdat_vec%gl_cfmap(cdat_vec%lg_cfmap(1))=1
-      do i=2,nagrs
-        cdat_vec%lg_cfmap(i)=cdat_vec%lg_cfmap(i-1)+1
-        cdat_vec%gl_cfmap(cdat_vec%lg_cfmap(i))=i
+      lg_idx=sum(cdat_vec%send%rsizes(1:myrank))
+      do i=1,nagrs
+        lg_idx=lg_idx+1
+        cdat_vec%lg_cfmap(i)=lg_idx
+        cdat_vec%gl_cfmap(lg_idx)=i
       enddo
       allocate(cdat_vec%cdisps(numprocs+1))
       cdat_vec%nprocs=numprocs
