@@ -991,7 +991,7 @@ CONTAINS
     integer, dimension(:), pointer :: nnz_p
     float(kind=rk), dimension(:), pointer :: val
     integer, dimension(:), pointer :: indi, indj
-    integer :: i, j, k, p, ierr, status
+    integer :: i, j, k, p, ierr, status(MPI_STATUS_SIZE)
 
     ! Number of nodes to distribute to each processor
     allocate(nnz_p(numprocs))
