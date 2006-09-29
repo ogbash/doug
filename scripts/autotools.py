@@ -56,7 +56,7 @@ if __name__=='__main__':
 LOG = logging.getLogger('autotools')
 
 def run(configFileNames):
-    "Compile project and build executables."
+    "Configure, compile project and build executables."
     LOG.info('Running autotools scripts')
 
     from ConfigParser import SafeConfigParser
@@ -64,14 +64,16 @@ def run(configFileNames):
     conf.readfp(defaultConfigFile)
     conf.read(configFileNames)
     
-    ag = Autogen(conf)
-    ag.run()
+    if self.conf.getboolean('autotools', 'run-autogen'):
+        ag = Autogen(conf)
+        ag.run()
     
     cn = Configure(conf)
     cn.run()
     
-    mk = Make(conf)
-    mk.run()
+    if self.conf.getboolean('autotools', 'run-make'):
+        mk = Make(conf)
+        mk.run()
 
     LOG.info('Exiting autotools scripts')
 
@@ -80,9 +82,6 @@ class Autogen:
         self.conf = conf
 
     def run(self):
-        if not self.conf.getboolean('autotools', 'run-autogen'):
-            return
-
         LOG.info('Running autogen')
         
         curdir = os.getcwd()
@@ -92,9 +91,8 @@ class Autogen:
         srcdir = self.conf.get('autotools', 'srcdir')
 
         os.chdir(srcdir)        
-        try:
-            LOG.debug('Changed directory to %s', srcdir)
-            
+        LOG.debug('Changed directory to %s', srcdir)
+        try:    
             ag = popen2.Popen3('./autogen.sh > %s 2> %s' % (outfname, errfname))
             while ag.poll() == -1:
                 LOG.debug("Waiting other %d seconds for ./autogen.sh to complete" % waittime)

@@ -60,7 +60,7 @@ class F9xTarget(Target):
     re_usesmod = re.compile("^\s*(!?)\s*use\s+([^,\s]*),*")
 
     def __init__(self, targetName, sourceName, targetDir='', sourceDir=''):
-        # TODO oleg:all add targetName, sourceName resolving code if None
+        # TODO oleg: add targetName, sourceName resolving code if None
 
         Target.__init__(self, targetName, sourceName, targetDir, sourceDir)
         self._scanProvsAndDeps()

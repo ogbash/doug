@@ -56,8 +56,8 @@ autotools
 \emph on
 Autotools
 \emph default
- contains 3 subsystems which may be used separatelly, but are usually used
- alltogether.
+ contains 3 subsystems which may be used separately, but are usually used
+ all together.
 \end_layout
 
 \begin_layout Enumerate
@@ -174,7 +174,7 @@ and other
 \emph on
 .in
 \emph default
- files, which are feeded to 
+ files, which are fed to 
 \emph on
 configure
 \emph default
@@ -259,7 +259,7 @@ First, the preparation step is done by running
 \emph on
 aclocal
 \emph default
- progam, which collects all 
+ program, which collects all 
 \emph on
 M4
 \emph default
@@ -404,17 +404,7 @@ autotools
 \end_layout
 
 \begin_layout Subsection
-Configuration process 
-\begin_inset Note Note
-status open
-
-\begin_layout Standard
-TODO
-\end_layout
-
-\end_inset
-
-
+Configuration process
 \end_layout
 
 \begin_layout Standard
@@ -423,14 +413,49 @@ When
 configure
 \emph default
  script is generated it is time to run configuration process.
+ For possible 
+\emph on
+configure
+\emph default
+ parameters see corresponding section in user guide.
 \end_layout
 
 \begin_layout Standard
-Configure flags
-\end_layout
-
-\begin_layout Standard
-Building to other directory
+It was already mentioned that 
+\emph on
+configure
+\emph default
+ converts 
+\emph on
+.in
+\emph default
+ files to files without 
+\emph on
+.in 
+\emph default
+extension with replacing all words like 
+\family typewriter
+@variable@ 
+\family default
+by their values, calculated during configuration process.
+ It is not exactly true - converting files is done by 
+\emph on
+config.status
+\emph default
+ which is in turn created by 
+\emph on
+configure
+\emph default
+.
+ This is useful to consider when changing some 
+\emph on
+.in
+\emph default
+ files that is only 
+\emph on
+config.status
+\emph default
+ needs to be executed - no need to rerun whole configuration process.
 \end_layout
 
 \begin_layout Subsection
@@ -457,6 +482,28 @@ make
 
 \begin_layout Standard
 where files are placed, libtool files
+\end_layout
+
+\begin_layout Subsection
+Dependency tracking 
+\begin_inset Note Note
+status open
+
+\begin_layout Standard
+TODO
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+what script, how to run, when it is run
+\end_layout
+
+\begin_layout Section
+Code overview
 \end_layout
 
 \end_body

@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 
 from scripts import ScriptException
+import svnscripts
 import autotools
 import logging
 import getopt
@@ -46,7 +47,8 @@ for opt in opts:
         confFileNames.append(opt[1])
     if opt[0]=="-g":
         sys.stdout.write(defaultConfig)
-        sys.stdout.write(autotools.defaultConfig)        
+        sys.stdout.write(svnscripts.defaultConfig)
+        sys.stdout.write(autotools.defaultConfig)
         sys.exit(0)
 
 import logging.config
@@ -60,6 +62,10 @@ LOG = logging.getLogger('doxscript')
 try:
     import time
     LOG.info("Running doxscript at %s" % time.asctime())
+
+    # svn
+    svndoug = WorkingDirectory(conf, 'doug_trunk', 'doug/trunk')
+    svndoug.checkoutOrUpdate()
 
     # autotools
     autotools.run(confFileNames)
