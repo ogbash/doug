@@ -23,6 +23,8 @@ builddir: .
 
 # whether to run autogen.sh in srcdir directory
 run-autogen: yes
+# whether to run configure in builddir directory
+run-configure: yes
 # whether to run make in builddir directory
 run-make: yes
 
@@ -68,8 +70,9 @@ def run(configFileNames):
         ag = Autogen(conf)
         ag.run()
     
-    cn = Configure(conf)
-    cn.run()
+    if conf.getboolean('autotools', 'run-configure'):
+        cn = Configure(conf)
+        cn.run()
     
     if conf.getboolean('autotools', 'run-make'):
         mk = Make(conf)
