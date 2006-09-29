@@ -64,14 +64,14 @@ def run(configFileNames):
     conf.readfp(defaultConfigFile)
     conf.read(configFileNames)
     
-    if self.conf.getboolean('autotools', 'run-autogen'):
+    if conf.getboolean('autotools', 'run-autogen'):
         ag = Autogen(conf)
         ag.run()
     
     cn = Configure(conf)
     cn.run()
     
-    if self.conf.getboolean('autotools', 'run-make'):
+    if conf.getboolean('autotools', 'run-make'):
         mk = Make(conf)
         mk.run()
 

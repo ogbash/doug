@@ -37,9 +37,15 @@ if __name__=='__main__':
 
 LOG = logging.getLogger('svnscripts')
 
-def run(conf):
-    modulesStr = conf.get('svnscripts', 'modules')
+def run(configFileNames):
+    LOG.info("Running SVN scripts")
 
+    from ConfigParser import SafeConfigParser
+    conf = SafeConfigParser()
+    conf.readfp(defaultConfigFile)
+    conf.read(configFileNames)
+
+    modulesStr = conf.get('svnscripts', 'modules')
     modules = modulesStr.split(",")
 
     for moduleStr in modules:

@@ -64,8 +64,7 @@ try:
     LOG.info("Running doxscript at %s" % time.asctime())
 
     # svn
-    svndoug = WorkingDirectory(conf, 'doug_trunk', 'doug/trunk')
-    svndoug.checkoutOrUpdate()
+    svndoug = svnscripts.run(confFileNames)
 
     # autotools
     autotools.run(confFileNames)
@@ -89,24 +88,26 @@ try:
     os.chdir(docdir)
     LOG.debug('Changed directory to %s', docdir)
 
-    LOG.info("Running doxygen")
-    dx = popen2.Popen3("%s > %s 2> %s" % (cmd, outfname, errfname))
-    dx.wait()
+    try:
+        LOG.info("Running doxygen")
+        dx = popen2.Popen3("%s > %s 2> %s" % (cmd, outfname, errfname))
+        dx.wait()
 
-    dx_value = dx.poll()
-    if dx_value != 0:
-        raise ScriptException("Error occured while running doxygen (value=%d), "
-                  "inspect output files (%s, %s) for error description." %
-                  (dx_value, outfname, errfname))
+        dx_value = dx.poll()
+        if dx_value != 0:
+            raise ScriptException("Error occured while running doxygen (value=%d), "
+                                  "inspect output files (%s, %s) for error description." %
+                                  (dx_value, outfname, errfname))
 
-    os.chdir(curdir)
-    LOG.debug('Changed directory to %s', curdir)
+    finally:
+        os.chdir(curdir)
+        LOG.debug('Changed directory to %s', curdir)
 
     # copying to apache dir
     apache_docdir = conf.get('apache', 'docdir')
 
     LOG.info("Copying documentation to apache")
-    dx = popen2.Popen3("cp -R %s/* %s > %s 2> %s" % (docdirhtml, apache_docdir, outfname, errfname))
+    dx = popen2.Popen3("cp -R %s/* %s >> %s 2>> %s" % (docdirhtml, apache_docdir, outfname, errfname))
     dx.wait()
 
     dx_value = dx.poll()
@@ -114,6 +115,8 @@ try:
         raise ScriptException("Error occured while copying documentation (value=%d), "
                   "inspect output files (%s, %s) for error description." %
                   (dx_value, outfname, errfname))
+
+    LOG.info("Ended doxscript at %s" % time.asctime())
 
 except ScriptException, e:
     LOG.critical("Error while running script: %s" % e)
