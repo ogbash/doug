@@ -503,6 +503,7 @@ contains
     write(stream,*) ' input_type - '
     write(stream,*) ' matrix_type - '
     write(stream,*) ' assembled_mtx_file - '
+    write(stream,*) ' assembled_rhs_file - '
     write(stream,*) ' info_file - '
     write(stream,*) ' freedom_lists_file - '
     write(stream,*) ' elemmat_rhs_file - '
@@ -881,6 +882,14 @@ contains
           mctls%assembled_mtx_file = trim(word2)
        endif
 
+    ! assembled_rhs
+    elseif (ctl_num.eq.DCTL_assembled_rhs_file) then
+       if (len_trim(mctls%assembled_rhs_file).ne.0) then
+          write(6,200) trim(word1), trim(word2)
+       else
+          mctls%assembled_rhs_file = trim(word2)
+       endif
+
     ! info_file
     elseif (ctl_num.eq.DCTL_info_file) then
        if (len_trim(mctls%info_file).ne.0) then
@@ -1174,6 +1183,10 @@ contains
            ctl_words(DCTL_assembled_mtx_file) &
            (1:length(ctl_words(DCTL_assembled_mtx_file))), &
            trim(mctls%assembled_mtx_file)
+      write(stream,fmtc) &
+           ctl_words(DCTL_assembled_rhs_file) &
+           (1:length(ctl_words(DCTL_assembled_rhs_file))), &
+           trim(mctls%assembled_rhs_file)
     elseif (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL) then
       write(stream,fmtc) &
            ctl_words(DCTL_info_file)(1:length(ctl_words(DCTL_info_file))), &

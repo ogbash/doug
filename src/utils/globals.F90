@@ -96,9 +96,10 @@ module globals
   !---------------------------------
   type MasterCtrlData
      ! elemental input data
-     character(L) :: assembled_mtx_file = '' ! assembled matrix case
+     character(L) :: assembled_mtx_file = '' ! assembled matrix data
+     character(L) :: assembled_rhs_file = '' ! assembled matrix RHS
      character(L) :: info_file          = '' ! info data for the mesh
-     character(L) :: elemmat_rhs_file   = '' !
+     character(L) :: elemmat_rhs_file   = '' ! elemental matrix and RHS
      character(L) :: freedom_lists_file = ''
      character(L) :: coords_file        = ''
      character(L) :: freemap_file       = ''
