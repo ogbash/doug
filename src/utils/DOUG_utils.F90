@@ -1396,11 +1396,34 @@ contains
 
   end function tolower
   
+  !------------------------------------------------
+  !> Finds first free IO unit starting from 7 to 99
+  !------------------------------------------------
+  subroutine FindFreeIOUnit(found,iounit)
+  	implicit none
+  	
+  	logical, intent(out)  :: found        !< has a free IO unit been found?
+  	integer, intent(out)  :: iounit       !< number of free IO unit found
+  	logical               :: exi, ope
+	found = .true.
+	do iounit=7,99
+	   inquire(unit=iounit,exist=exi) 
+	   if( exi ) inquire(unit=iounit,opened=ope)
+	   if( exi.and..not.ope) &
+	      exit
+	   if( iounit .eq. 99) then
+	      write(stream, *) 'Could not find free I/O-Unit!'
+	      found = .false.
+	   endif
+	enddo
+	
+  end subroutine 
+  
   !-------------------------------------
-  ! Writes vector x and its norm to the solution file.
+  ! > Writes vector x and its norm to the solution file.
   ! No code reuse of Vect_Print, becasue solution file format should be
   ! independent of screen output format!
-  ! solution_format is ignored
+  ! > solution_format is ignored
   !-------------------------------------
   subroutine WriteSolutionToFile(x, res_norm)
   	implicit none
@@ -1409,22 +1432,11 @@ contains
     float(kind=rk), intent(in)               :: res_norm
 
     integer :: i,n,iounit
-	logical :: exi,ope,io,opened
+	logical :: found,opened
 
-	! find free I/O-Unit starting with 7
-	io = .true.
-	do iounit=7,99
-	   inquire(unit=iounit,exist=exi) 
-	   if( exi ) inquire(unit=iounit,opened=ope)
-	   if( exi.and..not.ope) &
-	      exit
-	   if( iounit .eq. 99) then
-	      write(stream, *) 'Could not find free I/O-Unit!'
-	      io = .false.
-	   endif
-	enddo
+	call FindFreeIOUnit(found, iounit)
 	
-	if (io) then
+	if (found) then
        ! open file
 	   open(unit=iounit,iostat=opened,file=mctls%solution_file)
 
