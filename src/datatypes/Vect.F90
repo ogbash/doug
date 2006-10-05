@@ -684,4 +684,21 @@ contains
      enddo
   end subroutine Vect_remap
 
+  !-----------------------------
+  !> Read vector of floats from file
+  !-----------------------------
+  subroutine Vect_ReadFromFile(x, fnVect)
+    implicit none
+    float(kind=rk), dimension(:), pointer :: x !< pointer to the vector; before calling, the vector must be allocated with correct size
+    character*(*), intent(in) :: fnVect !< name of the file to read in
+
+    integer :: k
+    integer :: vectFile = 51
+
+    open(vectFile, FILE=trim(fnVect), STATUS='OLD', FORM='UNFORMATTED')
+    read (vectFile) (x(k), k = 1,size(x))
+    close(vectFile)
+
+  end subroutine Vect_ReadFromFile
+
 end module Vect_mod
