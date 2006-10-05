@@ -1421,42 +1421,50 @@ contains
   
   !-------------------------------------
   ! > Writes vector x and its norm to the solution file.
-  ! No code reuse of Vect_Print, becasue solution file format should be
-  ! independent of screen output format!
   ! > solution_format is ignored
   !-------------------------------------
   subroutine WriteSolutionToFile(x, res_norm)
   	implicit none
   	   
-    float(kind=rk), dimension(:), intent(in) :: x
-    float(kind=rk), intent(in)               :: res_norm
+    float(kind=rk), dimension(:), intent(in) :: x        !< vector to write out
+    float(kind=rk), intent(in)               :: res_norm !< the norm of the vector
 
     integer :: i,n,iounit
 	logical :: found,opened
 
 	call FindFreeIOUnit(found, iounit)
-	
 	if (found) then
-       ! open file
 	   open(unit=iounit,iostat=opened,file=mctls%solution_file)
-
        if (opened.eq.0) then
-	      ! write solution
-	      n = size(x)
-	      write(iounit,'(/a,i6,a)') 'solution :size [',n,']:'
-	      do i = 1,n
-	         write(iounit, '(a,i6,a,e21.14)') ' [',i,']=',x(i)
-	      end do
-	   
-	      ! write norm
-	      write(iounit,*) 'dsqrt(res_norm) =',dsqrt(res_norm)
-	    
-	      ! flush and close
-	      call flush(iounit)
+	      call WriteSolutionTextualFormat(iounit, x, res_norm)
 	      close(iounit)
 	   endif
     endif
+    
   end subroutine WriteSolutionToFile
+
+  !----------------------------------
+  ! >Writes the solution to an iounit (which is probably connected to a file)
+  ! >in textual format.
+  ! Maybe want to change format later to match input format.
+  !----------------------------------
+  subroutine WriteSolutionTextualFormat(iounit, x, res_norm)
+  	implicit none
+  	   
+  	integer, intent(in)                      :: iounit   !< IO-unit to write to
+    float(kind=rk), dimension(:), intent(in) :: x        !< vector to write out
+    float(kind=rk), intent(in)               :: res_norm !< the norm of the vector
+    integer :: i,n
+    
+    n = size(x)
+    write(iounit,'(/a,i6,a)') 'solution :size [',n,']:'
+    do i = 1,n
+       write(iounit, '(a,i6,a,e21.14)') ' [',i,']=',x(i)
+    end do
+    write(iounit,*) 'dsqrt(res_norm) =',dsqrt(res_norm)
+    call flush(iounit)
+
+  end subroutine
 
   !-------------------------------------
   !> sort integer array using quicksort algorithm
