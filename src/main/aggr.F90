@@ -72,7 +72,7 @@ program aggr
   float(kind=rk), dimension(:), pointer :: b  !< local RHS
   float(kind=rk), dimension(:), pointer :: xl !< local solution vector
   float(kind=rk), dimension(:), pointer :: x  !< global solution on master
-  float(kind=rk), dimension(:), pointer :: sol,rhs  !< for testing solver
+  float(kind=rk), dimension(:), pointer :: sol, rhs  !< for testing solver
 
   ! Partitioning
   integer               :: nparts !< number of partitons to partition a mesh
@@ -110,9 +110,17 @@ program aggr
      ! ELEMENTAL
      call parallelAssembleFromElemInput(M, A, b, nparts, part_opts)
   case (DCTL_INPUT_TYPE_ASSEMBLED) ! ASSEMBLED matrix 
-     write(stream,'(a,a)') ' ##### Assembled input file: ##### ',mctls%assembled_mtx_file
      if (ismaster()) then
-       call ReadInSparseAssembled(A,mctls%assembled_mtx_file)
+       write(stream,'(a,a)') ' ##### Assembled input file: ##### ',mctls%assembled_mtx_file
+       call ReadInSparseAssembled(A,trim(mctls%assembled_mtx_file))
+       allocate(b(A%nrows))
+       if (len_trim(mctls%assembled_rhs_file)>0) then
+          write(stream,'(a,a)') ' ##### Assembled RHS file: ##### ',mctls%assembled_rhs_file
+          call Vect_ReadFromFile(b, trim(mctls%assembled_rhs_file))
+       else
+          write(stream,'(a,a)') ' ##### (using unit vector as RHS) ##### '
+          b=1.0_rk
+       end if
      endif
      if (numprocs==1) then
        n=sqrt(1.0_rk*A%nrows)
@@ -128,7 +136,7 @@ program aggr
        endif
      else ! numprocs>1
        M=Mesh_New()
-       call SpMtx_DistributeAssembled(A,A_ghost,M)
+       call SpMtx_DistributeAssembled(A,b,A_ghost,M)
      endif
   case default
      call DOUG_abort('[DOUG main] : Unrecognised input type.', -1)
@@ -258,7 +266,7 @@ program aggr
 ! allocate(xl(A%nrows))
 ! allocate(b(A%nrows))
   allocate(xl(M%nlf))
-  allocate(b(M%nlf))
+!  allocate(b(M%nlf))
   xl = 0.0_rk
   ! Modifications R.Scheichl 17/06/05
   ! Set RHS to vector of all 1s
@@ -282,17 +290,17 @@ program aggr
 
 !xchk=1.0_rk
 
-  call SpMtx_pmvm(b,A,xchk,M)
+  !call SpMtx_pmvm(b,A,xchk,M)
   !call add_whole_ol(xchk,M)
-  !!call Print_Glob_Vect(xchk,M,'global xchk===',rows=.true.)
-  !!call Print_Glob_Vect(b,M,'global b===')
+  !call Print_Glob_Vect(xchk,M,'global xchk===',rows=.true.)
+  !call Print_Glob_Vect(b,M,'global b===')
   !call MPI_BARRIER(MPI_COMM_WORLD,i)
   !call DOUG_abort('[DOUG main] : testing Ax', -1)
   ! call Print_Glob_Vect(xchk,M,'global xchk===')
-!b=1.0_rk
-  nrm=Vect_dot_product(b,b)
-  b=b/dsqrt(nrm)
-  xchk=xchk/dsqrt(nrm)
+  !b=1.0_rk
+  !nrm=Vect_dot_product(b,b)
+  !b=b/dsqrt(nrm)
+  !xchk=xchk/dsqrt(nrm)
 
   select case(sctls%solver)
   case (DCTL_SOLVE_CG)
