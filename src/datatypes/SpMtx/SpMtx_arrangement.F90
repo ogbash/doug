@@ -635,14 +635,16 @@ CONTAINS
     deallocate(nnz_in_row)
   end subroutine SpMtx_build_refs_symm
 
-  subroutine SpMtx_DistributeAssembled(A,A_ghost,M)
+  subroutine SpMtx_DistributeAssembled(A,b,A_ghost,M)
     use Graph_class
     use Mesh_class
     implicit none
 
-    type(SpMtx),intent(inout) :: A,A_ghost
-    type(Mesh)                :: M
-    integer :: i,k,ierr,n,ol
+    type(SpMtx),intent(inout)           :: A,A_ghost
+    float(kind=rk),dimension(:),pointer :: b
+    type(Mesh)                          :: M
+    !-----------------------
+    integer :: i,j,k,ierr,n,ol
     integer, dimension(:), pointer :: xadj
     integer, dimension(:), pointer :: adjncy
     integer                        :: nedges
@@ -651,6 +653,7 @@ CONTAINS
     integer,dimension(:),pointer       :: clrorder,clrstarts
     integer, dimension(:), allocatable :: ccount !count colors
     integer,dimension(4)           :: buf
+    float(kind=rk),dimension(:),pointer :: b_tmp
     
     ol=max(sctls%overlap,sctls%smoothers)
     if (ismaster()) then ! Here master simply splits the matrix into pieces
@@ -692,6 +695,7 @@ CONTAINS
                         symmstruct=sctls%symmstruct,               &
                         symmnumeric=sctls%symmnumeric              &
                        )
+      allocate(b(A%nrows))
       M=Mesh_newInit(nell=A%nrows,ngf=A%nrows,nsd=-2,mfrelt=-1,    &
                      nnode=A%nrows)
       allocate(M%eptnmap(A%nrows))
@@ -704,7 +708,7 @@ CONTAINS
       write(stream,*)'A orig:'
       call SpMtx_printRaw(A)
     endif
-    call SpMtx_distributeWithOverlap(A, M, ol)
+    call SpMtx_distributeWithOverlap(A, b, M, ol)
 
     !========= count color elements ============
     if (A%arrange_type==D_SpMtx_ARRNG_ROWS) then
@@ -777,6 +781,13 @@ CONTAINS
       write(stream,*)'...indepoutol:',M%lg_fmap(M%ninner+1:M%indepoutol)
       write(stream,*)'...ghost-freds:',M%lg_fmap(M%indepoutol+1:M%nlf)
     endif
+    ! Rebuild RHS vector to correspond to local freedoms
+    allocate(b_tmp(M%nlf))
+    do i=1,M%nlf
+      b_tmp(i)=b(M%lg_fmap(i))
+    end do
+    deallocate(b)
+    b=>b_tmp
     ! Localise matrices and communication arrays
     do k=1,M%nnghbrs
       M%ax_recvidx(k)%inds=M%gl_fmap(M%ax_recvidx(k)%inds)
@@ -978,12 +989,13 @@ CONTAINS
     end if
   end subroutine SpMtx_addFront
 
-  !> Distribute assembled matrix from master to slaves;
+  !> Distribute assembled matrix and RHS vector from master to slaves;
   !> distribute by taking overlap into account
   !> NOTE: as a sideeffect, the returned matrix is arranged by rows
-  subroutine SpMtx_distributeWithOverlap(A, M, ol)
+  subroutine SpMtx_distributeWithOverlap(A, b, M, ol)
     implicit none
     type(SpMtx), intent(inout) :: A !< original matrix in case of master; in case of slave matrix data is ignored but structure (dimensions, symmetry, etc) should be initialized
+    float(kind=rk), dimension(:), pointer :: b !< original RHS vector in case of master; in case of slave, b should be large enough to contain whole RHS (contents are ignored)
     type(Mesh), intent(in) :: M !< mesh corresponding to A
     integer, intent(in) :: ol !< overlap
     !------------------------------------
@@ -1101,6 +1113,9 @@ CONTAINS
       A%M_bound(1)=1
     end if
     A%arrange_type=D_SpMtx_ARRNG_ROWS
+
+    ! TODO: distribute only needed freedoms
+    call MPI_BCAST(b, A%nrows, MPI_fkind, D_MASTER, MPI_COMM_WORLD, ierr)
 
   end subroutine SpMtx_distributeWithOverlap
 
