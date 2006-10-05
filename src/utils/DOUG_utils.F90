@@ -1422,7 +1422,6 @@ contains
   
   !-------------------------------------
   ! > Writes vector x and its norm to the solution file.
-  ! > solution_format is ignored
   !-------------------------------------
   subroutine WriteSolutionToFile(x, res_norm)
   	implicit none
@@ -1435,11 +1434,26 @@ contains
 
 	call FindFreeIOUnit(found, iounit)
 	if (found) then
-	   open(unit=iounit,iostat=opened,file=mctls%solution_file)
-       if (opened.eq.0) then
-	      call WriteSolutionTextualFormat(iounit, x, res_norm)
-	      close(iounit)
-	   endif
+   
+      ! Text format.   
+      if (mctls%solution_format == 0) then
+      	open(unit=iounit,iostat=opened,file=mctls%solution_file)
+        if (opened.eq.0) &
+      	  call WriteSolutionTextualFormat(iounit, x, res_norm)
+      
+      ! Binary format.
+      elseif (mctls%solution_format == 1) then
+	    open(unit=iounit,iostat=opened,form='unformatted',file=mctls%solution_file)
+	    if (opened.eq.0) &
+          call WriteSolutionBinaryFormat(iounit, x)
+
+      ! Default case.
+      else
+      	write (stream,*) 'Solution format is not valid. Set it in the control file.'
+      	write (stream,*) 'Solution not written.'
+      endif
+      
+      close(iounit)
     endif
     
   end subroutine WriteSolutionToFile
@@ -1463,7 +1477,25 @@ contains
        write(iounit, '(a,i6,a,e21.14)') ' [',i,']=',x(i)
     end do
     write(iounit,*) 'dsqrt(res_norm) =',dsqrt(res_norm)
-    call flush(iounit)
+
+  end subroutine
+  
+  !----------------------------------
+  !> Writes the solution to an iounit (which is probably connected to a file)
+  !> in binary format.
+  !> The format is like this:
+  !> \code
+  !> x(1), x(2), ..., x(n)
+  !> \codeend
+  !----------------------------------
+  subroutine WriteSolutionBinaryFormat(iounit, x)
+  	implicit none
+  	   
+  	integer, intent(in)                      :: iounit   !< IO-unit to write to
+    float(kind=rk), dimension(:), intent(in) :: x        !< vector to write out
+    integer :: k
+    
+    write(iounit) (x(k), k = 1,size(x))
 
   end subroutine
 
