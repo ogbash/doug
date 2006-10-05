@@ -488,49 +488,19 @@ contains
 
   !----------------------------------
   ! Print control file parameters
-  ! TODO: update list
   !----------------------------------
   subroutine util_printCtrlFileInfo()
     use globals, only: stream
     implicit none
+    
+    integer :: i
+    
+    include 'controls.F90'
 
     write(stream,*) 'List of currently supported control parameters:'
-    write(stream,*) ' solver - '
-    write(stream,*) ' method - '
-    write(stream,*) ' levels - '
-    write(stream,*) ' overlap - '
-    write(stream,*) ' smoothers - '
-    write(stream,*) ' input_type - '
-    write(stream,*) ' matrix_type - '
-    write(stream,*) ' assembled_mtx_file - '
-    write(stream,*) ' assembled_rhs_file - '
-    write(stream,*) ' info_file - '
-    write(stream,*) ' freedom_lists_file - '
-    write(stream,*) ' elemmat_rhs_file - '
-    write(stream,*) ' coords_file - '
-    write(stream,*) ' freemap_file - '
-    write(stream,*) ' freedom_mask_file - '
-    write(stream,*) ' number_of_blocks - '
-    write(stream,*) ' strong1 - '
-    write(stream,*) ' strong2 - '
-    write(stream,*) ' solve_tolerance - '
-    write(stream,*) ' solution_format - '
-    write(stream,*) ' radius1 - '
-    write(stream,*) ' radius2 - '
-    write(stream,*) ' minasize1 - '
-    write(stream,*) ' minasize2 - '
-    write(stream,*) ' maxasize1 - '
-    write(stream,*) ' maxasize2 - '
-    write(stream,*) ' debug - '
-    write(stream,*) ' verbose - '
-    write(stream,*) ' plotting - '
-    write(stream,*) ' initial_guess - '
-    write(stream,*) ' start_vec_type - '
-    write(stream,*) ' start_vec_file - '
-    write(stream,*) ' symmstruct - '
-    write(stream,*) ' symmnumeric - '
-    write(stream,*) ' solve_maxiters - '
-    write(stream,*)
+    do i = 1, size(ctl_words)
+   	  write(stream,*) ctl_words(i)
+    end do
     call flush(stream)
 
   end subroutine util_printCtrlFileInfo
