@@ -206,19 +206,20 @@ contains
     write(D_ERROR_STREAM, *)
     if (ismaster()) then
        write (D_ERROR_STREAM, 99) error, message
-99     format('DOUG: Fatal error: Master is bailing out with error ',i3, &
+99     format('DOUG: Fatal error: Master is bailing out with error ',i4, &
             /'Error message: ',a/)
        write(D_ERROR_STREAM, '(a)') 'doug_ended'
     else
        write (D_ERROR_STREAM,100) myrank, error, message
 100    format('DOUG: Fatal error: Slave ',i3,' is bailing out', &
-            ' with error ', i3, /'Error message: ',a/)
+            ' with error ', i4, /'Error message: ',a/)
        write(D_ERROR_STREAM,'(a)') 'doug_ended'
     endif
 
     if (D_INIT_TYPE == D_INIT_SERIAL) then
        stop
     else
+       error = (error * 2**MPI_ABORT_ERROR_CODE_SHIFT) + 1 ! (error<<??)+1, 
        call MPI_ABORT(MPI_COMM_WORLD,error,ierr)
     end if
 

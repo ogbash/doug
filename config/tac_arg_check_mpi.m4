@@ -1,4 +1,5 @@
-# Taken from Trilinos project
+dnl -*- shell-script -*-
+dnl Taken from Trilinos project
 dnl @synopsis TAC_ARG_CHECK_MPI
 dnl
 dnl Check to make sure any definitions set in TAC_ARG_CONFIG_MPI
@@ -52,3 +53,44 @@ AC_DEFUN([TAC_ARG_CHECK_MPI],
   fi
 
 ])
+
+dnl Find MPI_Abort() exit status shift.
+dnl This is done in LAM/MPI implementation by 16 or 17 bits depending on version
+AC_DEFUN([CHECK_MPI_ABORT_ERROR_CODE_SHIFT],
+[
+AC_MSG_CHECKING([Number of bits shift for MPI_Abort() error code])
+cat > conftestf.f <<EOF
+       program mpi_abort_p
+         integer ierr, error
+
+         include 'mpif.h'
+
+         call MPI_Init(ierr)
+         error = 54*2**16+1
+         call MPI_Abort(MPI_COMM_WORLD, error, ierr)
+       end program mpi_abort_p
+EOF
+LOG_FILE([conftestf.f])
+
+_compilecmd="$FC $FFLAGS conftestf.f -o conftest $LDFLAGS $LIBS"
+LOG_MSG([$_compilecmd], 1)
+$_compilecmd 1>&5 2>&1
+
+_cmd="./conftest"
+LOG_MSG([$_compilecmd], 1)
+$_cmd 1>&5 2>&1
+_status=$?
+LOG_MSG([_status=$_status], 1)
+
+if test $_status = 27; then
+    MPI_ABORT_ERROR_CODE_SHIFT=17
+elif test $_status = 54; then
+    MPI_ABORT_ERROR_CODE_SHIFT=16
+else
+    MPI_ABORT_ERROR_CODE_SHIFT=0
+fi
+AC_MSG_RESULT([$MPI_ABORT_ERROR_CODE_SHIFT])
+/bin/rm -f conftest*
+
+])
+

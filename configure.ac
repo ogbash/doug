@@ -96,6 +96,10 @@ AC_LANG_POP(Fortran)
 # MPI link check
 # ------------------------------------------------------------------------
 TAC_ARG_CHECK_MPI
+CHECK_MPI_ABORT_ERROR_CODE_SHIFT()
+AC_DEFINE_UNQUOTED([MPI_ABORT_ERROR_CODE_SHIFT],
+        [$MPI_ABORT_ERROR_CODE_SHIFT],
+        [number of bits error code should be shift when passing to MPI_Abort()])
 
 # Fortran intrinsics
 
