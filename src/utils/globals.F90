@@ -96,18 +96,19 @@ module globals
   !---------------------------------
   type MasterCtrlData
      ! elemental input data
-     character(L) :: assembled_mtx_file = '' ! assembled matrix data
-     character(L) :: assembled_rhs_file = '' ! assembled matrix RHS
-     character(L) :: info_file          = '' ! info data for the mesh
-     character(L) :: elemmat_rhs_file   = '' ! elemental matrix and RHS
-     character(L) :: freedom_lists_file = ''
-     character(L) :: coords_file        = ''
-     character(L) :: freemap_file       = ''
-     character(L) :: freedom_mask_file  = '' ! block system
-     character(L) :: start_vec_file     = '' ! initial estimate in a file
-     character(L) :: solution_file      = ''
-     integer      :: start_vec_type     = -1
-     integer      :: solution_format    = -1
+     character(L) :: assembled_mtx_file   = '' ! assembled matrix data
+     character(L) :: assembled_rhs_file   = '' ! assembled matrix RHS
+     integer      :: assembled_rhs_format = -1 ! 0 == text, 1 == binary, 2 == like in matrix
+     character(L) :: info_file            = '' ! info data for the mesh
+     character(L) :: elemmat_rhs_file     = '' ! elemental matrix and RHS
+     character(L) :: freedom_lists_file   = ''
+     character(L) :: coords_file          = ''
+     character(L) :: freemap_file         = ''
+     character(L) :: freedom_mask_file    = '' ! block system
+     character(L) :: start_vec_file       = '' ! initial estimate in a file
+     character(L) :: solution_file        = ''
+     integer      :: start_vec_type       = -1
+     integer      :: solution_format      = -1 ! 0 == text, 1 == binary, 2 == like in matrix
 
      ! Geom. Coarse grid parameters
      integer       :: maxcie           = -1

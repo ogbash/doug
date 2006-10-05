@@ -859,6 +859,14 @@ contains
        else
           mctls%assembled_rhs_file = trim(word2)
        endif
+	
+	! assembled_rhs_format
+    elseif (ctl_num.eq.DCTL_assembled_rhs_format) then
+       if (mctls%assembled_rhs_format.ne.-1) then
+          write(6,200) trim(word1), trim(word2)
+       else
+          read(word2, '(i10)') mctls%assembled_rhs_format
+       endif
 
     ! info_file
     elseif (ctl_num.eq.DCTL_info_file) then
@@ -1148,15 +1156,19 @@ contains
     write(stream,fmti) &
          ctl_words(DCTL_start_vec_type) &
          (1:length(ctl_words(DCTL_start_vec_type))), mctls%start_vec_type
+    write(stream,fmti) &
+         ctl_words(DCTL_assembled_rhs_format) &
+         (1:length(ctl_words(DCTL_assembled_rhs_format))), & 
+         mctls%assembled_rhs_format
+    write(stream,fmtc) &
+         ctl_words(DCTL_assembled_rhs_file) &
+         (1:length(ctl_words(DCTL_assembled_rhs_file))), &
+         trim(mctls%assembled_rhs_file)
     if (sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED) then
       write(stream,fmtc) &
            ctl_words(DCTL_assembled_mtx_file) &
            (1:length(ctl_words(DCTL_assembled_mtx_file))), &
            trim(mctls%assembled_mtx_file)
-      write(stream,fmtc) &
-           ctl_words(DCTL_assembled_rhs_file) &
-           (1:length(ctl_words(DCTL_assembled_rhs_file))), &
-           trim(mctls%assembled_rhs_file)
     elseif (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL) then
       write(stream,fmtc) &
            ctl_words(DCTL_info_file)(1:length(ctl_words(DCTL_info_file))), &
