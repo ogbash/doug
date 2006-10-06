@@ -46,15 +46,17 @@ class ControlFile:
 			f.close()
 
 class TestCase:
-	def __init__(self, datadir, ctrlfname, solutionfname, conf, method):
+	def __init__(self, datadir, ctrlfname, solutionfname, conf, solver, method, nproc):
 		self.datadir = datadir
 		self.ctrlfname = ctrlfname
 		self.solutionfname = solutionfname
 		self.conf = conf
+		self.solver = solver
 		self.method = method
+		self.nproc = nproc
 	
 	def setUp(self):
-		LOG.debug("Preparing before test")
+		LOG.debug("Preparing testing environment")
 		tmpdir = os.tempnam(None, 'doug-')
 		os.mkdir(tmpdir)
 		LOG.debug("Temporary directory %s created" % tmpdir)
@@ -63,6 +65,7 @@ class TestCase:
 			# copy control file
 			self.controlFile = ControlFile(self.ctrlfname)
 			self.controlFile.options['plotting'] = '0'
+			self.controlFile.options['solver'] = str(self.solver)
 			self.controlFile.options['method'] = str(self.method)
 			self.testctrlfname = os.path.join(self.tmpdir,
 							  os.path.basename(self.ctrlfname))
@@ -103,6 +106,7 @@ class TestCase:
 
 	def run(self, result=None):
 		LOG.debug("Running test")
+		LOG.info("solver=%d, method=%d, nproc=%d" % (self.solver, self.method, self.nproc))
 		mpirun = self.conf.get("dougtest", "mpirun")
 		dougbindir = os.path.abspath(self.conf.get("dougtest", "dougbindir"))
 		main = os.path.join(dougbindir, "doug_main")
@@ -113,7 +117,7 @@ class TestCase:
 		os.chdir(self.tmpdir)
 		try:
 			LOG.debug("Running %s -np 1 %s -f %s" % (mpirun, main, self.testctrlfname))
-			res = os.spawnlp(os.P_WAIT, mpirun, mpirun, "-np", "1",
+			res = os.spawnlp(os.P_WAIT, mpirun, mpirun, "-np", str(self.nproc),
 					 main, "-f", self.testctrlfname)
 			LOG.debug("Finished %s with code %d" % (mpirun, res))
 			if res:
