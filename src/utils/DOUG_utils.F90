@@ -1421,7 +1421,7 @@ contains
   end subroutine 
   
   !-------------------------------------
-  ! > Writes vector x and its norm to the solution file.
+  !> Writes vector x and its norm to the solution file.
   !-------------------------------------
   subroutine WriteSolutionToFile(x, res_norm)
   	implicit none
@@ -1459,8 +1459,8 @@ contains
   end subroutine WriteSolutionToFile
 
   !----------------------------------
-  ! >Writes the solution to an iounit (which is probably connected to a file)
-  ! >in textual format.
+  !> Writes the solution to an iounit (which is probably connected to a file)
+  !> in textual format.
   ! Maybe want to change format later to match input format.
   !----------------------------------
   subroutine WriteSolutionTextualFormat(iounit, x, res_norm)
@@ -1486,7 +1486,7 @@ contains
   !> The format is like this:
   !> \code
   !> x(1), x(2), ..., x(n)
-  !> \codeend
+  !> \endcode
   !----------------------------------
   subroutine WriteSolutionBinaryFormat(iounit, x)
   	implicit none
