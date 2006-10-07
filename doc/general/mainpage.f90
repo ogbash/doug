@@ -1,6 +1,9 @@
 !> \mainpage DOUG - Domain Decomposition on Unstructured Grids. 
 !>
-!> See also wiki pages for DOUG at: 
+!> \section Description Here you can find technical overview, code documentation about DOUG.
+!>
+!> For general description, prerequisites, installation, compiling and
+!> running, see also wiki pages for DOUG at: 
 !> <A HREF="http://www.dougdevel.org/wiki">http://www.dougdevel.org/wiki</A>.
 !!
 !! \section doc Documentation
