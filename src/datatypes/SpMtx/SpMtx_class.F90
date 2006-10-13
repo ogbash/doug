@@ -394,7 +394,7 @@ contains
     do i=1,nnz
       read(file_p, FMT=*,END=500 ) A%indi(i),A%indj(i),A%val(i)
       if (i<3.or.i>nnz-2) then
-        write(stream,'(i,a,2i,E24.16)') i,' mat:',A%indi(i),a%indj(i),A%val(i)
+        write(stream,'(I4,A,I2,I2,E24.16)') i,' mat:',A%indi(i),a%indj(i),A%val(i)
       endif
     enddo
     if (A%indi(1)==0) then
