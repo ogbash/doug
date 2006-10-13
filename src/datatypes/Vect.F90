@@ -371,7 +371,7 @@ contains
     integer,intent(in),optional :: chk_endind
     logical :: rw
     float(kind=rk),dimension(:),pointer :: x_glob
-    integer :: i,ierr,ei
+    integer :: i,ierr,ei,fmap_size
     allocate(x_glob(M%ngf))
     call Vect_Gather(x,x_glob,M)
     if (present(rows).and.rows) then
@@ -396,7 +396,9 @@ contains
     end if
     ! Perform also integrity check on the overlap:
     call MPI_BCAST(x_glob,M%ngf,MPI_fkind,D_MASTER,MPI_COMM_WORLD,ierr)
-    do i=1,size(M%gl_fmap)
+    fmap_size=0
+    if (associated(M%gl_fmap)) fmap_size=size(M%gl_fmap)
+    do i=1,fmap_size
       if (M%gl_fmap(i)/=0.and.M%gl_fmap(i)<=ei) then
         if (abs(x(M%gl_fmap(i))-x_glob(i))>1d-14) then
           write (*,*)'!!!!!### value mismatch on subd.',myrank,' globind=',i,&

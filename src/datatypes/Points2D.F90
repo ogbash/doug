@@ -41,8 +41,6 @@ contains
     integer        :: np
     type(Points2D) :: p2d
 
-    call Points2D_Destroy(p2d)
-    
     allocate(p2d%x(np), p2d%y(np))
 
     p2d%np = np
