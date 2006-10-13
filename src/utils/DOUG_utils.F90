@@ -16,7 +16,7 @@ module DOUG_utils
 #define float real
 #endif
 
-  !include 'mpif.h' -- included in module globals.f90
+  !include 'mpif.h'
 
   private :: &
        util_logStreamCreate,  &
@@ -1305,7 +1305,6 @@ contains
   ! NB: D_MSGLVL and D_DEBUGLVL are reset here on slaves!
   !------------------------------------------------------
   subroutine SharedCtrlData_Bcast()
-    use globals, only: sctls, D_MPI_SCTLS_TYPE, D_MASTER
     implicit none
 
     integer :: ierr
@@ -1429,8 +1428,8 @@ contains
     float(kind=rk), dimension(:), intent(in) :: x        !< vector to write out
     float(kind=rk), intent(in)               :: res_norm !< the norm of the vector
 
-    integer :: i,n,iounit
-	logical :: found,opened
+    integer :: i,n,iounit,opened
+	logical :: found
 
 	call FindFreeIOUnit(found, iounit)
 	if (found) then
