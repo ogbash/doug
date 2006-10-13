@@ -3,9 +3,15 @@
 from scripts import ScriptException
 import logging
 import os
+import sys
 import re
+import unittest
+import popen2
+import tarfile
 
-defaultConfig="""
+__all__ = ['TestCase', 'getDefaultConfig']
+
+_defaultConfig="""
 [dougtest]
 # directory where doug_main and doug_aggr are located
 dougbindir:
@@ -13,11 +19,15 @@ dougbindir:
 # MPI
 mpiboot: lamboot
 mpirun: mpirun
+
+doug-outfilename: dougtest.out
+doug-errfilename: dougtest.err
 """
 
 LOG = logging.getLogger("dougtest")
 
-
+def getDefaultConfig():
+	return _defaultConfig
 
 class ControlFile:	
 	re_assignment = re.compile("(\S+)\s+(.*)")
@@ -45,8 +55,10 @@ class ControlFile:
 		finally:
 			f.close()
 
-class TestCase:
-	def __init__(self, datadir, ctrlfname, solutionfname, conf, solver, method, nproc):
+class TestCase (unittest.TestCase):
+	def __init__(self, testname, datadir, ctrlfname, solutionfname, conf, solver, method, nproc):
+		unittest.TestCase.__init__(self)
+		self.testname = testname
 		self.datadir = datadir
 		self.ctrlfname = ctrlfname
 		self.solutionfname = solutionfname
@@ -86,8 +98,9 @@ class TestCase:
 					os.path.join(self.tmpdir, fname))
 
 			# run lamboot (temporary solution for developing)
-			mpiboot = self.conf.get("dougtest", "mpiboot")
-			res = os.spawnlp(os.P_WAIT, mpiboot, mpiboot)
+			mpibootname = self.conf.get("dougtest", "mpiboot")
+			mpiboot = popen2.Popen3("%s > %s.out 2> %s.err" % (mpibootname, mpibootname, mpibootname))
+			res = mpiboot.wait()
 			if res:
 				raise ScriptException("Error running %s (%d)" % (mpiboot, res))
 		except:
@@ -104,12 +117,14 @@ class TestCase:
 			os.system('rm -rf %s' % self.tmpdir)
 			LOG.debug("Temporary directory %s deleted" % self.tmpdir)
 
-	def run(self, result=None):
+	def runTest(self):
 		LOG.debug("Running test")
 		LOG.info("solver=%d, method=%d, nproc=%d" % (self.solver, self.method, self.nproc))
 		mpirun = self.conf.get("dougtest", "mpirun")
 		dougbindir = os.path.abspath(self.conf.get("dougtest", "dougbindir"))
 		main = os.path.join(dougbindir, "doug_main")
+		errfname = os.path.join(self.tmpdir, self.conf.get("dougtest", "doug-errfilename"))
+		outfname = os.path.join(self.tmpdir, self.conf.get("dougtest", "doug-outfilename"))
 		
 		curdir = os.getcwd()
 		
@@ -117,11 +132,204 @@ class TestCase:
 		os.chdir(self.tmpdir)
 		try:
 			LOG.debug("Running %s -np 1 %s -f %s" % (mpirun, main, self.testctrlfname))
-			res = os.spawnlp(os.P_WAIT, mpirun, mpirun, "-np", str(self.nproc),
-					 main, "-f", self.testctrlfname)
-			LOG.debug("Finished %s with code %d" % (mpirun, res))
-			if res:
-				raise ScriptException("Error running %s (%d)" % (mpirun, res))
+			doug = popen2.Popen3('%s -np %d %s -f %s > %s 2> %s'%
+					    (mpirun, self.nproc, main, self.testctrlfname,
+					     outfname, errfname))
+            
+			value = doug.wait()
+			LOG.debug("Finished %s with code %d" % (mpirun, value))
+			if value != 0:
+				se = ScriptException("Error occured while running doug (value=%d), "
+						     "inspect output files (%s, %s) for error description." %
+						     (value, outfname, errfname))
+				se.addFile(outfname, "%s standard output" % mpirun)
+				se.addFile(errfname, "%s standard error" % mpirun)
+				raise se
+			
+			#res = os.spawnlp(os.P_WAIT, mpirun, mpirun, "-np", str(self.nproc),
+			#		 main, "-f", self.testctrlfname)
 		finally:
 			LOG.debug("Changing directory to %s" % curdir)
 			os.chdir(curdir)
+
+	def run(self, result=None):
+		if result is None: result = self.defaultTestResult()
+		result.startTest(self)
+		testMethod = getattr(self, self.__testMethodName)
+		try:
+			try:
+				self.setUp()
+			except KeyboardInterrupt:
+				raise
+			except:
+				result.addError(self, self.__exc_info())
+				return
+
+			try:
+				testMethod()
+				result.addSuccess(self)
+			except self.failureException:
+				result.addFailure(self, self.__exc_info())
+			except KeyboardInterrupt:
+				raise
+			except:
+				result.addError(self, self.__exc_info())
+
+			try:
+				self.tearDown()
+			except KeyboardInterrupt:
+				raise
+			except:
+				result.addError(self, self.__exc_info())
+		finally:
+			result.stopTest(self)
+
+	def __str__(self):
+		return "%s: solver=%d, method=%d, processors=%d" % \
+		       (self.testname, self.solver, self.method, self.nproc)
+
+class DougTarTestResult(unittest.TestResult):
+	"""Tars DOUG test results into one file."""
+	
+	def __init__(self, tarfname):
+		unittest.TestResult.__init__(self)
+		self.tarFileName = tarfname
+		self.tarFile = tarfile.open(self.tarFileName, "w")
+
+	def startTest(self, test):
+		unittest.TestResult.startTest(self, test)
+		d = self._getTestDirectory(test)
+
+	def stopTest(self, test):
+		unittest.TestResult.stopTest(self, test)
+
+	def addError(self, test, err):
+		unittest.TestResult.addError(self, test, err)
+		errtp, errval, errtb = err
+		d = self._getTestDirectory(test)
+		if issubclass(errtp, ScriptException):
+			for fname, descr in errval.files:
+				self._addFile(fname, descr, test)
+
+	def addFailure(self, test, err):
+		unittest.TestResult.addFailure(self, test, err)
+
+	def addSuccess(self, test):
+		unittest.TestResult.addSuccess(self, test)
+
+	def stop(self):
+		unittest.TestResult.stop(self)
+
+	def close(self):
+		self.tarFile.close()
+
+	def _getTestDirectory(self, test):
+		import time
+		dirName = "/".join([test.testname,
+				    "s%dm%dnp%d" % (test.solver, test.method, test.nproc),
+				    ""])
+		try:
+			testDir = self.tarFile.getmember(dirName)
+		except KeyError:
+			testDir = tarfile.TarInfo(dirName)
+			testDir.type = tarfile.DIRTYPE
+			testDir.mode = 0755
+			testDir.mtime = time.time()
+			self.tarFile.addfile(testDir)
+		return testDir
+
+	def _addFile(self, fname, descr, test):
+		LOG.debug("Adding file %s to tar" % fname)
+		d = self._getTestDirectory(test)
+		arcname = "/".join([d.name, os.path.basename(fname)])
+		self.tarFile.add(fname, arcname)
+
+class CombinedTestResult(unittest.TestResult):
+	"""Holder for multiple test result objects.
+
+	All test result objects are called in order they are passed constructor."""
+	
+	def __init__(self, testResults):
+		unittest.TestResult.__init__(self)
+		self.testResults = testResults
+
+	def startTest(self, test):
+		unittest.TestResult.startTest(self, test)
+		for testResult in self.testResults:
+			testResult.startTest(test)
+
+	def stopTest(self, test):
+		unittest.TestResult.stopTest(self, test)
+		for testResult in self.testResults:
+			testResult.stopTest(test)
+
+	def addError(self, test, err):
+		unittest.TestResult.addError(self, test, err)
+		for testResult in self.testResults:
+			testResult.addError(test, err)
+
+	def addFailure(self, test, err):
+		unittest.TestResult.addFailure(self, test, err)
+		for testResult in self.testResults:
+			testResult.addFailure(test, err)
+
+	def addSuccess(self, test):
+		unittest.TestResult.addSuccess(self, test)
+		for testResult in self.testResults:
+			testResult.addSuccess(test)
+
+	def stop(self):
+		unittest.TestResult.stop(self)
+		for testResult in self.testResults:
+			testResult.stop()
+
+class TestRunner:
+	"""A test runner class that uses console to print results or tars result
+	files into specified archive.
+	"""
+	def __init__(self, testResults = None):
+		stream = sys.stderr
+		self.stream = unittest._WritelnDecorator(stream)
+		self.descriptions = True
+		self.verbosity = 1
+		if not testResults:
+			testResults = [unittest._TextTestResult(self.stream, self.descriptions, self.verbosity)]
+		self.testResults = testResults
+
+	def run(self, test):
+		"Run the given test case or test suite."
+		import time
+		result = CombinedTestResult(self.testResults)
+		
+		startTime = time.time()
+		test(result)			
+		stopTime = time.time()
+		
+		timeTaken = stopTime - startTime
+
+		if self.verbosity:
+			for testResult in result.testResults:
+				if isinstance(testResult, unittest._TextTestResult):
+					self._printErrors(testResult, timeTaken)
+
+		return result
+
+	def _printErrors(self, result, timeTaken):
+		"Ugly hack to support TextTestResult."
+		result.printErrors()
+		self.stream.writeln(result.separator2)
+		run = result.testsRun
+		self.stream.writeln("Ran %d test%s in %.3fs" %
+				    (run, run != 1 and "s" or "", timeTaken))
+		self.stream.writeln()
+		if not result.wasSuccessful():
+			self.stream.write("FAILED (")
+			failed, errored = map(len, (result.failures, result.errors))
+			if failed:
+				self.stream.write("failures=%d" % failed)
+			if errored:
+				if failed: self.stream.write(", ")
+				self.stream.write("errors=%d" % errored)
+			self.stream.writeln(")")
+		else:
+			self.stream.writeln("OK")

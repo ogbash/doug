@@ -31,15 +31,17 @@ run-autotools: yes
 
 logconfFileNames = []
 confFileNames = []
+verbose = False
 
 def usage():
-    sys.stderr.write("Usage:\n"
-                     "\t%s --conf=<filename> --logconf=<filename>\n"
-                     "\t%s -g (to generate default config to stdout)\n"
-                     % (sys.argv[0], sys.argv[0]))
+    sys.stderr.write("Usage: %s\n"
+                     "\t [--conf=<filename>]... [--logconf=<filename>]...\n"
+                     "\t [-g] (to generate default config to stdout)\n"
+                     "\t [-v] (verbose)\n"
+                     % (sys.argv[0],))
 
 try:
-    opts, extra = getopt.getopt(sys.argv[1:], "g", ["logconf=", "conf="])
+    opts, extra = getopt.getopt(sys.argv[1:], "gv", ["logconf=", "conf="])
 except getopt.GetoptError:
     usage()
     sys.exit(1)
@@ -51,7 +53,7 @@ if len(extra)>0:
 config = "\n".join([defaultConfig,
                     svnscripts.defaultConfig,
                     autotools.defaultConfig,
-                    dougtest.defaultConfig])
+                    dougtest.getDefaultConfig()])
 
 for opt in opts:
     if opt[0]=="--logconf":
@@ -61,13 +63,18 @@ for opt in opts:
     if opt[0]=="-g":
         sys.stdout.write(config)
         sys.exit(0)
+    if opt[0]=="-v":
+        verbose = True
 
 import logging.config
 for fname in logconfFileNames:
     logging.config.fileConfig(fname)
 else:
     logging.basicConfig()
-    
+
+if verbose:
+    logging.getLogger().setLevel(logging.DEBUG)
+
 LOG = logging.getLogger('testscript')
 
 def generateTuples(*iters):
@@ -106,7 +113,14 @@ try:
         datadir = os.path.dirname(ctrlfname)
         LOG.info("Test '%s'" % (name, ))
         LOG.info("Control file: %s" % ctrlfname)
-        LOG.info("Correct solution file: %s" % (solutionfname,))        
+        LOG.info("Correct solution file: %s" % (solutionfname,))
+
+        tarTestResult = dougtest.DougTarTestResult("/usr/svn/anytests.tar")
+        import unittest
+        testResults = [unittest._TextTestResult(unittest._WritelnDecorator(sys.stderr), False, 1),
+                       tarTestResult]
+        testRunner = dougtest.TestRunner(testResults)
+        testSuite = unittest.TestSuite()
 
         # read test configurations
         testconfs = testconfs.split(",")
@@ -116,24 +130,16 @@ try:
             methods = map(int, conf.get(testconfname, "method").split(","))
             processors = map(int, conf.get(testconfname, "processors").split(","))
 
-            print solvers, methods, processors
-
             testtuples = generateTuples(solvers, methods, processors)
 
             for testtuple in testtuples:
-                test = dougtest.TestCase(datadir, ctrlfname, solutionfname, conf, *testtuple)
-                try:
-                    LOG.info("Test '%s': starting" % (name, ))
-                    test.setUp()
-                    try:
-                        test.run()
-                    finally:
-                        test.tearDown()
-                except ScriptException, e:
-                    LOG.info("Test '%s': ended with error" % (name, ))
-                    LOG.error("Error while running test: %s" % e)
-                else:
-                    LOG.info("Test '%s': ended successfully" % (name, ))
+                test = dougtest.TestCase(name+"_"+testconf, datadir, ctrlfname, solutionfname, conf, *testtuple)
+                testSuite.addTest(test)
+
+    testRunner.run(testSuite)
+
+    tarTestResult.close()
+    LOG.debug("tar file closed")
 
     LOG.info("Ended testscript at %s" % time.asctime())
 
