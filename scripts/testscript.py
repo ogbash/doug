@@ -9,13 +9,24 @@ import sys
 from ConfigParser import SafeConfigParser
 from StringIO import StringIO
 import os
-import dougtest
 import unittest
+import dougtest
+import dougtesttar
+import dougtestmysql
 
 defaultConfig = """
 [testscript]
 run-svn: yes
 run-autotools: yes
+save-tar: no
+save-mysql: no
+
+tar-file: results.tar
+
+mysql-host: localhost
+mysql-user:
+mysql-password:
+mysql-database:
 
 [tests]
 # set of properties in format
@@ -102,6 +113,10 @@ try:
     if conf.getboolean('testscript', 'run-autotools'):
         autotools.run(confFileNames)
 
+    
+    # construct tests
+    testSuite = unittest.TestSuite()
+    
     items = conf.items("tests")
     for name, value in items:
         if not name.startswith("test"): continue
@@ -111,16 +126,9 @@ try:
         ctrlfname = os.path.abspath(ctrlfname)
         solutionfname = os.path.abspath(solutionfname)
         datadir = os.path.dirname(ctrlfname)
-        LOG.info("Test '%s'" % (name, ))
-        LOG.info("Control file: %s" % ctrlfname)
-        LOG.info("Correct solution file: %s" % (solutionfname,))
-
-        tarTestResult = dougtest.DougTarTestResult("/usr/svn/anytests.tar")
-        import unittest
-        testResults = [unittest._TextTestResult(unittest._WritelnDecorator(sys.stderr), False, 1),
-                       tarTestResult]
-        testRunner = dougtest.TestRunner(testResults)
-        testSuite = unittest.TestSuite()
+        LOG.debug("Constructing test '%s'" % (name, ))
+        LOG.debug("Control file: %s" % ctrlfname)
+        LOG.debug("Correct solution file: %s" % (solutionfname,))
 
         # read test configurations
         testconfs = testconfs.split(",")
@@ -136,10 +144,43 @@ try:
                 test = dougtest.TestCase(name+"_"+testconf, datadir, ctrlfname, solutionfname, conf, *testtuple)
                 testSuite.addTest(test)
 
-    testRunner.run(testSuite)
+    # run tests
+    testResults = [unittest._TextTestResult(unittest._WritelnDecorator(sys.stderr), False, 1)]
 
-    tarTestResult.close()
-    LOG.debug("tar file closed")
+    saveTar = conf.getboolean("testscript", "save-tar")
+    saveMysql = conf.getboolean("testscript", "save-mysql")
+    
+    if saveTar:
+        tarFileName = os.path.abspath(conf.get("testscript", "tar-file"))
+        tarTestResult = dougtesttar.DougTarTestResult(tarFileName)
+        testResults.append(tarTestResult)
+
+    if saveMysql:
+        mysqlHost = conf.get("testscript", "mysql-host")
+        mysqlUser = conf.get("testscript", "mysql-user")
+        mysqlPassword = conf.get("testscript", "mysql-password")
+        mysqlDatabase = conf.get("testscript", "mysql-database")
+        mysqlTestResult = dougtestmysql.DougMySQLTestResult(mysqlHost, mysqlUser, mysqlPassword, mysqlDatabase)
+        testResults.append(mysqlTestResult)
+
+    testRunner = dougtest.TestRunner(testResults)
+
+    try:
+        testRunner.run(testSuite)
+    finally:
+        if saveTar:
+            try:
+                tarTestResult.close()
+                LOG.debug("tar file closed")
+            except Exception, e:
+                LOG.error("Could not close tar file: %s" % e)
+
+        if saveMysql:
+            try:
+                mysqlTestResult.close()
+                LOG.debug("mysql closed")
+            except Exception, e:
+                LOG.error("Could not close mysql: %s" % e)
 
     LOG.info("Ended testscript at %s" % time.asctime())
 
