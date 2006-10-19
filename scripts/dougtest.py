@@ -14,6 +14,9 @@ _defaultConfig="""
 [dougtest]
 # directory where doug_main and doug_aggr are located
 dougbindir:
+# directory where temporary test directories are created, redefine
+# if you have problems with hardlinks
+tmpdir: /tmp
 
 # MPI
 mpiboot: lamboot
@@ -65,10 +68,13 @@ class TestCase (unittest.TestCase):
 		self.solver = solver
 		self.method = method
 		self.nproc = nproc
+                # output or other files, exception grabs it on exit
+                self.files = []
 	
 	def setUp(self):
 		LOG.debug("Preparing testing environment")
-		tmpdir = os.tempnam(None, 'doug-')
+                tmprootdir = self.conf.get("dougtest", "tmpdir")
+		tmpdir = os.tempnam(tmprootdir, 'doug-')
 		os.mkdir(tmpdir)
 		LOG.debug("Temporary directory %s created" % tmpdir)
 		self.tmpdir = tmpdir
@@ -76,11 +82,13 @@ class TestCase (unittest.TestCase):
 			# copy control file
 			self.controlFile = ControlFile(self.ctrlfname)
 			self.controlFile.options['plotting'] = '0'
+			self.controlFile.options['solution_format'] = '1' # binary
 			self.controlFile.options['solver'] = str(self.solver)
 			self.controlFile.options['method'] = str(self.method)
 			self.testctrlfname = os.path.join(self.tmpdir,
 							  os.path.basename(self.ctrlfname))
 			self.controlFile.save(self.testctrlfname)
+                        self.files.append((self.testctrlfname, "Control file"))
 
 			# make hard link to all other files
 			files = os.listdir(self.datadir)
@@ -126,30 +134,36 @@ class TestCase (unittest.TestCase):
 		outfname = os.path.join(self.tmpdir, self.conf.get("dougtest", "doug-outfilename"))
 		
 		curdir = os.getcwd()
-		
-		LOG.debug("Changing directory to %s" % self.tmpdir)
-		os.chdir(self.tmpdir)
+
 		try:
-			LOG.debug("Running %s -np 1 %s -f %s" % (mpirun, main, self.testctrlfname))
-			doug = popen2.Popen3('%s -np %d %s -f %s > %s 2> %s'%
-					    (mpirun, self.nproc, main, self.testctrlfname,
-					     outfname, errfname))
-            
-			value = doug.wait()
-			LOG.debug("Finished %s with code %d" % (mpirun, value))
-			if value != 0:
-				se = ScriptException("Error occured while running doug (value=%d), "
-						     "inspect output files (%s, %s) for error description." %
-						     (value, outfname, errfname))
-				se.addFile(outfname, "%s standard output" % mpirun)
-				se.addFile(errfname, "%s standard error" % mpirun)
-				raise se
-			
-			#res = os.spawnlp(os.P_WAIT, mpirun, mpirun, "-np", str(self.nproc),
-			#		 main, "-f", self.testctrlfname)
-		finally:
-			LOG.debug("Changing directory to %s" % curdir)
-			os.chdir(curdir)
+			LOG.debug("Changing directory to %s" % self.tmpdir)
+			os.chdir(self.tmpdir)
+			try:
+				LOG.debug("Running %s -np 1 %s -f %s" % (mpirun, main, self.testctrlfname))
+				doug = popen2.Popen3('%s -np %d %s -f %s > %s 2> %s'%
+						    (mpirun, self.nproc, main, self.testctrlfname,
+						     outfname, errfname))
+
+				value = doug.wait()
+				LOG.debug("Finished %s with code %d" % (mpirun, value))
+				self.files.append((outfname, "%s standard output" % mpirun))
+				self.files.append((errfname, "%s standard error" % mpirun))
+
+				if value != 0:
+					se = ScriptException("Error occured while running doug (value=%d), "
+							     "inspect output files (%s, %s) for error description." %
+							     (value, outfname, errfname))
+					raise se
+
+				# compare answers
+				self._assertSolution()
+			finally:
+				LOG.debug("Changing directory to %s" % curdir)
+				os.chdir(curdir)
+		except ScriptException, e:
+			for fn in self.files:
+				e.addFile(*fn)
+			raise e
 
 	def run(self, result=None):
 		if result is None: result = self.defaultTestResult()
@@ -186,6 +200,53 @@ class TestCase (unittest.TestCase):
 	def __str__(self):
 		return "%s: solver=%d, method=%d, processors=%d" % \
 		       (self.testname, self.solver, self.method, self.nproc)
+
+        def _assertSolution(self):
+            from array import array
+            solCorrect = array('d')
+            sol = array('d')
+            intarr = array('l')
+
+            solfilename = os.path.abspath(self.controlFile.options['solution_file'])
+            f=open(solfilename, "rb")
+            try:
+                try:
+                    intarr.fromfile(f, 1)
+                    smarker = intarr[-1]
+                    sol.fromfile(f, smarker/sol.itemsize)
+                    intarr.fromfile(f, 1)
+                    emarker = intarr[-1]
+                except Exception, e:
+                    se = ScriptException("Error reading solution, investigate '%s' file."
+                                         % os.path.basename(solfilename), e)
+                    raise se
+            finally:
+                f.close()
+            
+            f=open(self.solutionfname, "rb")
+            try:
+                intarr.fromfile(f, 1)
+                smarker = intarr[-1]
+                solCorrect.fromfile(f, smarker/solCorrect.itemsize)
+                intarr.fromfile(f, 1)
+                emarker = intarr[-1]
+            finally:
+                f.close()
+
+	    self.assertAlmostEqual(sol, solCorrect, 1E-6)
+
+	def assertAlmostEqual(self, v1, v2, acceptedTolerance):
+		if len(v1) != len(v2):
+			raise self.failureException("Sizes of solutions are different: %d, %d"
+						    % (len(v1), len(v2)) )
+		tolerance = 0.
+		for i in xrange(0,len(v1)):
+			tolerance += pow(v1[i]-v2[i], 2)
+		tolerance = pow(tolerance, 0.5)
+
+		if tolerance > acceptedTolerance:
+			raise self.failureException("Solution is wrong with difference: %f"
+						    % (tolerance) )
 
 class CombinedTestResult(unittest.TestResult):
 	"""Holder for multiple test result objects.
