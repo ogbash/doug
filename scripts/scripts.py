@@ -15,3 +15,11 @@ class ScriptException (Exception):
 
     def addFile(self, fname, description=None):
         self.files.append((fname, description))
+
+    def __str__(self):
+        str = Exception.__str__(self)
+        if self.cause:
+            return "\n".join([str, self.cause.__str__()])
+        else:
+            return str
+                   

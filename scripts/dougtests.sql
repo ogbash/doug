@@ -1,4 +1,7 @@
 -- MySQL dump 10.9
+--
+-- Host: localhost    Database: dougtests
+-- ------------------------------------------------------
 -- Server version	4.1.13
 
 --
@@ -37,6 +40,7 @@ CREATE TABLE `testresults` (
   `status` int(11) default NULL,
   `nproc` int(11) default NULL,
   `errortext` text,
+  `name` varchar(60) default NULL,
   PRIMARY KEY  (`ID`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
@@ -52,3 +56,4 @@ CREATE TABLE `testruns` (
   `endtime` datetime default NULL,
   PRIMARY KEY  (`ID`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+

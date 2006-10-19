@@ -205,7 +205,10 @@ class TestCase (unittest.TestCase):
             from array import array
             solCorrect = array('d')
             sol = array('d')
+	    # we need 4 byte integer, ugly hack for 64bit platforms
             intarr = array('l')
+	    if intarr.itemsize != 4:
+		    intarr = array('i')
 
             solfilename = os.path.abspath(self.controlFile.options['solution_file'])
             f=open(solfilename, "rb")
@@ -219,6 +222,7 @@ class TestCase (unittest.TestCase):
                 except Exception, e:
                     se = ScriptException("Error reading solution, investigate '%s' file."
                                          % os.path.basename(solfilename), e)
+		    se.addFile(solfilename, "solution file")
                     raise se
             finally:
                 f.close()
