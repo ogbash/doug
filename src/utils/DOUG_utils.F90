@@ -468,6 +468,12 @@ contains
        else if (trim(ARG).eq.'-h') then   ! print usage message
           call util_printUsage()
           call DOUG_quietAbort()
+       else if (trim(ARG).eq.'-p4pg') then   
+          ! do not complain (for mpich ch_p4)
+          skipnext = .true.
+       else if (trim(ARG).eq.'-p4wd') then
+          ! do not complain (for mpich ch_p4)
+          skipnext = .true.
        else
           call util_printUsage()
           call DOUG_abort('Unrecognised command line parameter: '//&
