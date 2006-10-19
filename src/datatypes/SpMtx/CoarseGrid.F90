@@ -428,8 +428,8 @@ contains
     !> Create the bounds for the element whose one corner is ct,
     !!  that is otherwise bounded by minv/maxv and contains pt.
     subroutine adjustBounds(ct,pt,nsd,minv,maxv)
-        real(kind=xyzk),intent(in) :: ct(nsd), pt(nsd)
         integer, intent(in) :: nsd
+        real(kind=xyzk),intent(in) :: ct(nsd), pt(nsd)
         real(kind=xyzk),intent(inout) :: minv(nsd),maxv(nsd)
 
         integer :: i
