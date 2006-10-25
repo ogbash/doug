@@ -556,7 +556,7 @@ contains
   ! Read DOUG control file and init control parameters
   !---------------------------------------------------
   subroutine CtrlData_initFromFile(CtrlFileName)
-    use globals, only: stream, D_MSGLVL, D_CtrlFileName
+    use globals, only: stream, D_MSGLVL, D_CtrlFileName, sctls, mctls
 
     implicit none
 
@@ -608,6 +608,16 @@ contains
 
 500 continue ! End of file reached. Close file and exit subroutine.
     close(ctl_fp)
+    
+    ! Check, if seperate RHS vector file is used.
+	! Give some feedback, so that this automatic checking is not so prone to user errors.
+	inquire(file=mctls%assembled_rhs_file, exist=sctls%useAggregatedRHS)
+	if (sctls%useAggregatedRHS) then
+		write(stream,*) 'Seperate aggregated RHS file is used. RHS from elemmat_rhs_file is discarded.'
+	else
+		write(stream,*) 'Seperate aggregated RHS file can not be read. RHS from elemmat_rhs_file is used instead.'
+	endif
+    
     return
 
 999 call DOUG_abort('Unable to open DOUG control file: '//ctl_fn//' ', -1)
@@ -1248,7 +1258,7 @@ contains
     use globals, only: sctls, D_MPI_SCTLS_TYPE, MPI_rkind
     implicit none
 
-    integer, parameter          :: nblocks = 25  ! Number of type components
+    integer, parameter          :: nblocks = 26  ! Number of type components
     integer, dimension(nblocks) :: types,        &
                                    blocklengths, &
                                    addresses,    &
@@ -1264,10 +1274,10 @@ contains
          MPI_INTEGER, MPI_rkind, MPI_rkind, MPI_rkind, &
          MPI_INTEGER, MPI_LOGICAL, &
          MPI_LOGICAL, &
-         MPI_INTEGER/)
+         MPI_INTEGER, MPI_LOGICAL/)
 
     blocklengths = (/1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, &
-                     1, 1, 1, 1, 1, 1, 1 /)
+                     1, 1, 1, 1, 1, 1, 1, 1 /)
 
     call MPI_ADDRESS(sctls%solver,           addresses( 1), ierr)
     call MPI_ADDRESS(sctls%method,           addresses( 2), ierr)
@@ -1294,6 +1304,7 @@ contains
     call MPI_ADDRESS(sctls%symmstruct,       addresses(23), ierr)
     call MPI_ADDRESS(sctls%symmnumeric,      addresses(24), ierr)
     call MPI_ADDRESS(sctls%interpolation_type, addresses(25), ierr)
+    call MPI_ADDRESS(sctls%useAggregatedRHS, addresses(26), ierr)
 
     do i = 1,nblocks
        displacements(i) = addresses(i) - addresses(1)
@@ -1423,7 +1434,7 @@ contains
 	   endif
 	enddo
 	
-  end subroutine 
+  end subroutine FindFreeIOUnit
   
   !-------------------------------------
   !> Writes vector x and its norm to the solution file.

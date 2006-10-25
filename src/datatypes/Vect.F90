@@ -483,6 +483,39 @@ contains
     call CommStructs_destroy()
 
   end subroutine Vect_exchangeIntf
+  
+  !=======================================================
+  !> Broadcasts RHS to slaves. 
+  !=======================================================
+  subroutine Vect_readAndBroadcastRHS(b, Msh) 
+   	use globals
+  	implicit none
+  	
+  	type(Mesh),                                intent(in)  :: Msh !< Mesh
+  	float(kind=rk), dimension(:), allocatable, intent(out) :: b !< local RHS
+  	
+  	float(kind=rk), dimension(:), pointer  :: x 
+  	integer myrank, ierr, i
+  	
+  	allocate(x(Msh%ngf))
+  	
+  	! Read RHS data, if master
+  	if (ismaster()) &
+  	  call Vect_ReadFromFile1(x, mctls%assembled_rhs_file, mctls%assembled_rhs_format)
+	 
+  	! Broadcast the vector from master
+  	call MPI_BCAST(x, size(x), MPI_fkind, D_MASTER, MPI_COMM_WORLD, ierr)
+  	
+  	! map global RHS to local RHS
+  	allocate( b (size(Msh%lg_fmap)) )
+  	do i = 1,size(Msh%lg_fmap)
+  	  b(i) = x(Msh%lg_fmap(i))
+  	end do
+     
+    deallocate(x)
+    
+  end subroutine Vect_readAndBroadcastRHS
+  
   !=======================================================
   !
   ! Utility subroutines.
@@ -702,5 +735,34 @@ contains
     close(vectFile)
 
   end subroutine Vect_ReadFromFile
+
+  !-----------------------------
+  !> Read vector of floats from file (elemental case)
+  !-----------------------------
+  subroutine Vect_ReadFromFile1(x, fnVect, format)
+    implicit none
+    
+    float(kind=rk), dimension(:), pointer     :: x !< the vector; before calling, the vector must be dimensioned with correct size
+    character*(*), intent(in)                 :: fnVect !< name of the file to read in
+    integer, intent(in)                       :: format !< In which format is the input data
+
+    logical :: found
+    integer :: k, iounit
+
+    call FindFreeIOUnit(found, iounit)
+    if (found) then
+      if (format == 0) then  ! text format
+	    call DOUG_abort('[Vect_ReadFromFile] : Reading text format is not yet implemented', -1)
+	  elseif (format == 1) then ! binary format
+	    open(iounit, FILE=trim(fnVect), STATUS='OLD', FORM='UNFORMATTED')
+	    read (iounit) (x(k), k = 1,size(x))
+	    close(iounit)
+	  else
+	    call DOUG_abort('[Vect_ReadFromFile] : Wrong format', -1)
+	  endif
+    else
+      call DOUG_abort('[Vect_ReadFromFile] : No free IO-Unit', -1)
+    endif
+  end subroutine Vect_ReadFromFile1
 
 end module Vect_mod

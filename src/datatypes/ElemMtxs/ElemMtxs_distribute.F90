@@ -486,7 +486,7 @@ contains
   !> Intended for master only!
   !-----------------------------------------------------------------
   subroutine ElemMtxs_readAndDistribute(Msh, fnElemMatrs, A, b, A_intf)
-    use globals, only : stream
+    use globals, only : stream, sctls
     implicit none
 
     type(Mesh),                   intent(in)      :: Msh
@@ -498,6 +498,7 @@ contains
     integer                                     :: elemMatrs = 50
     integer                                     :: npackets
     integer                                     :: i, j, k, p
+    float(kind=rk), dimension(:),       pointer :: x
     type(ElemMtxsPacket),               pointer :: packet, prev_packet
     type(ElemMtxsPacket), dimension(:), pointer :: packets
     type(ElemMtxsAssembleContext)               :: AC
@@ -588,9 +589,13 @@ contains
     
     ! Extract final data from assembling context, destroy temporary objects
     call ElemMtxsAssembleContext_extractSpMtx(AC, A, Msh)
-    call ElemMtxsAssembleContext_extractVect(AC, b, Msh)
+    if (sctls%useAggregatedRHS) then
+      call Vect_readAndBroadcastRHS(b, Msh)
+   	else
+   	  call ElemMtxsAssembleContext_extractVect(AC, b, Msh)
+    endif
     call ElemMtxsAssembleContext_Destroy(AC)
-
+    
     ! Synchronize interface elements
     if (present(A_intf)) call ElemMtxsIntf_distAndAssemble(E, A_intf, Msh)
     call ElemMtxsIntf_Destroy(E)
@@ -611,7 +616,7 @@ contains
   !> Intended for slaves only!
   !-----------------------------------------------------------------
   subroutine ElemMtxs_recvAndAssemble(Msh, A, b, A_intf)
-    use globals, only : stream
+    use globals, only : stream, sctls
     implicit none
 
     type(Mesh),                   intent(in)     :: Msh
@@ -644,7 +649,11 @@ contains
 
     ! Extract final sparse matrix, destroy context
     call ElemMtxsAssembleContext_extractSpMtx(AC, A, Msh)
-    call ElemMtxsAssembleContext_extractVect(AC, b, Msh)
+    if (sctls%useAggregatedRHS) then
+	  call Vect_readAndBroadcastRHS(b, Msh)
+	else
+      call ElemMtxsAssembleContext_extractVect(AC, b, Msh)
+    endif
     call ElemMtxsAssembleContext_Destroy(AC)
 
     ! Assemble interface elements, destroy interface info
