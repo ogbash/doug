@@ -15,7 +15,7 @@ C
 C You should have received a copy of the GNU Lesser General Public
 C License along with this library; if not, write to the Free Software
 C Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-C or contact the author (University of Tartu, Faculty of Computer Science, Chair
+C or contact the authors (University of Tartu, Faculty of Computer Science, Chair
 C of Distributed Systems, Liivi 2, 50409 Tartu, Estonia, http://dougdevel.org,
 C mailto:info(at)dougdevel.org)
 
