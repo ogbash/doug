@@ -51,7 +51,8 @@ module Vect_mod
   integer, parameter :: D_DOTMASK_MINE    = 1
   integer, parameter :: D_DOTMASK_NOTMINE = 0
   integer :: ninner
-
+  integer, parameter :: D_RHS_TEXT   = 0
+  integer, parameter :: D_RHS_BINARY = 1
 
   ! = = = = = = = = = =
   interface Vect_Print
@@ -501,7 +502,7 @@ contains
   	
   	! Read RHS data, if master
   	if (ismaster()) &
-  	  call Vect_ReadFromFile1(x, mctls%assembled_rhs_file, mctls%assembled_rhs_format)
+  	  call Vect_ReadFromFile(x, mctls%assembled_rhs_file, mctls%assembled_rhs_format)
 	 
   	! Broadcast the vector from master
   	call MPI_BCAST(x, size(x), MPI_fkind, D_MASTER, MPI_COMM_WORLD, ierr)
@@ -722,38 +723,28 @@ contains
   !-----------------------------
   !> Read vector of floats from file
   !-----------------------------
-  subroutine Vect_ReadFromFile(x, fnVect)
-    implicit none
-    float(kind=rk), dimension(:), pointer :: x !< pointer to the vector; before calling, the vector must be allocated with correct size
-    character*(*), intent(in) :: fnVect !< name of the file to read in
-
-    integer :: k
-    integer :: vectFile = 51
-
-    open(vectFile, FILE=trim(fnVect), STATUS='OLD', FORM='UNFORMATTED')
-    read (vectFile) (x(k), k = 1,size(x))
-    close(vectFile)
-
-  end subroutine Vect_ReadFromFile
-
-  !-----------------------------
-  !> Read vector of floats from file (elemental case)
-  !-----------------------------
-  subroutine Vect_ReadFromFile1(x, fnVect, format)
+  subroutine Vect_ReadFromFile(x, fnVect, format)
     implicit none
     
-    float(kind=rk), dimension(:), pointer     :: x !< the vector; before calling, the vector must be dimensioned with correct size
-    character*(*), intent(in)                 :: fnVect !< name of the file to read in
-    integer, intent(in)                       :: format !< In which format is the input data
+    float(kind=rk), dimension(:), pointer :: x !< the vector; before calling, the vector must be dimensioned with correct size
+    character*(*), intent(in)             :: fnVect !< name of the file to read in
+    integer, intent(in), optional         :: format !< In which format is the input data (default: D_RHS_BINARY)
 
     logical :: found
-    integer :: k, iounit
+    integer :: k, iounit, fmt
 
+    ! Binary format is default
+	if (.not.present(format)) then
+	  fmt = D_RHS_BINARY
+	else
+	  fmt = format
+	endif
+	
     call FindFreeIOUnit(found, iounit)
-    if (found) then
-      if (format == 0) then  ! text format
+    if (fmt) then
+      if (fmt == 0) then  ! text format
 	    call DOUG_abort('[Vect_ReadFromFile] : Reading text format is not yet implemented', -1)
-	  elseif (format == 1) then ! binary format
+	  elseif (fmt == 1) then ! binary format
 	    open(iounit, FILE=trim(fnVect), STATUS='OLD', FORM='UNFORMATTED')
 	    read (iounit) (x(k), k = 1,size(x))
 	    close(iounit)
@@ -763,6 +754,6 @@ contains
     else
       call DOUG_abort('[Vect_ReadFromFile] : No free IO-Unit', -1)
     endif
-  end subroutine Vect_ReadFromFile1
+  end subroutine Vect_ReadFromFile
 
 end module Vect_mod
