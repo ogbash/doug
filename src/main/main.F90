@@ -234,7 +234,7 @@ program main
        call Vect_Print(x, 'solution ')
   if (ismaster()) then
        write(stream,*) 'dsqrt(res_norm) =',dsqrt(res_norm)
-       call WriteSolutionToFile(x, res_norm)
+       call WriteSolutionToFile(x)
   endif
   if (ismaster()) then
      deallocate(x)

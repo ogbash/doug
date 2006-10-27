@@ -1458,14 +1458,13 @@ contains
   end subroutine FindFreeIOUnit
   
   !-------------------------------------
-  !> Writes vector x and its norm to the solution file.
+  !> Writes vector x to the solution file.
   !-------------------------------------
-  subroutine WriteSolutionToFile(x, res_norm)
+  subroutine WriteSolutionToFile(x)
   	implicit none
   	   
     float(kind=rk), dimension(:), intent(in) :: x        !< vector to write out
-    float(kind=rk), intent(in)               :: res_norm !< the norm of the vector
-
+ 
     integer :: i,n,iounit,opened
 	logical :: found
 
@@ -1476,7 +1475,7 @@ contains
       if (mctls%solution_format == 0) then
       	open(unit=iounit,iostat=opened,file=mctls%solution_file)
         if (opened.eq.0) &
-      	  call WriteSolutionTextualFormat(iounit, x, res_norm)
+      	  call WriteSolutionTextualFormat(iounit, x)
       
       ! Binary format.
       elseif (mctls%solution_format == 1) then
@@ -1498,23 +1497,20 @@ contains
   !----------------------------------
   !> Writes the solution to an iounit (which is probably connected to a file)
   !> in textual format.
-  ! Maybe want to change format later to match input format.
   !----------------------------------
-  subroutine WriteSolutionTextualFormat(iounit, x, res_norm)
+  subroutine WriteSolutionTextualFormat(iounit, x)
   	implicit none
   	   
   	integer, intent(in)                      :: iounit   !< IO-unit to write to
     float(kind=rk), dimension(:), intent(in) :: x        !< vector to write out
-    float(kind=rk), intent(in)               :: res_norm !< the norm of the vector
     integer :: i,n
     
     n = size(x)
-    write(iounit,'(/a,i6,a)') 'solution :size [',n,']:'
+    write(iounit,'(i6)') n
     do i = 1,n
-       write(iounit, '(a,i6,a,e21.14)') ' [',i,']=',x(i)
+       write(iounit, '(e21.14)') x(i)
     end do
-    write(iounit,*) 'dsqrt(res_norm) =',dsqrt(res_norm)
-
+ 
   end subroutine
   
   !----------------------------------
