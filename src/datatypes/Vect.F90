@@ -752,7 +752,7 @@ contains
     integer, intent(in), optional         :: format !< In which format is the input data (default: D_RHS_BINARY)
 
     logical :: found
-    integer :: k, iounit, fmt
+    integer :: k, iounit, fmt, num
 
     ! Binary format is default
 	if (.not.present(format)) then
@@ -762,12 +762,18 @@ contains
 	endif
 	
     call FindFreeIOUnit(found, iounit)
-    if (fmt) then
-      if (fmt == 0) then  ! text format
-	    call DOUG_abort('[Vect_ReadFromFile] : Reading text format is not yet implemented', -1)
-	  elseif (fmt == 1) then ! binary format
-	    open(iounit, FILE=trim(fnVect), STATUS='OLD', FORM='UNFORMATTED')
-	    read (iounit) (x(k), k = 1,size(x))
+    if (found) then
+      if (fmt == D_RHS_TEXT) then
+	    open(iounit,FILE=trim(fnVect),STATUS='OLD',FORM='FORMATTED', ERR=444)
+	    read(iounit, '(i6)', END=500) num 
+	    if (num /= size(x)) &
+	      call DOUG_abort('[Vect_ReadFromFile] : Number of vector elements in file is not as expected.', -1)
+	    do k=1,size(x)
+	      read(iounit, '(e21.14)', END=500) x(k)
+	    enddo
+	  elseif (fmt == D_RHS_BINARY) then
+	    open(iounit, FILE=trim(fnVect), STATUS='OLD', FORM='UNFORMATTED', ERR=444)
+	    read (iounit, END=500) (x(k), k = 1,size(x))
 	    close(iounit)
 	  else
 	    call DOUG_abort('[Vect_ReadFromFile] : Wrong format', -1)
@@ -775,6 +781,11 @@ contains
     else
       call DOUG_abort('[Vect_ReadFromFile] : No free IO-Unit', -1)
     endif
+    return
+
+444 call DOUG_abort('[Vect_ReadFromFile] : Unable to open vector file: '//trim(fnVect)//' ', -1)
+500 call DOUG_abort('[Vect_ReadFromFile] : End of file reached to early.', -1)
+
   end subroutine Vect_ReadFromFile
 
 end module Vect_mod
