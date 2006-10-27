@@ -513,8 +513,8 @@ contains
    	use globals
   	implicit none
   	
-  	type(Mesh),                            intent(in)  :: Msh !< Mesh
-  	float(kind=rk), dimension(:), pointer, intent(out) :: b !< local RHS
+  	type(Mesh),                intent(in) :: Msh !< Mesh
+  	float(kind=rk), dimension(:), pointer :: b !< local RHS
   	
   	float(kind=rk), dimension(:), pointer  :: x 
   	integer myrank, ierr, i

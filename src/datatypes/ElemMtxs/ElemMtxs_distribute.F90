@@ -510,11 +510,11 @@ contains
     use globals, only : stream, sctls
     implicit none
 
-    type(Mesh),                   intent(in)           :: Msh
-    character*(*),                intent(in)           :: fnElemMatrs !< name of the file containing element matrices
-    type(SpMtx),                  intent(out)          :: A !< assembled non-interface elements
-    float(kind=rk), dimension(:), pointer, intent(out) :: b !< assembled RHS vector
-    type(SpMtx),                 intent(out), optional :: A_intf !< optional matrix containing assembled interface elements
+    type(Mesh),                intent(in) :: Msh
+    character*(*),             intent(in) :: fnElemMatrs !< name of the file containing element matrices
+    type(SpMtx),              intent(out) :: A !< assembled non-interface elements
+    float(kind=rk), dimension(:), pointer :: b !< assembled RHS vector
+    type(SpMtx), intent(out), optional    :: A_intf !< optional matrix containing assembled interface elements
 
     integer                                     :: elemMatrs = 50
     integer                                     :: npackets
@@ -640,10 +640,10 @@ contains
     use globals, only : stream, sctls
     implicit none
 
-    type(Mesh),                            intent(in)  :: Msh
-    type(SpMtx),                           intent(out) :: A !< assembled non-interface elements
-    float(kind=rk), dimension(:), pointer, intent(out) :: b !< assembled RHS vector
-    type(SpMtx),                 intent(out), optional :: A_intf !< optional matrix containing assembled interface elements
+    type(Mesh),               intent(in)  :: Msh
+    type(SpMtx),              intent(out) :: A !< assembled non-interface elements
+    float(kind=rk), dimension(:), pointer :: b !< assembled RHS vector
+    type(SpMtx),    intent(out), optional :: A_intf !< optional matrix containing assembled interface elements
 
     integer                       :: i, j, p
     integer                       :: nell, nelemsend, ge, le
