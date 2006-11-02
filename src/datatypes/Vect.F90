@@ -263,8 +263,8 @@ contains
   end subroutine Vect_permute
 
   !--------------------------------------------
-  ! Assemble vector on root processor with rank
-  ! eq. to 'rank' or on master(=D_MASTER)
+  !> Assemble vector on root processor with rank
+  !> eq. to 'rank' or on master(=D_MASTER)
   !--------------------------------------------
   subroutine Vect_Gather(xl, x, M, rank)
     implicit none
@@ -384,6 +384,94 @@ contains
        !write(stream,*) 'WARNING: must wait for this send request to complete!'
     end if
   end subroutine Vect_Gather
+
+  !--------------------------------------------
+  !> Assemble vector of integers on root processor with rank
+  !> eq. to 'rank' or on master(=D_MASTER)
+  !--------------------------------------------
+  subroutine Integer_Vect_Gather(il, ig, M,owner, rank)
+    implicit none
+    integer, dimension(:),     intent(in) :: il ! local vector
+    integer, dimension(:), intent(in out) :: ig ! global vector
+    type(Mesh),                intent(in) :: M
+    integer,dimension(:),pointer,optional :: owner ! freedom owner rank 
+    ! Rank of a process to gather vector on
+    integer,                optional, intent(in) :: rank
+    ! Array of number of local freedoms
+    integer, dimension(:), pointer :: nlfs
+    logical, dimension(:), pointer :: f_booked
+    integer :: i, gf, h, p
+    ! MPI
+    ! Aux. receive buffers on master side
+    integer, dimension(:), pointer :: ibuf
+    integer, dimension(:), pointer :: iibuf
+    integer, parameter :: D_TAG_NLF   = 222
+    integer, parameter :: D_TAG_FMAP  = 333
+    integer, parameter :: D_TAG_FDATA = 444
+    integer :: bs, ierr, request, status(MPI_STATUS_SIZE)
+    integer :: root
+    if (numprocs==1) then
+      ig=il
+      if (present(owner)) then
+        owner=0
+      endif
+      return
+    endif
+    if (present(rank)) then
+       root = rank
+    else
+       root = D_MASTER
+    end if
+    if (myrank == root) then
+       ! Master simply copies local data
+       ig(M%lg_fmap(1:size(il))) = il
+       if (present(owner)) then
+         owner(M%lg_fmap(1:size(il)))=myrank+1
+       endif
+       ! Nothing else to do if I am alone
+       if (M%nparts <= 1) &
+            return
+       allocate(nlfs(M%nparts))
+       do p = 1,M%nparts
+         if (p-1 == root) then! Don't receive from myself
+           nlfs(p)=0
+           cycle
+         endif
+         call MPI_RECV(nlfs(p),1,MPI_INTEGER, &
+              p-1, D_TAG_NLF, MPI_COMM_WORLD, status, ierr)
+       enddo
+       allocate(ibuf(maxval(nlfs))); ibuf = 0
+       allocate(iibuf(maxval(nlfs))); iibuf = 0.0_rk
+       do p = 1,M%nparts
+          if (p-1 == root) & ! Don't receive from myself
+               cycle
+          bs = nlfs(p) ! size of receive buffers
+          ! Get freedoms' global indexes
+          call MPI_RECV(ibuf, bs, MPI_INTEGER, &
+               p-1, D_TAG_FMAP, MPI_COMM_WORLD, status, ierr)
+          ! Get vector
+          call MPI_RECV(iibuf, bs, MPI_INTEGER, &
+               p-1, D_TAG_FDATA, MPI_COMM_WORLD, status, ierr)
+          ig(ibuf(1:bs)) = iibuf(1:bs)
+          if (present(owner)) then
+            owner(ibuf(1:bs))=p
+          endif
+       end do
+       deallocate(nlfs,ibuf,iibuf)
+    ! Workers
+    else
+       ! nlf
+       call MPI_ISEND(M%ninner, 1, MPI_INTEGER, &
+            root, D_TAG_NLF, MPI_COMM_WORLD, request, ierr)
+       ! Freedoms' global indexes
+       call MPI_ISEND(M%lg_fmap, M%ninner, MPI_INTEGER, &
+            root, D_TAG_FMAP, MPI_COMM_WORLD, request, ierr)
+       ! Local vector to send
+       call MPI_ISEND(il, M%ninner, MPI_INTEGER, &
+            root, D_TAG_FDATA, MPI_COMM_WORLD, request, ierr)
+       call MPI_WAIT(request,status,ierr)
+    end if
+  end subroutine Integer_Vect_Gather
 
   subroutine Print_Glob_Vect(x,M,text,rows,chk_endind)
     float(kind=rk),dimension(:),intent(in) :: x
@@ -510,29 +598,29 @@ contains
   !> Broadcasts RHS to slaves. 
   !=======================================================
   subroutine Vect_readAndBroadcastRHS(b, Msh) 
-   	use globals
-  	implicit none
-  	
-  	type(Mesh),                intent(in) :: Msh !< Mesh
-  	float(kind=rk), dimension(:), pointer :: b !< local RHS
-  	
-  	float(kind=rk), dimension(:), pointer  :: x 
-  	integer myrank, ierr, i
-  	
-  	allocate(x(Msh%ngf))
-  	
-  	! Read RHS data, if master
-  	if (ismaster()) &
-  	  call Vect_ReadFromFile(x, mctls%assembled_rhs_file, mctls%assembled_rhs_format)
-	 
-  	! Broadcast the vector from master
-  	call MPI_BCAST(x, size(x), MPI_fkind, D_MASTER, MPI_COMM_WORLD, ierr)
-  	
-  	! map global RHS to local RHS
-  	allocate( b (size(Msh%lg_fmap)) )
-  	do i = 1,size(Msh%lg_fmap)
-  	  b(i) = x(Msh%lg_fmap(i))
-  	end do
+        use globals
+        implicit none
+
+        type(Mesh),                intent(in) :: Msh !< Mesh
+        float(kind=rk), dimension(:), pointer :: b !< local RHS
+
+        float(kind=rk), dimension(:), pointer  :: x 
+        integer myrank, ierr, i
+
+        allocate(x(Msh%ngf))
+
+        ! Read RHS data, if master
+        if (ismaster()) &
+          call Vect_ReadFromFile(x, mctls%assembled_rhs_file, mctls%assembled_rhs_format)
+ 
+        ! Broadcast the vector from master
+        call MPI_BCAST(x, size(x), MPI_fkind, D_MASTER, MPI_COMM_WORLD, ierr)
+
+        ! map global RHS to local RHS
+        allocate( b (size(Msh%lg_fmap)) )
+        do i = 1,size(Msh%lg_fmap)
+          b(i) = x(Msh%lg_fmap(i))
+        end do
      
     deallocate(x)
     
@@ -755,29 +843,29 @@ contains
     integer :: k, iounit, fmt, num
 
     ! Binary format is default
-	if (.not.present(format)) then
-	  fmt = D_RHS_BINARY
-	else
-	  fmt = format
-	endif
-	
+        if (.not.present(format)) then
+          fmt = D_RHS_BINARY
+        else
+          fmt = format
+        endif
+
     call FindFreeIOUnit(found, iounit)
     if (found) then
       if (fmt == D_RHS_TEXT) then
-	    open(iounit,FILE=trim(fnVect),STATUS='OLD',FORM='FORMATTED', ERR=444)
-	    read(iounit, '(i6)', END=500) num 
-	    if (num /= size(x)) &
-	      call DOUG_abort('[Vect_ReadFromFile] : Number of vector elements in file is not as expected.', -1)
-	    do k=1,size(x)
-	      read(iounit, '(e21.14)', END=500) x(k)
-	    enddo
-	  elseif (fmt == D_RHS_BINARY) then
-	    open(iounit, FILE=trim(fnVect), STATUS='OLD', FORM='UNFORMATTED', ERR=444)
-	    read (iounit, END=500) (x(k), k = 1,size(x))
-	    close(iounit)
-	  else
-	    call DOUG_abort('[Vect_ReadFromFile] : Wrong format', -1)
-	  endif
+            open(iounit,FILE=trim(fnVect),STATUS='OLD',FORM='FORMATTED', ERR=444)
+            read(iounit, '(i6)', END=500) num 
+            if (num /= size(x)) &
+              call DOUG_abort('[Vect_ReadFromFile] : Number of vector elements in file is not as expected.', -1)
+            do k=1,size(x)
+              read(iounit, '(e21.14)', END=500) x(k)
+            enddo
+          elseif (fmt == D_RHS_BINARY) then
+            open(iounit, FILE=trim(fnVect), STATUS='OLD', FORM='UNFORMATTED', ERR=444)
+            read (iounit, END=500) (x(k), k = 1,size(x))
+            close(iounit)
+          else
+            call DOUG_abort('[Vect_ReadFromFile] : Wrong format', -1)
+          endif
     else
       call DOUG_abort('[Vect_ReadFromFile] : No free IO-Unit', -1)
     endif

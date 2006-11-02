@@ -50,6 +50,7 @@ CONTAINS
     use globals
     use CoarseAllgathers
     use Mesh_class
+    use Vect_mod
     Implicit None
     Type(SpMtx),intent(in out) :: A ! our matrix
     integer,intent(in) :: neighood  ! 1-neighood,2-neighood or r-neighood...
@@ -97,6 +98,7 @@ CONTAINS
     integer :: version=4
     integer,dimension(:,:),pointer :: structnodes
     integer :: cnt,col,thiscol
+    integer,dimension(:),pointer :: owner
     
     if (sctls%debug==-3) then
       version=3
@@ -1281,26 +1283,38 @@ endif
     deallocate(aggrnum)
     
     if (sctls%plotting==1.or.sctls%plotting==3) then
-      if (.not.present(Afine)) then
-        if (sctls%plotting==3) then
-          call color_print_aggrs(A%nrows,A%aggr%num,overwrite=.true.)
-        else
-          write(stream,*)' fine aggregates:'
-          call color_print_aggrs(A%nrows,A%aggr%num)
-          if (.not.aggrarefull) then
-            write(stream,*)' FULL fine aggregates:'
-            call color_print_aggrs(A%nrows,A%fullaggr%num)
-          endif
+      if (numprocs>1) then
+        if (ismaster()) then
+          allocate(aggrnum(M%ngf))
+          allocate(owner(M%ngf))
+        end if
+        call Integer_Vect_Gather(A%aggr%num,aggrnum,M,owner)
+        if (ismaster()) then
+          call color_print_aggrs(M%ngf,aggrnum,overwrite=.false.,owner=owner)
+          deallocate(owner,aggrnum)
         endif
       else
-        if (sctls%plotting==3) then
-          call color_print_aggrs(Afine%nrows,Afine%fullaggr%num,A%aggr%num,overwrite=.true.)
+        if (.not.present(Afine)) then
+          if (sctls%plotting==3) then
+            call color_print_aggrs(A%nrows,A%aggr%num,overwrite=.true.)
+          else
+            write(stream,*)' fine aggregates:'
+            call color_print_aggrs(A%nrows,A%aggr%num)
+            if (.not.aggrarefull) then
+              write(stream,*)' FULL fine aggregates:'
+              call color_print_aggrs(A%nrows,A%fullaggr%num)
+            endif
+          endif
         else
-          write(stream,*)' coarse aggregates:'
-          call color_print_aggrs(Afine%nrows,Afine%aggr%num,A%aggr%num)
-          if (.not.aggrarefull) then
-            write(stream,*)' FULL coarse aggregates:'
-            call color_print_aggrs(Afine%nrows,Afine%fullaggr%num,A%fullaggr%num)
+          if (sctls%plotting==3) then
+            call color_print_aggrs(Afine%nrows,Afine%fullaggr%num,A%aggr%num,overwrite=.true.)
+          else
+            write(stream,*)' coarse aggregates:'
+            call color_print_aggrs(Afine%nrows,Afine%aggr%num,A%aggr%num)
+            if (.not.aggrarefull) then
+              write(stream,*)' FULL coarse aggregates:'
+              call color_print_aggrs(Afine%nrows,Afine%fullaggr%num,A%fullaggr%num)
+            endif
           endif
         endif
       endif

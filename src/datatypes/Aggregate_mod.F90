@@ -793,7 +793,7 @@ CONTAINS
     return
   end function aggregate_to_neighbour
 
-  subroutine color_print_aggrs(n,aggrnum,coarse_aggrnum,overwrite)
+  subroutine color_print_aggrs(n,aggrnum,coarse_aggrnum,overwrite,owner)
     use globals, only: stream
     ! print aggregates in case of small regular 2D problems:
     Implicit None
@@ -801,6 +801,7 @@ CONTAINS
     integer,dimension(:),pointer :: aggrnum
     integer,dimension(:),pointer,optional :: coarse_aggrnum
     logical,optional :: overwrite
+    integer,dimension(:),pointer,optional :: owner
     integer :: i,j,k,kk
     integer, parameter :: isolcol1=6
     integer, parameter :: isolcol2=7
@@ -825,6 +826,14 @@ CONTAINS
                   call cprint('#',isolcol2)
                   call cprint('#',isolcol2)
                 endif
+              else
+                call cprint('#',isolcol1)
+                call cprint('#',isolcol1)
+              endif
+            elseif (present(owner)) then
+              if (aggrnum(kk)>0) then
+                call cprint(char(modulo(aggrnum(kk)/10,10)+48),owner(kk))
+                call cprint(char(modulo(aggrnum(kk),10)+48),owner(kk))
               else
                 call cprint('#',isolcol1)
                 call cprint('#',isolcol1)
@@ -854,6 +863,12 @@ CONTAINS
                 else
                   call cprint('#',isolcol2)
                 endif
+              else
+                call cprint('#',isolcol1)
+              endif
+            elseif (present(owner)) then
+              if (aggrnum(kk)>0) then
+                call cprint(char(modulo(aggrnum(kk),10)+48),owner(kk))
               else
                 call cprint('#',isolcol1)
               endif
