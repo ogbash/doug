@@ -560,9 +560,9 @@ CONTAINS
   end subroutine SpMtx_build_refs
 
 !----------------------------------------------------------
-! build matrix reference arrays:
-!   for quick strong row reference, symmetric matrix case:
-!     rowstart(1:n+1), colnrs(1:noffdels)
+!>build matrix reference arrays:
+!>  for quick strong row reference, symmetric matrix case:
+!>    rowstart(1:n+1), colnrs(1:noffdels)
 !----------------------------------------------------------
   subroutine SpMtx_build_refs_symm(A,noffdels,rowstart,colnrs,sortdown)
     Implicit None
@@ -659,6 +659,7 @@ CONTAINS
   subroutine SpMtx_DistributeAssembled(A,b,A_ghost,M)
     use Graph_class
     use Mesh_class
+    !use SpMtx_aggregation
     implicit none
 
     type(SpMtx),intent(inout)           :: A,A_ghost
@@ -675,24 +676,80 @@ CONTAINS
     integer, dimension(:), allocatable :: ccount !count colors
     integer,dimension(4)           :: buf
     float(kind=rk),dimension(:),pointer :: b_tmp
-    
+    integer, parameter :: ONLY_METIS = 1 ! graph partitioner
+    integer, parameter :: AGGRND_METIS = 2 ! rough aggregaion based on n random seeds
+                                    !   going back for 
+    integer :: partitioning
+    float(kind=rk) :: strong_conn1
+    integer :: aggr_radius1,min_asize1,max_asize1
+
+    if (numprocs>1) then
+      if (sctls%radius1>=0) then
+        partitioning=AGGRND_METIS
+      else
+        sctls%radius1=-sctls%radius1
+        partitioning=ONLY_METIS
+      endif
+    else
+      partitioning=ONLY_METIS
+    endif
     ol=max(sctls%overlap,sctls%smoothers)
     if (ismaster()) then ! Here master simply splits the matrix into pieces
                          !   using METIS
-      call SpMtx_buildAdjncy(A,nedges,xadj,adjncy)
-      G=Graph_newInit(A%nrows,nedges,xadj,adjncy,D_GRAPH_NODAL)
+      if (partitioning==AGGRND_METIS) then
+        if (sctls%strong1/=0.0_rk) then
+          strong_conn1=sctls%strong1
+        else
+          strong_conn1=0.67_rk
+        endif
+        call SpMtx_find_strong(A,strong_conn1)
+        if (sctls%radius1>0) then
+          aggr_radius1=sctls%radius1+1
+        else
+          aggr_radius1=3
+        endif
+        if (sctls%minasize1>0) then
+          min_asize1=sctls%minasize1
+        else
+           min_asize1=0.5_rk*(2*aggr_radius1+1)**2
+        endif
+        if (sctls%maxasize1>0) then
+          max_asize1=sctls%maxasize1
+        else
+          max_asize1=(2*aggr_radius1+1)**2
+        endif
+        call SpMtx_roughly_aggregate(A=A,      &
+                         neighood=aggr_radius1,&
+                      maxaggrsize=max_asize1,  &
+                            alpha=strong_conn1)
+        call SpMtx_buildAggrAdjncy(A,max_asize1,nedges,xadj,adjncy)
+        call SpMtx_unscale(A)
+        G=Graph_newInit(A%aggr%nagr,nedges,xadj,adjncy,D_GRAPH_NODAL)
+      elseif (partitioning==ONLY_METIS) then
+        call SpMtx_buildAdjncy(A,nedges,xadj,adjncy)
+        G=Graph_newInit(A%nrows,nedges,xadj,adjncy,D_GRAPH_NODAL)
+      endif
       ! Deallocate temporary arrays
       if (associated(xadj))   deallocate(xadj)
       if (associated(adjncy)) deallocate(adjncy)
       call Graph_Partition(G,numprocs,D_PART_VKMETIS,part_opts)
-      call color_print_aggrs(A%nrows,G%part,overwrite=.false.)
+      if (partitioning==AGGRND_METIS) then
+        do i=1,A%nrows
+          A%aggr%num(i)=G%part(A%aggr%num(i))
+        enddo
+        call color_print_aggrs(A%nrows,A%aggr%num,overwrite=.false.)
+        call flush(stream)
+!do i=1,A%aggr%nagr
+!  write(stream,*)i,':',adjncy(xadj(i):xadj(i+1)-1)
+!enddo
+!call doug_abort('testing rough aggr',434)
+      elseif (partitioning==ONLY_METIS) then
+        if (sctls%plotting==1.or.sctls%plotting==3) then
+          write(stream,*)'Rough aggregates:'
+          call color_print_aggrs(A%nrows,G%part,overwrite=.false.)
+        endif
+      endif
       call flush(stream)
-!allocate(itmp(A%nrows))
-!itmp=(/(i,i=1,A%nrows )/)
-!write(stream,*)'numbering:'
-!call color_print_aggrs(A%nrows,itmp,overwrite=.false.)
-!call flush(stream)
-!deallocate(itmp)
       buf(1)=A%nrows
       buf(2)=A%ncols
       buf(3)=A%nnz
@@ -703,10 +760,13 @@ CONTAINS
       M%nparts  = G%nparts
       !call Mesh_allocate(M,eptnmap=.true.)
       allocate(M%eptnmap(A%nrows))
-      M%eptnmap(1:A%nrows) = G%part(1:A%nrows)
+      if (partitioning==AGGRND_METIS) then
+        M%eptnmap(1:A%nrows) = A%aggr%num(1:A%nrows)
+      elseif (partitioning==ONLY_METIS) then
+        M%eptnmap(1:A%nrows) = G%part(1:A%nrows)
+      endif
       call Graph_Destroy(G)
     endif
-
     ! Distribute assembled matrix; first distribute essential matrix parameters and then distribute contents
     call MPI_BCAST(buf,4,MPI_INTEGER,D_MASTER,MPI_COMM_WORLD,ierr)
     if (.not.ismaster()) then
@@ -861,6 +921,149 @@ CONTAINS
       !call DOUG_abort('testing nodal graph partitioning',0)
     endif
   end subroutine SpMtx_DistributeAssembled              
+
+!----------------------------------------------------------
+!> Finding rough aggregates
+!----------------------------------------------------------
+  subroutine SpMtx_roughly_aggregate(A,neighood,maxaggrsize,alpha)
+    use globals
+    use Mesh_class
+    Implicit None
+    Type(SpMtx),intent(in out) :: A ! our matrix
+    integer,intent(in) :: neighood  ! 1-neighood,2-neighood or r-neighood...
+    integer,intent(in) :: maxaggrsize
+    float(kind=rk),intent(in) :: alpha
+    integer :: wavelen
+    integer :: i,j,j1,j2,jj,k,kk,n
+    integer,dimension(:),pointer :: ii,stat
+    integer,dimension(neighood) :: seeds
+    integer,dimension(maxaggrsize,neighood) :: layer
+    integer,dimension(neighood) :: layersize,aggrsize
+    integer,dimension(2*maxaggrsize) :: newlayer
+    integer                     :: newlayersize
+    integer,dimension(neighood) :: actanum ! active aggregate number
+    integer                     :: nact    ! #active
+    integer :: counter,rs,re,layernode,cn,noffdels
+    integer :: nagrs ! number of aggregates
+    logical :: overwrite=.false.
+    logical :: rounding=.true.
+    n=A%nrows
+    allocate(ii(n))
+    allocate(A%aggr%num(n))
+    A%aggr%num(1:n)=0
+    ii=(/ (i,i=1,n) /) !built-in array initialisation to 1:n
+    call random_permutation(n,ii)
+    !write(stream,*)'permutation is:',ii
+    !write(stream,*)i,ii(i)
+
+    ! Start aggregating taking seeds from ii
+    ! if node j aggregated set ii(j)=-abs(ii(j))
+    allocate(stat(n))
+    stat=0
+    layersize=0
+    A%aggr%nagr=0
+    nact=0
+    counter=0
+    call SpMtx_build_refs_symm(A,noffdels, &
+      A%strong_rowstart,A%strong_colnrs,sortdown=.true.)
+    aggrsize=0
+    do i=1,n
+      ! find next unaggregated seed in permutation order:
+      if (stat(ii(i))==0) then
+        !Add an aggregate
+        A%aggr%nagr=A%aggr%nagr+1
+        A%aggr%num(ii(i))=A%aggr%nagr
+        if (nact<neighood) then
+          nact=nact+1
+        endif
+        counter=counter+1
+        if (counter>neighood) then
+          counter=1
+        endif
+        actanum(counter)=A%aggr%nagr
+        aggrsize(counter)=1
+        layersize(counter)=1
+        layer(1,counter)=ii(i)
+        stat(ii(i))=1 ! mark it
+        if (nact>1) then
+        ! build another layer for still-to-grow aggregates:
+          do j=1,nact-1
+            k=counter-j
+            if (k<1) then
+              k=neighood
+            endif
+            newlayersize=0
+         aa:do kk=1,layersize(k)
+              layernode=layer(kk,k)
+              rs=A%strong_rowstart(layernode)
+              re=A%strong_rowstart(layernode+1)-1
+              do jj=rs,re ! put the neighs into the list if needed
+                cn=A%strong_colnrs(jj)
+                if (stat(cn)==0) then !node not in any aggregate
+                  newlayersize=newlayersize+1
+                  newlayer(newlayersize)=cn
+                  A%aggr%num(cn)=actanum(k)
+                  stat(cn)=1 ! mark it
+                  aggrsize(k)=aggrsize(k)+1
+                  if (aggrsize(k)>=maxaggrsize) then 
+                    ! close this aggregate
+                    newlayersize=0
+                    exit aa
+                  endif
+                endif
+              enddo
+            enddo aa
+            ! keep only outermost layer always replacing it with new in the end
+            layersize(k)=newlayersize
+            layer(1:newlayersize,k)=newlayer(1:newlayersize)
+            ! Now continue with a rounding step:
+            if (rounding.and.aggrsize(k)<maxaggrsize) then
+              newlayersize=0
+              do kk=1,layersize(k)
+                layernode=layer(kk,k)
+                rs=A%strong_rowstart(layernode)
+                re=A%strong_rowstart(layernode+1)-1
+                do jj=rs,re ! put the neighs into the list if needed
+                  cn=A%strong_colnrs(jj)
+                  if (stat(cn)<=0) then !node not in any aggregate
+                    newlayersize=newlayersize+1
+                    newlayer(newlayersize)=cn
+                    stat(cn)=stat(cn)-1 ! count it
+                  endif
+                enddo
+              enddo
+              ! add only rounding nodes
+           bb:do kk=1,newlayersize
+                if (stat(newlayer(kk))<-1) then
+                  layersize(k)=layersize(k)+1
+                  layer(layersize(k),k)=newlayer(kk)
+                  A%aggr%num(newlayer(kk))=actanum(k)
+                  aggrsize(k)=aggrsize(k)+1
+                  if (aggrsize(k)>=maxaggrsize) then 
+                    ! close this aggregate
+                    stat(newlayer(kk+1:newlayersize))=0
+                    layersize(k)=0
+                    exit bb
+                  endif
+                else
+                  stat(newlayer(kk))=0
+                endif
+              enddo bb
+            endif ! rounding
+          enddo !j
+        endif
+      endif
+    enddo
+    if (sctls%plotting==1.or.sctls%plotting==3) then
+      write(stream,*)'Subdomains obtained from METIS:'
+      call color_print_aggrs(n=n,aggrnum=A%aggr%num,overwrite=overwrite)
+    endif
+    deallocate(A%strong_colnrs)
+    deallocate(A%strong_rowstart)
+    deallocate(stat)
+    deallocate(ii)
+
+  end subroutine SpMtx_roughly_aggregate
 
   subroutine SpMtx_Build_lggl(A,A_ghost,M)
     implicit none
@@ -2673,6 +2876,86 @@ CONTAINS
     deallocate(counter)
   end subroutine SpMtx_buildAdjncy
   
+  !> Subroutine to build aggregates' adjacency
+  subroutine SpMtx_buildAggrAdjncy(A,maxaggrsize,nedges,xadj,adjncy)
+    use globals, only : stream, D_MSGLVL
+    implicit none
+
+    type(SpMtx),intent(inout) :: A
+    integer, intent(in)       :: maxaggrsize
+    integer,           intent(out) :: nedges
+    integer, dimension(:), pointer :: xadj
+    integer, dimension(:), pointer :: adjncy
+    
+    integer :: i,k,s,s1,sadjncy,c1,c2
+    integer, dimension(:), pointer :: counter,nneig
+    integer, dimension(:,:), allocatable :: neigs
+
+    !At first, find, which are the neighbouring aggregates
+    allocate(neigs(maxaggrsize,A%aggr%nagr))
+    allocate(nneig(A%aggr%nagr))
+    nneig=0
+    do i=1,A%nnz
+      if (A%indi(i)<A%indj(i)) then
+        c1=A%aggr%num(A%indi(i))
+        c2=A%aggr%num(A%indj(i))
+        if (c1/=c2) then
+          k=1
+          do while(k<=nneig(c1))
+            if (c2==neigs(k,c1)) then
+              exit
+            endif
+            k=k+1
+          enddo
+          if (k>nneig(c1)) then
+            neigs(k,c1)=c2
+            nneig(c1)=k
+          endif
+        endif
+      endif
+    enddo
+    ! allocation for the adjacency data
+    allocate(xadj(A%aggr%nagr+1))
+    xadj = 0
+    ! count the lengths
+    !   (NB! We are expecting matrix symmetric structure!!!)
+    do c1=1,A%aggr%nagr
+      do k=1,nneig(c1)
+        xadj(c1)=xadj(c1)+1
+        c2=neigs(k,c1)
+        xadj(c2)=xadj(c2)+1
+      enddo
+    enddo
+    allocate(counter(A%aggr%nagr))
+    counter = 0
+    s = xadj(1)
+    xadj(1) = 1
+    counter(1) = 1
+    do i = 2,A%aggr%nagr
+       s1 = xadj(i)
+       xadj(i) = xadj(i-1)+s
+       counter(i) = xadj(i)
+       s = s1
+    enddo
+    xadj(A%aggr%nagr+1) = xadj(A%aggr%nagr) + s
+    sadjncy = xadj(A%aggr%nagr+1) - 1
+    allocate(adjncy(sadjncy))
+    ! pass 2 of the data
+    do c1=1,A%aggr%nagr
+      do k=1,nneig(c1)
+        c2=neigs(k,c1)
+        adjncy(counter(c1))=c2
+        counter(c1)=counter(c1)+1
+        adjncy(counter(c2))=c1
+        counter(c2)=counter(c2)+1
+      enddo
+    enddo
+    nedges = sadjncy/2
+    deallocate(counter)
+    deallocate(nneig)
+    deallocate(neigs)
+  end subroutine SpMtx_buildAggrAdjncy
+
   subroutine SpMtx_SymmTest(A,eps)
     type(SpMtx),intent(in) :: A
     real(kind=rk),optional :: eps

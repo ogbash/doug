@@ -1616,4 +1616,58 @@ contains
       goto 1
   end subroutine quicksort
 
+
+  !-------------------------------------
+  !> Return random integer in the range [mini,maxi] with even distribution
+  !-------------------------------------
+  function random_integer(mini,maxi) result(irand)
+    integer,intent(in) :: mini,maxi
+    real :: r
+    integer :: irand
+    ! call random_seed before first call !
+    call random_number(r)
+    r=r*(maxi-mini+1)
+    irand=mini+floor(r)
+  end function random_integer
+
+  !-------------------------------------
+  !> Evaluate array of random integers in the range [mini,maxi] with even distribution
+  !-------------------------------------
+  subroutine rand_intarr(n,riarr,mini,maxi)
+    integer,intent(in) :: n,mini,maxi
+    integer,dimension(n),intent(out) :: riarr
+    real,dimension(:),allocatable :: ra
+    ! call random_seed before first call !
+    allocate(ra(n))
+    call random_number(ra)
+    ra=ra*(maxi-mini+1)
+    riarr=mini+floor(ra)
+    deallocate(ra)
+  end subroutine rand_intarr
+
+  !-------------------------------------
+  !> Permute randomly the given array
+  !-------------------------------------
+  subroutine random_permutation(n,inds)
+    integer,intent(in) :: n
+    integer,dimension(:),pointer :: inds
+    real,dimension(:),allocatable :: ra
+    real :: rrand
+    integer :: i,irand,k
+    ! call random_seed before first call !
+    call random_seed
+    allocate(ra(n-1))
+    call random_number(ra)
+    ! Loop over the indeces
+    do i=1,n-1
+      ! take a random number in [i,n]:
+      rrand=ra(i)*(n-i+1)
+      irand=i+floor(rrand)
+      k=inds(i)
+      inds(i)=inds(irand)
+      inds(irand)=k
+    enddo
+    deallocate(ra)
+  end subroutine random_permutation
+
 end module DOUG_utils
