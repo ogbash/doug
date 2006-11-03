@@ -233,6 +233,9 @@ contains
     ! Free mesh graph, not needed anymore
     call Mesh_destroyGraph(Msh)
 
+    ! Update inner node count
+    Msh%ninner=Msh%nlf
+
   end subroutine parallelAssembleFromElemInput
 
 
