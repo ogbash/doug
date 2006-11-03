@@ -605,7 +605,7 @@ contains
         float(kind=rk), dimension(:), pointer :: b !< local RHS
 
         float(kind=rk), dimension(:), pointer  :: x 
-        integer myrank, ierr, i
+        integer ierr, i
 
         allocate(x(Msh%ngf))
 
