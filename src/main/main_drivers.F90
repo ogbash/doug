@@ -40,7 +40,8 @@ module main_drivers
 #endif
 
   public :: &
-       parallelAssembleFromElemInput
+       parallelAssembleFromElemInput, &
+       parallelDistributeAssembledInput
 
 contains
 
@@ -52,16 +53,13 @@ contains
                b, nparts, part_opts, A_interf)
     implicit none
 
-    type(Mesh),     intent(in out) :: Msh ! Mesh
-    type(SpMtx),    intent(in out) :: A ! System matrix
-    float(kind=rk), dimension(:), pointer :: b ! local RHS
+    type(Mesh),     intent(in out) :: Msh !< Mesh
+    type(SpMtx),    intent(in out) :: A !< System matrix
+    float(kind=rk), dimension(:), pointer :: b !< local RHS
     ! Partitioning
-    ! number of parts to partition a mesh
-    integer, intent(in) :: nparts
-    integer :: i, ierr
-    ! partition options (see METIS manual)
-    integer, dimension(6), intent(in) :: part_opts
-    type(SpMtx),intent(in out),optional :: A_interf ! matr@interf. 
+    integer, intent(in) :: nparts !< number of parts to partition a mesh
+    integer, dimension(6), intent(in) :: part_opts !< partition options (see METIS manual)
+    type(SpMtx),intent(in out),optional :: A_interf !< matrix at interface
 
     ! =======================
     ! Mesh and its Dual Graph
@@ -236,4 +234,59 @@ contains
     call Mesh_destroyGraph(Msh)
 
   end subroutine parallelAssembleFromElemInput
+
+
+  !----------------------------------------------------------------
+  !> Distribute assembled matrix and RHS from master to slaves
+  !----------------------------------------------------------------
+  subroutine parallelDistributeAssembledInput(Msh, A, b, A_interf)
+    implicit none
+
+    type(Mesh),     intent(in out) :: Msh !< Mesh
+    type(SpMtx),    intent(in out) :: A !< System matrix
+    float(kind=rk), dimension(:), pointer :: b !< local RHS
+    type(SpMtx),intent(in out),optional :: A_interf !< matrix at interface
+
+    integer :: n
+
+    ! ======================
+    ! Read matrix from file
+    ! ======================
+    if (ismaster()) then
+      write(stream,'(a,a)') ' ##### Assembled input file: ##### ', &
+            mctls%assembled_mtx_file
+      call ReadInSparseAssembled(A,trim(mctls%assembled_mtx_file))
+      allocate(b(A%nrows))
+      if (len_trim(mctls%assembled_rhs_file)>0) then
+         write(stream,'(a,a)') ' ##### Assembled RHS file: ##### ', &
+               mctls%assembled_rhs_file
+         call Vect_ReadFromFile(b, trim(mctls%assembled_rhs_file))
+      else
+         write(stream,'(a,a)') ' ##### (using unit vector as RHS) ##### '
+         b=1.0_rk
+      end if
+    endif
+
+    ! =====================
+    ! Build mesh structure/distribute
+    ! =====================
+    if (numprocs==1) then
+      n=sqrt(1.0_rk*A%nrows)
+      if (n*n /= A%nrows) then
+        write (stream,*) 'Not a Cartesian Mesh!!!'
+        Msh=Mesh_New()
+        Msh%ngf=A%nrows
+        Msh%nlf=A%nrows
+        Msh%ninner=Msh%ngf
+      else
+        call Mesh_BuildSquare(Msh,n)
+        Msh%ninner=Msh%ngf
+      endif
+    else ! numprocs>1
+      Msh=Mesh_New()
+      call SpMtx_DistributeAssembled(A,b,A_interf,Msh)
+    endif
+
+  end subroutine parallelDistributeAssembledInput
+
 end module main_drivers
