@@ -101,12 +101,9 @@ program aggr
 
   type(ConvInf) :: resStat
 
-  real(kind=rk) :: t,t1,t2,t3,t4,t5,tagr1,tagr2,ttot,tsup,tslv
-  integer :: i,j,k,kk,id,nids,it
-  integer :: i8
-  integer,dimension(:),pointer :: ids
+  real(kind=rk) :: t,t1
+  integer :: i,j,k,n,it
   float(kind=rk), dimension(:), pointer :: xchk, r, y
-  integer :: n
   character :: str
   character(len=40) :: frm
   float(kind=rk) :: strong_conn1,strong_conn2,cond_num,nrm
@@ -129,40 +126,14 @@ program aggr
   select case (sctls%input_type)
   case (DCTL_INPUT_TYPE_ELEMENTAL)
      ! ELEMENTAL
-     call parallelAssembleFromElemInput(M, A, b, nparts, part_opts)
-  case (DCTL_INPUT_TYPE_ASSEMBLED) ! ASSEMBLED matrix 
-     if (ismaster()) then
-       write(stream,'(a,a)') ' ##### Assembled input file: ##### ',mctls%assembled_mtx_file
-       call ReadInSparseAssembled(A,trim(mctls%assembled_mtx_file))
-       allocate(b(A%nrows))
-       if (len_trim(mctls%assembled_rhs_file)>0) then
-          write(stream,'(a,a)') ' ##### Assembled RHS file: ##### ',mctls%assembled_rhs_file
-          call Vect_ReadFromFile(b, trim(mctls%assembled_rhs_file))
-       else
-          write(stream,'(a,a)') ' ##### (using unit vector as RHS) ##### '
-          b=1.0_rk
-       end if
-     endif
-     if (numprocs==1) then
-       n=sqrt(1.0_rk*A%nrows)
-       if (n*n /= A%nrows) then
-         write (stream,*) 'Not a Cartesian Mesh!!!'
-         M=Mesh_New()
-         M%ngf=A%nrows
-         M%ninner=M%ngf
-         M%nlf=A%nrows
-       else
-         call Mesh_BuildSquare(M,n)
-         M%ninner=M%ngf
-       endif
-     else ! numprocs>1
-       M=Mesh_New()
-       call SpMtx_DistributeAssembled(A,b,A_ghost,M)
-     endif
+     call parallelAssembleFromElemInput(M, A, b, nparts, part_opts, A_ghost)
+  case (DCTL_INPUT_TYPE_ASSEMBLED)
+     ! ASSEMBLED
+     call parallelDistributeAssembledInput(M, A, b, A_ghost)
   case default
      call DOUG_abort('[DOUG main] : Unrecognised input type.', -1)
   end select
-  !if (numprocs==1.or.sctls%levels>1) then !todo remove
+
   if (sctls%levels>1.or.(numprocs==1.and.sctls%levels==1)) then !todo remove
     ! Testing aggregation: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
     if (sctls%strong1/=0.0_rk) then
@@ -241,6 +212,7 @@ program aggr
       if (sctls%radius2>0) then
         aggr_radius2=sctls%radius2
       else
+         n=sqrt(1.0_rk*A%nrows)
          aggr_radius2=nint(3*sqrt(dble(n))/(2*aggr_radius1+1)-1)
          write (stream,*) 'Coarse aggregation radius aggr_radius2 =',aggr_radius2
       endif
