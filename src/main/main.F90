@@ -70,8 +70,8 @@ program main
 
   ! +
   real(kind=rk) :: t1
-  integer :: i,it
-  real(kind=rk) :: res_norm,cond_num
+  integer :: i,it,ierr
+  real(kind=rk) :: res_norm_local,res_norm,cond_num
   real(kind=rk), dimension(:), pointer :: r, y
   float(kind=rk), dimension(:), pointer :: yc, gyc, ybuf
 
@@ -96,17 +96,11 @@ program main
   ! Select input type
   select case (sctls%input_type)
   case (DCTL_INPUT_TYPE_ELEMENTAL)
-
      ! ELEMENTAL
      call parallelAssembleFromElemInput(M,A,b,nparts,part_opts,A_interf)
-     !fb=1.0_rk ! TODO: remove this -- temporary fix as there is a
-              !   an error in the RHS vector parallel assembly!!!
-    !call Vect_Print(b,'RHS')
   case (DCTL_INPUT_TYPE_ASSEMBLED)
-
      ! ASSEMBLED
-     !call parallelDistributeAssembled()
-
+     call parallelDistributeAssembledInput(M,A,b,A_interf)
   case default
      call DOUG_abort('[DOUG main] : Unrecognised input type.', -1)
   end select
@@ -180,6 +174,7 @@ program main
 
   ! Solve the system
   allocate(xl(M%nlf)); xl = 0.0_rk
+
   select case(sctls%solver)
   case (DCTL_SOLVE_CG)
 
@@ -196,18 +191,13 @@ program main
 
      if (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL .and. &
                         sctls%levels==2) then
-             call pcg_weigs(A=A,b=b,x=xl,Msh=M,it=it,cond_num=cond_num, &
-                    A_interf_=A_interf,CoarseMtx_=AC,Restrict=Restrict, &
-                    refactor_=.true.)
-!                    refactor_=.true., cdat_=cdat)
+       call pcg_weigs(A=A,b=b,x=xl,Msh=M,it=it,cond_num=cond_num, &
+                      A_interf_=A_interf,CoarseMtx_=AC,Restrict=Restrict, &
+                      refactor_=.true.)
+!                     refactor_=.true., cdat_=cdat)
      else
-     !call pcg(A, b, xl, M)
-!b=1.0_rk
-
-!write(stream,*),'b=======',b
-     call pcg_weigs(A=A,b=b,x=xl,Msh=M,it=it,cond_num=cond_num, &
-                    A_interf_=A_interf,refactor_=.true.) !,        &
-                    !maxit_=10)
+       call pcg_weigs(A=A,b=b,x=xl,Msh=M,it=it,cond_num=cond_num, &
+                        A_interf_=A_interf,refactor_=.true.)
      endif
 
      write(stream,*) 'time spent in pcg():',MPI_WTIME()-t1
@@ -222,8 +212,11 @@ program main
   allocate(r(size(xl)), y(size(xl)))
   call SpMtx_pmvm(y, A, xl, M)
   r = y - b
-  res_norm = Vect_dot_product(r, r)
+  res_norm_local = Vect_dot_product(r, r)
   deallocate(r, y)
+
+  ! Calculate global residual
+  call MPI_REDUCE(res_norm_local, res_norm, 1, MPI_fkind, MPI_SUM, D_MASTER, MPI_COMM_WORLD, ierr)
 
   ! Assemble result on master and write it to screen and/or file
   if (ismaster()) then
