@@ -151,10 +151,10 @@ contains
                  nodes2=AC%fullaggr%nodes)   
         endif
       else !}{ no coarse solves:
-        if (present(A_interf_).or.sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED) then
-          A%fullaggr%nagr=1
-          A%nsubsolves=1
-        endif
+!       if (present(A_interf_).or.sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED) then
+        A%fullaggr%nagr=1
+        A%nsubsolves=1
+!       endif
         allocate(A%subsolve_ids(A%fullaggr%nagr))
         A%subsolve_ids=0
         allocate(A%subd(A%fullaggr%nagr+1))
@@ -312,10 +312,10 @@ contains
                  nodes2=AC%fullaggr%nodes)   
         endif
       else !}{ no coarse solves:
-        if (present(A_interf_).or.sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED) then
-          A%fullaggr%nagr=1
-          A%nsubsolves=1
-        endif
+!       if (present(A_interf_).or.sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED) then
+        A%fullaggr%nagr=1
+        A%nsubsolves=1
+!       endif
         allocate(A%subsolve_ids(A%fullaggr%nagr))
         A%subsolve_ids=0
         allocate(A%subd(A%fullaggr%nagr+1))
