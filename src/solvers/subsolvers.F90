@@ -158,7 +158,7 @@ contains
         allocate(A%subsolve_ids(A%fullaggr%nagr))
         A%subsolve_ids=0
         allocate(A%subd(A%fullaggr%nagr+1))
-        if (present(A_interf_)) then
+        if (present(A_interf_).and.A_interf_%nnz>0) then
           if (A%arrange_type/=D_SpMtx_ARRNG_ROWS) then
             write (stream,*) 'Arranging A to row storage format!'
             call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS,sort=.true.)
@@ -319,7 +319,7 @@ contains
         allocate(A%subsolve_ids(A%fullaggr%nagr))
         A%subsolve_ids=0
         allocate(A%subd(A%fullaggr%nagr+1))
-        if (present(A_interf_)) then
+        if (present(A_interf_).and.A_interf_%nnz>0) then
           if (A%arrange_type/=D_SpMtx_ARRNG_ROWS) then
             write (stream,*) 'Arranging A to row storage format!'
             call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS,sort=.true.)
@@ -840,7 +840,7 @@ contains
             subd(agr2)%inds(1:nselind)=selind(1:nselind)
           enddo
         endif !}
-      elseif (present(nagr1)) then !}{
+      elseif (present(nagr1).and.associated(starts1)) then !}{
         do agr1=1,nagr1 ! look through fine agrs.
           floc=0
           nselind=0

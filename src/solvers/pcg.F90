@@ -522,10 +522,17 @@ if (bugtrack)call Print_Glob_Vect(tmpsol,M,'tmpsol===',chk_endind=M%ninner)
         if (sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED) then
           ! we need the fully sorted entries but A has block struct...
           !   keep the original values...
-          A_tmp=SpMtx_newInit(nnz=A%nnz,nblocks=A%nblocks,nrows=A%nrows,&
-                             ncols=A%ncols,&
-                             indi=A%indi,indj=A%indj,val=A%val,&
-                             arrange_type=A%arrange_type,M_bound=A%M_bound)
+          if (associated(A%M_bound)) then
+            A_tmp=SpMtx_newInit(nnz=A%nnz,nblocks=A%nblocks,&
+                                nrows=A%nrows,ncols=A%ncols,&
+                                indi=A%indi,indj=A%indj,val=A%val,&
+                                arrange_type=A%arrange_type,M_bound=A%M_bound)
+          else
+            A_tmp=SpMtx_newInit(nnz=A%nnz,nblocks=A%nblocks,&
+                                nrows=A%nrows,ncols=A%ncols,&
+                                indi=A%indi,indj=A%indj,val=A%val,&
+                                arrange_type=A%arrange_type)
+          endif
           A%arrange_type=D_SpMtx_ARRNG_NO
           !A%nrows=max(A%nrows,A_interf_%nrows)
           !A%ncols=max(A%nrows,A_interf_%ncols)
@@ -546,7 +553,7 @@ if (bugtrack)call Print_Glob_Vect(tmpsol,M,'tmpsol===',chk_endind=M%ninner)
           A%indi=A_tmp%indi
           A%indj=A_tmp%indj
           A%val=A_tmp%val
-          A%M_bound=A_tmp%M_bound
+          if (associated(A_tmp%M_bound)) A%M_bound=A_tmp%M_bound
           A%nrows=A_tmp%nrows
           A%ncols=A_tmp%ncols
           A%arrange_type=A_tmp%arrange_type
@@ -563,10 +570,17 @@ if (bugtrack)call Print_Glob_Vect(tmpsol,M,'tmpsol===',chk_endind=M%ninner)
           endif
         endif
       elseif (refactor_.and.sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED) then!}{
-        A_tmp=SpMtx_newInit(nnz=size(A%indi),nblocks=A%nblocks,nrows=A%nrows,&
-                           ncols=A%ncols,&
-                           indi=A%indi,indj=A%indj,val=A%val,&
-                           arrange_type=A%arrange_type,M_bound=A%M_bound)
+        if (associated(A%M_bound)) then
+          A_tmp=SpMtx_newInit(nnz=size(A%indi),nblocks=A%nblocks,&
+                             nrows=A%nrows,ncols=A%ncols,&
+                             indi=A%indi,indj=A%indj,val=A%val,&
+                             arrange_type=A%arrange_type,M_bound=A%M_bound)
+        else
+          A_tmp=SpMtx_newInit(nnz=size(A%indi),nblocks=A%nblocks,&
+                             nrows=A%nrows,ncols=A%ncols,&
+                             indi=A%indi,indj=A%indj,val=A%val,&
+                             arrange_type=A%arrange_type)
+        endif
         A_tmp%nnz=A%nnz
         A%arrange_type=D_SpMtx_ARRNG_NO
         call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS,sort=.true.)
@@ -581,7 +595,7 @@ if (bugtrack)call Print_Glob_Vect(tmpsol,M,'tmpsol===',chk_endind=M%ninner)
         A%indi=A_tmp%indi
         A%indj=A_tmp%indj
         A%val=A_tmp%val
-        A%M_bound=A_tmp%M_bound
+        if (associated(A_tmp%M_bound)) A%M_bound=A_tmp%M_bound
         A%nrows=A_tmp%nrows
         A%ncols=A_tmp%ncols
         A%arrange_type=A_tmp%arrange_type
