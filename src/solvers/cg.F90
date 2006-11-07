@@ -117,7 +117,7 @@ contains
     ! Initialise auxiliary data structures
     ! to assist with pmvm
     call pmvmCommStructs_init(A, M)
-maxit=100
+    maxit=1000
     write(stream,'(a,i6,a,e8.2)') 'maxit = ',maxit,', tol = ',tol
 
     !x = 0.0_rk
@@ -161,6 +161,7 @@ maxit=100
        !q = SpMtx_pmvm(A, p, M)
        call SpMtx_pmvm(q,A, p, M)
        alpha = rho / Vect_dot_product(p,q)
+
        x = x + alpha*p
        r = r - alpha*q
        rhoold = rho
@@ -210,6 +211,7 @@ maxit=100
 !!$             res = qsqrt(rho)
        end if
 #endif
+
        if (ismaster()) then
           write(stream, '(i5,a,e25.18,a)', advance='no') it,': res ', res,' '
  write(stream,*)
@@ -228,8 +230,10 @@ maxit=100
           exit
        end if
        res_priv = res
-       deallocate(p,q,r,b_k)
+
     end do
+
+    deallocate(p,q,r,b_k)
 
     if (solinf%flag == D_SOLVE_CONV_STAGN) then
        write(stream,'(/a,i6,a)') '''cg'' stagnated after ',it,' iterations.'
