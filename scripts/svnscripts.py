@@ -58,6 +58,12 @@ if __name__=='__main__':
 
 LOG = logging.getLogger('svnscripts')
 
+def getRevision(dir):
+    stream = os.popen('svn info %s | sed "/^Revision:/{s/Revision: \\(.*\\)/\\1/; q;} ;d"' % dir)
+    s = stream.read()
+    revision = int(s)
+    return revision
+
 def run(configFileNames):
     LOG.info("Running SVN scripts")
 

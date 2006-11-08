@@ -128,6 +128,13 @@ try:
     if conf.getboolean('testscript', 'run-svn'):
         svndoug = svnscripts.run(confFileNames)
 
+    if not conf.get('dougtest', 'info-svn'):
+        try:
+            revision = svnscripts.getRevision(conf.get('autotools','srcdir'))
+            conf.set('dougtest', 'info-svn', str(revision))
+        except ValueError, e:
+            LOG.warn("Cannot parse svn revision: %s" % e)
+
     # autotools
     if conf.getboolean('testscript', 'run-autotools'):
         autotools.run(confFileNames)
