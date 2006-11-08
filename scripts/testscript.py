@@ -181,7 +181,7 @@ try:
         mysqlUser = conf.get("testscript", "mysql-user")
         mysqlPassword = conf.get("testscript", "mysql-password")
         mysqlDatabase = conf.get("testscript", "mysql-database")
-        mysqlTestResult = dougtestmysql.DougMySQLTestResult(mysqlHost, mysqlUser, mysqlPassword, mysqlDatabase)
+        mysqlTestResult = dougtestmysql.DougMySQLTestResult(mysqlHost, mysqlUser, mysqlPassword, mysqlDatabase, conf)
         testResults.append(mysqlTestResult)
 
     testRunner = dougtest.TestRunner(testResults)

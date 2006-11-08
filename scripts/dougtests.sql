@@ -54,6 +54,9 @@ CREATE TABLE `testruns` (
   `servername` varchar(64) default NULL,
   `starttime` datetime default NULL,
   `endtime` datetime default NULL,
+  svnrevision int,
+  fcompiler varchar(32),
+  mpi varchar(32),
   PRIMARY KEY  (`ID`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 

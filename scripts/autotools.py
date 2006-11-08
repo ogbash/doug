@@ -66,6 +66,8 @@ configure-errfilename: configure.err
 
 # time to sleep between make completion polls (in seconds)
 make-waittime: 6
+# run 'make clean' before 'make'
+make-clean: no
 
 make-outfilename: make.out
 make-errfilename: make.err
@@ -149,6 +151,8 @@ class Configure:
         builddir = self.conf.get('autotools', 'builddir')
         argstr = self.conf.get('autotools', 'configure-arguments')
 
+        if not os.path.exists(builddir):
+            os.mkdir(builddir)
         os.chdir(builddir)
         try:
             LOG.debug('Changed directory to %s', builddir)
@@ -192,6 +196,21 @@ class Make:
         try:
             LOG.debug('Changed directory to %s', builddir)
 
+            # run make clean
+            if self.conf.getboolean("autotools", "make-clean"):
+                cmd = "make clean"
+                mk = popen2.Popen3("%s > %s 2> %s" % (cmd, outfname, errfname))
+                while mk.poll() == -1:
+                    LOG.debug("Waiting other %d seconds for make clean to complete" % waittime)
+                    time.sleep(waittime)
+
+                mk_value = mk.poll()
+                if mk_value != 0:
+                    raise ScriptException("Error occured while running make clean (value=%d), "
+                                          "inspect output files (%s, %s) for error description." %
+                                          (mk_value, outfname, errfname))
+
+            # run make
             cmd = "make"
             mk = popen2.Popen3("%s > %s 2> %s" % (cmd, outfname, errfname))
             while mk.poll() == -1:

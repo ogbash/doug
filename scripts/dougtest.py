@@ -38,6 +38,15 @@ dougbindir:
 # directory where temporary test directories are created, redefine
 # if you have problems with hardlinks
 tmpdir: /tmp
+preserveTmpdir: no
+
+# all info-* attributes are not necessary, but may be used by test results
+# DOUG svn version
+info-svn:
+# fortran compiler
+info-fc:
+# MPI version
+info-mpi:
 
 # MPI
 mpiboot: lamboot
@@ -93,12 +102,13 @@ class TestCase (unittest.TestCase):
                 self.files = []
 	
 	def setUp(self):
-		LOG.debug("Preparing testing environment")
+		LOG.debug("Preparing testing environment")		
                 tmprootdir = self.conf.get("dougtest", "tmpdir")
 		tmpdir = os.tempnam(tmprootdir, 'doug-')
 		os.mkdir(tmpdir)
 		LOG.debug("Temporary directory %s created" % tmpdir)
 		self.tmpdir = tmpdir
+		self.preserveTmpdir = self.conf.getboolean("dougtest", "preserveTmpdir")
 		try:
 			# copy control file
 			self.controlFile = ControlFile(self.ctrlfname)
@@ -141,7 +151,7 @@ class TestCase (unittest.TestCase):
 		self._clean()
 
 	def _clean(self):
-		if hasattr(self, 'tmpdir') and self.tmpdir:
+		if not self.preserveTmpdir and hasattr(self, 'tmpdir') and self.tmpdir:
 			os.system('rm -rf %s' % self.tmpdir)
 			LOG.debug("Temporary directory %s deleted" % self.tmpdir)
 

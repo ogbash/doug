@@ -40,11 +40,12 @@ class TestStatus:
 class DougMySQLTestResult(unittest.TestResult):
 	"""Saves DOUG test results into MySQL DB."""
 	
-	def __init__(self, host, user, password, database):
+	def __init__(self, host, user, password, database, conf):
 		unittest.TestResult.__init__(self)
                 self.host = host
                 self.user = user
                 self.database = database
+                self.conf = conf
                 self.connection = MySQLdb.connect(host, user, password, database)
                 self.cursor = self.connection.cursor()
                 self._createTestRun()
@@ -95,8 +96,14 @@ class DougMySQLTestResult(unittest.TestResult):
                 self.connection.close()
 
         def _createTestRun(self):
-            self.cursor.execute("insert into testruns (servername, starttime)"
-                                " values (%s, %s)", ('kheiron', datetime.today()))
+            revision = self.conf.get("dougtest","info-svn")
+            revision = revision or None
+            compiler = self.conf.get("dougtest","info-fc")
+            mpi = self.conf.get("dougtest","info-mpi")
+            
+            self.cursor.execute("insert into testruns (servername, svnrevision, fcompiler, mpi, starttime)"
+                                " values (%s, %s, %s, %s, %s)",
+                                ('kheiron', revision, compiler, mpi, datetime.today()))
             self.ID = self.cursor.lastrowid
 
         def _finishTestRun(self):
