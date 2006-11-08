@@ -50,7 +50,12 @@ info-mpi:
 
 # MPI
 mpiboot: lamboot
+mpihalt: lamhalt
 mpirun: mpirun
+mpiboot-outfilename: lamboot.out
+mpiboot-errfilename: lamboot.err
+mpihalt-outfilename: lamhalt.out
+mpihalt-errfilename: lamhalt.err
 
 doug-outfilename: dougtest.out
 doug-errfilename: dougtest.err
@@ -135,18 +140,39 @@ class TestCase (unittest.TestCase):
 				os.link(fullfname,
 					os.path.join(self.tmpdir, fname))
 
-			# run lamboot (temporary solution for developing)
+			# run mpiboot
+			LOG.debug("Setting up mpi")
 			mpibootname = self.conf.get("dougtest", "mpiboot")
-			mpiboot = popen2.Popen3("%s > %s.out 2> %s.err" % (mpibootname, mpibootname, mpibootname))
+			outfilename = self.conf.get("dougtest", "mpiboot-outfilename")
+			errfilename = self.conf.get("dougtest", "mpiboot-errfilename")
+
+			mpiboot = popen2.Popen3("%s > %s 2> %s" % (mpibootname, outfilename, errfilename))
 			res = mpiboot.wait()
 			if res:
-				raise ScriptException("Error running %s (%d)" % (mpiboot, res))
+				raise ScriptException("Error running %s (%d)"
+						      "inspect output files (%s, %s) for error description."
+						      % (mpibootname, res, outfilename, errfilename))
 		except:
 			self._clean()
 			raise
 		
 			
 	def tearDown(self):
+		try:
+			mpihaltname = self.conf.get("dougtest", "mpihalt")
+			if mpihaltname:
+				outfilename = self.conf.get("dougtest", "mpihalt-outfilename")
+				errfilename = self.conf.get("dougtest", "mpihalt-errfilename")			
+				LOG.debug("Shutting down mpi")
+				mpihalt = popen2.Popen3("%s > %s 2> %s" % (mpihaltname, outfilename, errfilename))
+				res = mpihalt.wait()
+				if res:
+					LOG.warn("Error running %s (%d)"
+						 "inspect output files (%s, %s) for error description."
+						 % (mpihaltname, res, outfilename, errfilename))
+		except Exception, e:
+			LOG.warn("Exception running mpihalt: %s" % e)
+		
 		LOG.debug("Cleaning after test")
 		self._clean()
 
@@ -173,7 +199,10 @@ class TestCase (unittest.TestCase):
 				LOG.debug("Running %s -np 1 %s -f %s" % (mpirun, main, self.testctrlfname))
 				doug = popen2.Popen3('%s -np %d %s -f %s > %s 2> %s'%
 						    (mpirun, self.nproc, main, self.testctrlfname,
-						     outfname, errfname))
+						     outfname, errfname)
+						    )
+				import time
+				time.sleep(1) # without this mpirun somehow gets HUP signal
 
 				value = doug.wait()
 				LOG.debug("Finished %s with code %d" % (mpirun, value))
