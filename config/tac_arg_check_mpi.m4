@@ -19,6 +19,7 @@ AC_DEFUN([TAC_ARG_CHECK_MPI],
     FCFLAGS="${FCFLAGS} -I${MPI_INC}"
   fi
 
+  # try to CPP mpi.h
   AC_LANG_PUSH(C)
   AC_MSG_CHECKING(for mpi.h)
   AC_TRY_CPP([@%:@include "mpi.h"],
@@ -27,12 +28,11 @@ AC_DEFUN([TAC_ARG_CHECK_MPI],
       AC_MSG_RESULT(no)
 
       echo "-----"
-      echo "Cannot link simple MPI program."
-      echo "Try --with-mpi-compilers to specify MPI compilers."
-      echo "Or try --with-mpi-libs, --with-mpi-incdir, --with-mpi-libdir"
+      echo "Cannot preprocess simple MPI C program."
+      echo "Try --with-mpi or --with-mpi-incdir"
       echo "to specify all the specific MPI compile options."
       echo "-----"
-      AC_MSG_ERROR(MPI cannot link)
+      AC_MSG_ERROR(MPI cannot preprocess)
     ])
   AC_LANG_POP(C)
 
@@ -44,18 +44,58 @@ AC_DEFUN([TAC_ARG_CHECK_MPI],
     LDFLAGS="${LDFLAGS} -L${MPI_LIBDIR}"
   fi
 
-  if test -z "${MPI_LIBS}" && test -n "${MPI_LIBDIR}"; then
-    MPI_LIBS="-lmpi"
-  fi
+  #if test -z "${MPI_LIBS}" && test -n "${MPI_LIBDIR}"; then
+  #  MPI_LIBS="-lmpi"
+  #fi
 
   if test -n "${MPI_LIBS}"; then
     LIBS="${MPI_LIBS} ${LIBS}"
   fi
 
+  # try to link MPI program
+  AC_LANG_PUSH(Fortran)
+AC_MSG_CHECKING([Try to compile and link fortran MPI program])
+cat > conftestf.f <<EOF
+       program mpi_p
+         integer ierr
+
+         include 'mpif.h'
+
+         call MPI_Init(ierr)	 
+         call MPI_Finalize(ierr)
+       end program mpi_p
+EOF
+LOG_FILE([conftestf.f])
+
+_compilecmd="$FC $FCFLAGS conftestf.f -o conftest $LDFLAGS $LIBS"
+LOG_MSG([$_compilecmd], 1)
+$_compilecmd 1>&5 2>&1
+
+_status=$?
+LOG_MSG([_status=$_status], 1)
+
+if test $_status != 0; then
+  AC_MSG_RESULT([no])
+  echo "-----"
+  echo "Cannot compile simple MPI Fortran program."
+  echo "Try FC, --with-mpi, --with-mpi-fc, --with-mpi-libdir, --with-mpi-libs"
+  echo "to specify all the specific MPI compile options."
+  echo "-----"
+  AC_MSG_ERROR(MPI cannot link)
+else
+  AC_MSG_RESULT([yes])
+fi
+
+/bin/rm -f conftest*
+
+AC_LANG_POP(Fortran)
+
 ])
 
+dnl ------------------------------------------------------------
 dnl Find MPI_Abort() exit status shift.
 dnl This is done in LAM/MPI implementation by 16 or 17 bits depending on version
+dnl ------------------------------------------------------------
 AC_DEFUN([CHECK_MPI_ABORT_ERROR_CODE_SHIFT],
 [
 AC_MSG_CHECKING([Number of bits shift for MPI_Abort() error code])
@@ -72,7 +112,7 @@ cat > conftestf.f <<EOF
 EOF
 LOG_FILE([conftestf.f])
 
-_compilecmd="$FC $FFLAGS conftestf.f -o conftest $LDFLAGS $LIBS"
+_compilecmd="$FC $FCFLAGS conftestf.f -o conftest $LDFLAGS $LIBS"
 LOG_MSG([$_compilecmd], 1)
 $_compilecmd 1>&5 2>&1
 

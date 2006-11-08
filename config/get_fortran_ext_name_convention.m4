@@ -27,7 +27,7 @@ cat > conftestf.f <<EOF
        return
        end
 EOF
-$1 $FFLAGS -c conftestf.f 1>&5 2>&1
+$1 $FCFLAGS -c conftestf.f 1>&5 2>&1
 if test ! -s conftestf.o; then
     AC_MSG_WARN(unable to produce an object file testing FORTRAN compiler)
 else

@@ -61,6 +61,15 @@ AC_SUBST(FCFLAGS_F95)
 
 AC_PROG_LIBTOOL
 
+# ------------------------------------------------------------------------
+# MPI link check
+# ------------------------------------------------------------------------
+TAC_ARG_CHECK_MPI
+CHECK_MPI_ABORT_ERROR_CODE_SHIFT()
+AC_DEFINE_UNQUOTED([MPI_ABORT_ERROR_CODE_SHIFT],
+        [$MPI_ABORT_ERROR_CODE_SHIFT],
+        [number of bits error code should be shift when passing to MPI_Abort()])
+
 # Check libraries
 
 AC_LANG_PUSH(Fortran)
@@ -91,15 +100,6 @@ AC_CHECK_LIB(mumps, dmumps,
                     [mumps_lib=no
                      AC_DEFINE([D_WANT_MUMPS_NO],,[Do not use mumps])])
 AC_LANG_POP(Fortran)
-
-# ------------------------------------------------------------------------
-# MPI link check
-# ------------------------------------------------------------------------
-TAC_ARG_CHECK_MPI
-CHECK_MPI_ABORT_ERROR_CODE_SHIFT()
-AC_DEFINE_UNQUOTED([MPI_ABORT_ERROR_CODE_SHIFT],
-        [$MPI_ABORT_ERROR_CODE_SHIFT],
-        [number of bits error code should be shift when passing to MPI_Abort()])
 
 # Fortran intrinsics
 

@@ -15,16 +15,14 @@ AC_DEFUN([TAC_ARG_CONFIG_MPI],
 
 AC_ARG_WITH(mpi-fc,
 [AC_HELP_STRING([--with-mpi-fc=COMPILER],
-[use given MPI Fortran compiler [$FC | mpif77]])],
+[use given MPI Fortran compiler])],
 [
   MPI_FC=${withval}
 ],
 [
-  if test -n "$FC"; then
-    MPI_FC=$FC
-  else
-    MPI_FC=mpif77
-  fi
+  # do not define anything,
+  # because mpi-bindir should not be applied when FC is specified
+  :
 ]
 )
 
@@ -38,7 +36,7 @@ AC_ARG_WITH(mpi,
 )
 
 AC_ARG_WITH(mpi-libs,
-[AC_HELP_STRING([--with-mpi-libs="LIBS"],[MPI libraries @<:@"-lmpi"@:>@])],
+[AC_HELP_STRING([--with-mpi-libs="LIBS"],[MPI libraries])],
 [
   MPI_LIBS=${withval}
   AC_MSG_CHECKING(user-defined MPI libraries)
@@ -83,8 +81,17 @@ dnl --------------------------------------------------------------------
     MPI_BIN="${MPI_DIR}/bin"
   fi
 
-  if test -n "$MPI_BIN" && test -n "$MPI_FC"; then
-    MPI_FC="${MPI_BIN}/${MPI_FC}"
+  if test -n "$FC"; then
+    # override any MPI_FC if FC is specified
+    MPI_FC=$FC
+  else
+    # otherwise set default MPI_FC and apply MPI_BIN to MPI_FC
+    if test -z "$MPI_FC"; then
+      MPI_FC=mpif77
+    fi
+    if test -n "$MPI_BIN" && test -n "$MPI_FC"; then
+      MPI_FC="${MPI_BIN}/${MPI_FC}"
+    fi
   fi
 
   if test -f ${MPI_FC}; then
