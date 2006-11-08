@@ -56,7 +56,7 @@ mysql-database:
 #  [testconf_conf1]
 #  solver=1,2
 #  method=1
-#  processors=1,9
+#  processors=1,4
 """
 
 logconfFileNames = []
