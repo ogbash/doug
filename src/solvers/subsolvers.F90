@@ -1315,7 +1315,7 @@ contains
               subd(agr2)%inds(1:nselind)=selind(1:nselind)
             enddo
           endif !}
-        elseif (present(nagr1)) then !}{
+        elseif (present(nagr1).and.associated(starts1)) then !}{
           do agr1=1,nagr1 ! look through fine agrs.
             floc=0
             nselind=0
