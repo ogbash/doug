@@ -41,6 +41,9 @@ CREATE TABLE `testresults` (
   `nproc` int(11) default NULL,
   `errortext` text,
   `name` varchar(60) default NULL,
+  inputtype int,
+  levels int,
+  executable varchar(16),
   PRIMARY KEY  (`ID`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
@@ -57,6 +60,7 @@ CREATE TABLE `testruns` (
   svnrevision int,
   fcompiler varchar(32),
   mpi varchar(32),
+  errortext text,
   PRIMARY KEY  (`ID`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 

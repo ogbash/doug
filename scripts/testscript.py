@@ -107,6 +107,11 @@ if verbose:
 
 LOG = logging.getLogger('testscript')
 
+conf = SafeConfigParser()
+conf.readfp(StringIO(config))
+conf.read(confFileNames)
+
+
 def generateTuples(*iters):
     elems = [[]]
 
@@ -116,24 +121,10 @@ def generateTuples(*iters):
     
     return map(tuple, elems)
 
-try:
-    import time
-    LOG.info("Running testscript at %s" % time.asctime())
-
-    conf = SafeConfigParser()
-    conf.readfp(StringIO(config))
-    conf.read(confFileNames)
-
+def main(testResults):
     # svn
     if conf.getboolean('testscript', 'run-svn'):
         svndoug = svnscripts.run(confFileNames)
-
-    if not conf.get('dougtest', 'info-svn'):
-        try:
-            revision = svnscripts.getRevision(conf.get('autotools','srcdir'))
-            conf.set('dougtest', 'info-svn', str(revision))
-        except ValueError, e:
-            LOG.warn("Cannot parse svn revision: %s" % e)
 
     # autotools
     if conf.getboolean('testscript', 'run-autotools'):
@@ -171,11 +162,32 @@ try:
                 testSuite.addTest(test)
 
     # run tests
+    testRunner = dougtest.TestRunner(testResults)
+    testRunner.run(testSuite)
+
+# ----------------------------------------
+
+import time
+LOG.info("Running testscript at %s" % time.asctime())
+
+try:
+    # It is not a correct behaviour to find SVN revision here, but currently compilation and testing
+    # data are saved to the same MySQL table. So, MySQLTestResult object represents both processes,
+    # whereas it needs to know SVN revision on it's creation as tests running process.
+    # In the future, compilation should recieve object and table of its own!
+    if not conf.get('dougtest', 'info-svn'):
+        try:
+            revision = svnscripts.getRevision(conf.get('autotools','srcdir'))
+            conf.set('dougtest', 'info-svn', str(revision))
+        except ValueError, e:
+            LOG.warn("Cannot parse svn revision: %s" % e)
+
+    # create test result objects
     testResults = [unittest._TextTestResult(unittest._WritelnDecorator(sys.stderr), False, 1)]
 
     saveTar = conf.getboolean("testscript", "save-tar")
     saveMysql = conf.getboolean("testscript", "save-mysql")
-    
+
     if saveTar:
         import dougtesttar
         tarFileName = os.path.abspath(conf.get("testscript", "tar-file"))
@@ -191,10 +203,25 @@ try:
         mysqlTestResult = dougtestmysql.DougMySQLTestResult(mysqlHost, mysqlUser, mysqlPassword, mysqlDatabase, conf)
         testResults.append(mysqlTestResult)
 
-    testRunner = dougtest.TestRunner(testResults)
-
     try:
-        testRunner.run(testSuite)
+        try:
+            # run
+            main(testResults)
+        except ScriptException, e:
+            LOG.critical("Error while running script: %s" % e)
+            # again, this is compilation or some setup error, not actual test error
+            # this must code be changed when compilation recieves its own table
+            if saveMysql:
+                mysqlTestResult.addError(None, (e.__class__,e,None))
+            raise
+        except Exception, e:
+            LOG.critical("Unknown exception occured: %s" % e)
+            # again, this is compilation or some setup error, not actual test error
+            # this must code be changed when compilation recieves its own table
+            if saveMysql:
+                mysqlTestResult.addError(None, (e.__class__,e,None))
+            raise
+
     finally:
         if saveTar:
             try:
@@ -210,11 +237,5 @@ try:
             except Exception, e:
                 LOG.error("Could not close mysql: %s" % e)
 
+finally:
     LOG.info("Ended testscript at %s" % time.asctime())
-
-except ScriptException, e:
-    LOG.critical("Error while running script: %s" % e)
-    sys.exit(1)
-except Exception, e:
-    LOG.critical("Unknown exception occured: %s" % e)
-    raise

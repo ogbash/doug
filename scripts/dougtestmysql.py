@@ -53,8 +53,10 @@ class DougMySQLTestResult(unittest.TestResult):
 	def startTest(self, test):
             unittest.TestResult.startTest(self, test)
             self.cursor.execute("insert into testresults (name, testrun_ID, starttime, "
-                                " method, solver, nproc) values (%s, %s, %s, %s, %s, %s)",
-                                (test.testname, self.ID, datetime.today(), test.method, test.solver, test.nproc))
+                                " executable, inputtype, method, solver, nproc, levels)"
+                                " values (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                                (test.testname, self.ID, datetime.today(),
+                                 test.executable, test.inputtype, test.method, test.solver, test.nproc, test.levels))
             test.ID = self.cursor.lastrowid
             self.cursor.execute("update testresults set status=%s where id=%s",
                                 (TestStatus.RUNNING, test.ID))
@@ -65,10 +67,17 @@ class DougMySQLTestResult(unittest.TestResult):
                                 (datetime.today(), test.ID))
 
 	def addError(self, test, err):
-		unittest.TestResult.addError(self, test, err)
+            if test!=None:
+                # test error
+                unittest.TestResult.addError(self, test, err)
                 self.cursor.execute("update testresults set status=%s where id=%s",
                                     (TestStatus.ERROR, test.ID))
                 self._storeError(test, err)
+            else:
+                # generic error. hack :(, must be removed?
+		errtp, errval, errtb = err
+                self.cursor.execute("update testruns set errortext=%s where id=%s",
+                                    (str(errval), self.ID))
 
 	def addFailure(self, test, err):
 		unittest.TestResult.addFailure(self, test, err)

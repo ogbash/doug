@@ -93,21 +93,37 @@ class ControlFile:
 			f.close()
 
 class TestCase (unittest.TestCase):
-	def __init__(self, testname, datadir, ctrlfname, solutionfname, conf, solver, method, nproc):
+	def __init__(self, testname, datadir, ctrlfname, solutionfname, conf, solver, method, nproc,
+		     executable="doug_main", levels=1):
 		unittest.TestCase.__init__(self)
 		self.testname = testname
 		self.datadir = datadir
 		self.ctrlfname = ctrlfname
 		self.solutionfname = solutionfname
 		self.conf = conf
-		self.solver = solver
-		self.method = method
 		self.nproc = nproc
+		self.executable = executable
+
+		# create control file object
+		self.controlFile = ControlFile(self.ctrlfname)
+		self.controlFile.options['plotting'] = '0'
+		self.controlFile.options['solution_format'] = '1' # binary
+		self.controlFile.options['solver'] = str(solver)
+		self.controlFile.options['method'] = str(method)
+		self.controlFile.options['levels'] = str(levels)
+		
                 # output or other files, exception grabs it on exit
                 self.files = []
-	
+
+	controlAttributesInt = {"solver":"solver", "method":"method",
+			     "levels":"levels", "inputtype":"input_type"}
+	def __getattr__(self, name):
+		if self.controlAttributesInt.has_key(name):
+			return int(self.controlFile.options[self.controlAttributesInt[name]])
+		raise AttributeError("No attribute %s" % name)
+	       
 	def setUp(self):
-		LOG.debug("Preparing testing environment")		
+		LOG.debug("Preparing testing environment")
                 tmprootdir = self.conf.get("dougtest", "tmpdir")
 		tmpdir = os.tempnam(tmprootdir, 'doug-')
 		os.mkdir(tmpdir)
@@ -116,11 +132,6 @@ class TestCase (unittest.TestCase):
 		self.preserveTmpdir = self.conf.getboolean("dougtest", "preserveTmpdir")
 		try:
 			# copy control file
-			self.controlFile = ControlFile(self.ctrlfname)
-			self.controlFile.options['plotting'] = '0'
-			self.controlFile.options['solution_format'] = '1' # binary
-			self.controlFile.options['solver'] = str(self.solver)
-			self.controlFile.options['method'] = str(self.method)
 			self.testctrlfname = os.path.join(self.tmpdir,
 							  os.path.basename(self.ctrlfname))
 			self.controlFile.save(self.testctrlfname)
@@ -132,6 +143,8 @@ class TestCase (unittest.TestCase):
 				fullfname = os.path.join(self.datadir, fname)
 
 				if fname == os.path.basename(self.testctrlfname):
+					continue
+				if fname == os.path.basename(self.solutionfname):
 					continue
 				if os.path.isdir(fullfname):
 					continue
@@ -165,6 +178,8 @@ class TestCase (unittest.TestCase):
 				errfilename = self.conf.get("dougtest", "mpihalt-errfilename")			
 				LOG.debug("Shutting down mpi")
 				mpihalt = popen2.Popen3("%s > %s 2> %s" % (mpihaltname, outfilename, errfilename))
+				import time
+				time.sleep(1)
 				res = mpihalt.wait()
 				if res:
 					LOG.warn("Error running %s (%d)"
@@ -186,7 +201,7 @@ class TestCase (unittest.TestCase):
 		LOG.info("solver=%d, method=%d, nproc=%d" % (self.solver, self.method, self.nproc))
 		mpirun = self.conf.get("dougtest", "mpirun")
 		dougbindir = os.path.abspath(self.conf.get("dougtest", "dougbindir"))
-		main = os.path.join(dougbindir, "doug_main")
+		main = os.path.join(dougbindir, self.executable)
 		errfname = os.path.join(self.tmpdir, self.conf.get("dougtest", "doug-errfilename"))
 		outfname = os.path.join(self.tmpdir, self.conf.get("dougtest", "doug-outfilename"))
 		
