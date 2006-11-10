@@ -61,13 +61,9 @@ AC_ARG_WITH(umfpack-libs,
   # check for general umfpack
   AC_CHECK_LIB([$_head], umfpack_di_solve,
                [ 
-    # check that umfpack can access blas
-    AC_CHECK_LIB([$_head], umfdi_blas3_update,
-                 [ umfpack_found=yes
-                   UMFPACK_LIBS=$_umfpack_libs
-                   LIBS="$UMFPACK_LIBS $LIBS"],
-                 [AC_MSG_ERROR([User defined UMFPACK cannot find blas])],
-                 [$_tail])
+                 umfpack_found=yes
+                 UMFPACK_LIBS=$_umfpack_libs
+                 LIBS="$UMFPACK_LIBS $LIBS"
                ],
                [AC_MSG_ERROR([User defined UMFPACK not found])],
                [$_tail])
@@ -78,18 +74,16 @@ if test X$umfpack_found == Xno; then
   AC_MSG_NOTICE([UMFPACK search priority = $_umfpack_lib_list_nq])
   AC_SEARCH_LIBS(umfpack_di_solve, [$_umfpack_lib_list_nq],
                  [
-      _UMFPACK_LIBS=$ac_cv_search_umfpack_di_solve
-      # check that umfpack can access blas
-      AC_CHECK_LIB([], umfdi_blas3_update,
-                   [ umfpack_found=yes
-                     UMFPACK_LIBS=$_UMFPACK_LIBS
-                     # AC_SEARCH_LIBS updates LIBS
-                   ],
-                   [AC_MSG_ERROR([UMFPACK cannot find blas])],
-                   [$LIBS])
+                   UMFPACK_LIBS=$ac_cv_search_umfpack_di_solve
+                   umfpack_found=yes
                  ],
                  [AC_MSG_ERROR([umfpack not found])])
 fi
+
+# check that umfpack can access blas
+AC_CHECK_FUNC(umfdi_blas3_update,
+              [],
+              [AC_MSG_ERROR([UMFPACK cannot access blas functions])])
 
 if test X$umfpack_found == Xyes; then
   AC_DEFINE([D_WANT_UMFPACK4_YES],,[Use umfpack 4])
