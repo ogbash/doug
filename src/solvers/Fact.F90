@@ -148,6 +148,8 @@ contains
        end if
        ! check umf4num error condition
        if (info90(1) < 0) then
+          write(stream,*)'umf4num info90(1) is:',info90(1)
+          call umf4pinf(control,info90)
           call DOUG_abort('[Fact_New] error occurred in umf4num',-1)
        end if
 

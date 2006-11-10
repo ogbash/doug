@@ -88,7 +88,7 @@ program aggr
   type(SpMtx)    :: A,A_interf,A_ghost  !< System matrix (parallel sparse matrix)
   type(SpMtx)    :: AC  !< coarse matrix
   type(SpMtx)    :: Restrict !< Restriction matrix (for operation)
-  type(SpMtx)    :: Rest_cmb !< Restriction matrix (for coarse matrix build)
+  !type(SpMtx)    :: Rest_cmb !< Restriction matrix (for coarse matrix build)
 
   float(kind=rk), dimension(:), pointer :: b  !< local RHS
   float(kind=rk), dimension(:), pointer :: xl !< local solution vector
@@ -141,7 +141,7 @@ program aggr
     else
       strong_conn1=0.67_rk
     endif
-    call SpMtx_find_strong(A,strong_conn1)
+    call SpMtx_find_strong(A=A,alpha=strong_conn1,A_ghost=A_ghost)
     if (sctls%radius1>0) then
       aggr_radius1=sctls%radius1
     else
@@ -182,9 +182,16 @@ program aggr
     
     ! Testing coarse matrix and aggregation through it:
     if (numprocs>1) then
-      call IntRestBuild(A,A%expandedaggr,Rest_cmb)
-      call CoarseMtxBuild(A,cdat%LAC,Rest_cmb)
-      call IntRestBuild(A,A%aggr,Restrict)
+      !call IntRestBuild(A,A%expandedaggr,Rest_cmb,A_ghost)
+      !call CoarseMtxBuild(A,cdat%LAC,Rest_cmb)
+      !call IntRestBuild(A,A%aggr,Restrict)
+      call IntRestBuild(A,A%expandedaggr,Restrict,A_ghost)
+!write(stream,*)'Restrict expanded is:=================='
+!call SpMtx_printRaw(restrict)
+      call CoarseMtxBuild(A,cdat%LAC,Restrict,A_ghost)
+      call KeepGivenRowIndeces(Restrict,A%aggr%num)
+!write(stream,*)'Restrict local is:=================='
+!call SpMtx_printRaw(Restrict)
       if (sctls%verbose>3.and.cdat%LAC%nnz<400) then
         write(stream,*)'A coarse (local) is:=================='
         call SpMtx_printRaw(A=cdat%LAC)

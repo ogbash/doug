@@ -583,29 +583,31 @@ endif
                 do j=rs,re
                   !cn=A%strong_colnrs(j)
                   cn=A%indj(j)
-                  colr=aggrnum(cn)
-                  ! We count also strong conn.-s to other uncoloured structures
-                  !   to be possibly able to connect those together
-                  if (colr==0) then ! It's structure # with "-"
-                    colr=-(stat(cn)-D_PENDING)
-                  endif
-                  if (colr/=-kk) then ! not a node from the same structure
-          colsearch:do k=1,nunaneigcols(kk) ! (find where to put it)
-                      if (colr==unaneigcols(k,kk)) then ! that colour again!
-                        !nunaneigcolconns(k,kk)=nunaneigcolconns(k,kk)+1
-                        nunaneigcolconns(k,kk)=nunaneigcolconns(k,kk)+dabs(A%val(j))
-                        exit colsearch
+                  if (cn<=n) then
+                    colr=aggrnum(cn)
+                    ! We count also strong conn.-s to other uncoloured structures
+                    !   to be possibly able to connect those together
+                    if (colr==0) then ! It's structure # with "-"
+                      colr=-(stat(cn)-D_PENDING)
+                    endif
+                    if (colr/=-kk) then ! not a node from the same structure
+            colsearch:do k=1,nunaneigcols(kk) ! (find where to put it)
+                        if (colr==unaneigcols(k,kk)) then ! that colour again!
+                          !nunaneigcolconns(k,kk)=nunaneigcolconns(k,kk)+1
+                          nunaneigcolconns(k,kk)=nunaneigcolconns(k,kk)+dabs(A%val(j))
+                          exit colsearch
+                        endif
+                      enddo colsearch
+                      if (k>nunaneigcols(kk)) then ! add the colour
+                        nunaneigcols(kk)=nunaneigcols(kk)+1
+                        if (nunaneigcols(kk)>mnstructneigs) then
+                          write(stream,*)'mnstructneigs too small'
+                          stop
+                        endif
+                        !nunaneigcolconns(k,kk)=1
+                        nunaneigcolconns(k,kk)=dabs(A%val(j))
+                        unaneigcols(k,kk)=colr
                       endif
-                    enddo colsearch
-                    if (k>nunaneigcols(kk)) then ! add the colour
-                      nunaneigcols(kk)=nunaneigcols(kk)+1
-                      if (nunaneigcols(kk)>mnstructneigs) then
-                        write(stream,*)'mnstructneigs too small'
-                        stop
-                      endif
-                      !nunaneigcolconns(k,kk)=1
-                      nunaneigcolconns(k,kk)=dabs(A%val(j))
-                      unaneigcols(k,kk)=colr
                     endif
                   endif
                 enddo
@@ -1094,22 +1096,24 @@ endif
             do j=rs,re
               !cn=A%strong_colnrs(j)
               cn=A%indj(j)
-              colr=aggrnum(cn)
-              if (colr>0.and.colr/=i) then ! not a node from the same structure
-      colsearc4:do kk=1,ncolsaround ! (find where to put it)
-                  if (colr==colsaround(kk)) then ! that colour again!
-                    connweightsums(kk)=connweightsums(kk)+dabs(A%val(j))
-                    exit colsearc4
+              if (cn<=n) then
+                colr=aggrnum(cn)
+                if (colr>0.and.colr/=i) then ! not a node from the same structure
+        colsearc4:do kk=1,ncolsaround ! (find where to put it)
+                    if (colr==colsaround(kk)) then ! that colour again!
+                      connweightsums(kk)=connweightsums(kk)+dabs(A%val(j))
+                      exit colsearc4
+                    endif
+                  enddo colsearc4
+                  if (kk>ncolsaround) then ! add the colour
+                    ncolsaround=ncolsaround+1
+                    if (ncolsaround>mnstructneigs) then
+                      write(*,*)'mnstructneigs too small'
+                      stop
+                    endif
+                    connweightsums(kk)=dabs(A%val(j))
+                    colsaround(kk)=colr
                   endif
-                enddo colsearc4
-                if (kk>ncolsaround) then ! add the colour
-                  ncolsaround=ncolsaround+1
-                  if (ncolsaround>mnstructneigs) then
-                    write(*,*)'mnstructneigs too small'
-                    stop
-                  endif
-                  connweightsums(kk)=dabs(A%val(j))
-                  colsaround(kk)=colr
                 endif
               endif
             enddo
@@ -1158,27 +1162,29 @@ endif
 !print *,'     ----- ',kkk,' -- rs,re:',rs,re
           looking:do j=rs,re
                     cn=A%indj(j)
-                    colr=aggrnum(cn)
-                    if (colr/=i) then ! not a node from the same structure
-                      !if (dabs(A%val(j))>=beta.and. & ! strongly connected
-                      !if (dabs(A%val(j))>=alpha.and. & ! strongly connected
-                      !    aggrsize(colr)<maxasizelargest) then ! and fits in
-                      !
-                      !!if (aggrsize(colr)<maxasizelargest.and.(          &
-                      !!                       dabs(A%val(j))>=alpha .or. &
-                      !!   (present(Afine).and.dabs(A%val(j))>=beta))) then
-                      !
-                      if (aggrsize(colr)<maxasizelargest.and.          &
-                                             dabs(A%val(j))>=beta ) then
-                        aggrsize(colr)=aggrsize(colr)+1
-                        structnodes(aggrsize(colr),colr)=structnodes(k,i)
-                        aggrnum(structnodes(k,i))=colr
-                        structnodes(k,i)=-1
-                        nleft=nleft-1
-                        reduced=.true.
-!print *,i,'  ######## sold ',structnodes(aggrsize(colr),colr), &
-! ' to:',colr,'########'
-                        exit looking ! this node is sold
+                    if (cn<=n) then
+                      colr=aggrnum(cn)
+                      if (colr/=i) then ! not a node from the same structure
+                        !if (dabs(A%val(j))>=beta.and. & ! strongly connected
+                        !if (dabs(A%val(j))>=alpha.and. & ! strongly connected
+                        !    aggrsize(colr)<maxasizelargest) then ! and fits in
+                        !
+                        !!if (aggrsize(colr)<maxasizelargest.and.(          &
+                        !!                       dabs(A%val(j))>=alpha .or. &
+                        !!   (present(Afine).and.dabs(A%val(j))>=beta))) then
+                        !
+                        if (aggrsize(colr)<maxasizelargest.and.          &
+                                               dabs(A%val(j))>=beta ) then
+                          aggrsize(colr)=aggrsize(colr)+1
+                          structnodes(aggrsize(colr),colr)=structnodes(k,i)
+                          aggrnum(structnodes(k,i))=colr
+                          structnodes(k,i)=-1
+                          nleft=nleft-1
+                          reduced=.true.
+!print *,i,'  ########## sold ',structnodes(aggrsize(colr),colr), &
+! ' to:',colr,'##########'
+                          exit looking ! this node is sold
+                        endif
                       endif
                     endif
                   enddo looking

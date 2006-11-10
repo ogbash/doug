@@ -47,11 +47,12 @@ module CoarseMtx_mod
 contains
 
   !> Build the restriction matrix for the aggregation method.
-  subroutine IntRestBuild(A,aggr,Restrict)
+  subroutine IntRestBuild(A,aggr,Restrict,A_ghost)
     implicit none
     Type(SpMtx), intent(in) :: A !< our fine level matrix
     Type(Aggrs), intent(in) :: aggr
     Type(SpMtx), intent(out) :: Restrict !< Our restriction matrix
+    Type(SpMtx),intent(in),optional :: A_ghost !< additional part to the matrix
     integer :: nagr,nz,nagrnodes ! # aggregated nodes (there can be some isol.)
     integer, dimension(:), allocatable :: indi,indj
     integer :: i,j,k
@@ -67,7 +68,13 @@ contains
     !float(kind=rk) :: omega=1.33333333333333_rk
     !float(kind=rk) :: omega2=1.33333333333333_rk
     real(kind=rk),dimension(:),pointer :: sol,rhs
+    !logical,parameter :: smoothall=.true.
+    logical,parameter :: smoothall=.false.
 
+    if (sctls%smoothers>sctls%radius1) then
+      write(stream,*) '***NB! reducing smoothers to radius1=',sctls%radius1
+      sctls%smoothers=sctls%radius1
+    endif
     smoothers=sctls%smoothers
     if (smoothers==0) then
       nz=aggr%starts(aggr%nagr+1)-1 ! is actually A%nrows-nisolated
@@ -140,26 +147,71 @@ contains
       T%val=1.0_rk
       deallocate(indi)
       ! Build smoother
-      allocate(diag(A%nrows))
+      allocate(diag(max(A%nrows,A%ncols)))
       do i=1,A%nnz
         if (A%indi(i)==A%indj(i)) then
           diag(A%indi(i))=A%val(i)
         endif
       enddo
-      allocate(indi(A%nnz),indj(A%nnz),val(A%nnz))
+      if (present(A_ghost).and.associated(A_ghost%indi)) then
+        do i=1,A_ghost%nnz
+          if (A_ghost%indi(i)==A_ghost%indj(i)) then
+            diag(A_ghost%indi(i))=A_ghost%val(i)
+          endif
+        enddo
+        nz=A%nnz+A_ghost%nnz
+      else
+        nz=A%nnz
+      endif
+      allocate(indi(nz),indj(nz),val(nz))
       nz=0
       do i=1,A%nnz
-        if (A%strong(i)) then
+        if (A%indi(i)==A%indj(i)) then
           nz=nz+1
           indi(nz)=A%indi(i)
           indj(nz)=A%indj(i)
-          if (indi(nz)==indj(nz)) then
-            val(nz)=1.0_rk-omega/diag(A%indi(i))*A%val(i)
-          else
-            val(nz)=-omega/diag(A%indi(i))*A%val(i)
+          val(nz)=1.0_rk-omega/diag(A%indi(i))*A%val(i)
+        elseif (A%strong(i).or.smoothall) then
+          nz=nz+1
+          indi(nz)=A%indi(i)
+          indj(nz)=A%indj(i)
+          val(nz)=-omega/diag(A%indi(i))*A%val(i)
+        else
+          nz=nz+1
+          indi(nz)=A%indi(i)
+          indj(nz)=A%indj(i)
+          val(nz)=0.0_rk
+          if (sctls%verbose>4) then
+            write(stream,*)'not strong:',A%indi(i),A%indj(i)
           endif
         endif
       enddo
+      if (present(A_ghost).and.associated(A_ghost%indi)) then
+        do i=1,A_ghost%nnz
+          if (A_ghost%indi(i)==A_ghost%indj(i)) then
+            nz=nz+1
+            indi(nz)=A_ghost%indi(i)
+            indj(nz)=A_ghost%indj(i)
+            val(nz)=1.0_rk-omega/diag(A_ghost%indi(i))*A_ghost%val(i)
+         ! todo: to think if these are still needed?:
+         ! We might actually look at the strength of the opposite conn.in A
+          elseif (smoothall.or.&
+              (associated(A_ghost%strong).and.A_ghost%strong(i))) then
+            nz=nz+1
+            indi(nz)=A_ghost%indi(i)
+            indj(nz)=A_ghost%indj(i)
+            val(nz)=-omega/diag(A_ghost%indi(i))*A_ghost%val(i)
+          elseif (associated(A_ghost%strong)) then
+            nz=nz+1
+            indi(nz)=A_ghost%indi(i)
+            indj(nz)=A_ghost%indj(i)
+            val(nz)=0.0_rk
+            if (sctls%verbose>4) then
+              write(stream,*)'not strong:',A_ghost%indi(i),A_ghost%indj(i)
+            endif
+          endif
+        enddo
+      endif
       S = SpMtx_newInit(      &
                  nnz=nz,      & ! non-overlapping simple case
              nblocks=1,       &
@@ -173,28 +225,74 @@ contains
         arrange_type=D_SpMtx_ARRNG_NO )
       deallocate(val,indj,indi)
       deallocate(diag)
+!write(stream,*)'Smoother matrix is:------------'
+!call SpMtx_printRaw(S)
       if (smoothers>=2) then
         ! Build smoother2
-        allocate(diag(A%nrows))
+        allocate(diag(max(A%nrows,A%ncols)))
         do i=1,A%nnz
           if (A%indi(i)==A%indj(i)) then
             diag(A%indi(i))=A%val(i)
           endif
         enddo
-        allocate(indi(A%nnz),indj(A%nnz),val(A%nnz))
+        if (present(A_ghost).and.associated(A_ghost%indi)) then
+          do i=1,A_ghost%nnz
+            if (A_ghost%indi(i)==A_ghost%indj(i)) then
+              diag(A_ghost%indi(i))=A_ghost%val(i)
+            endif
+          enddo
+          nz=A%nnz+A_ghost%nnz
+        else
+          nz=A%nnz
+        endif
+        allocate(indi(nz),indj(nz),val(nz))
         nz=0
         do i=1,A%nnz
-          if (A%strong(i)) then
+          if (A%indi(i)==A%indj(i)) then
             nz=nz+1
             indi(nz)=A%indi(i)
             indj(nz)=A%indj(i)
-            if (indi(nz)==indj(nz)) then
-              val(nz)=1.0_rk-omega2/diag(A%indi(i))*A%val(i)
-            else
-              val(nz)=-omega2/diag(A%indi(i))*A%val(i)
+            val(nz)=1.0_rk-omega2/diag(A%indi(i))*A%val(i)
+          elseif (A%strong(i).or.smoothall) then
+            nz=nz+1
+            indi(nz)=A%indi(i)
+            indj(nz)=A%indj(i)
+            val(nz)=-omega2/diag(A%indi(i))*A%val(i)
+          else
+            nz=nz+1
+            indi(nz)=A%indi(i)
+            indj(nz)=A%indj(i)
+            val(nz)=0.0_rk
+            if (sctls%verbose>4) then
+              write(stream,*)'not strong:',A%indi(i),A%indj(i)
             endif
           endif
         enddo
+        if (present(A_ghost).and.associated(A_ghost%indi)) then
+          do i=1,A_ghost%nnz
+            if (A_ghost%indi(i)==A_ghost%indj(i)) then
+              nz=nz+1
+              indi(nz)=A_ghost%indi(i)
+              indj(nz)=A_ghost%indj(i)
+              val(nz)=1.0_rk-omega2/diag(A_ghost%indi(i))*A_ghost%val(i)
+           ! We might actually look at the strength of the opposite conn.in A
+            elseif (smoothall.or.&
+                (associated(A_ghost%strong).and.A_ghost%strong(i))) then
+              nz=nz+1
+              indi(nz)=A_ghost%indi(i)
+              indj(nz)=A_ghost%indj(i)
+              val(nz)=-omega2/diag(A_ghost%indi(i))*A_ghost%val(i)
+            elseif (associated(A_ghost%strong)) then
+              nz=nz+1
+              indi(nz)=A_ghost%indi(i)
+              indj(nz)=A_ghost%indj(i)
+              val(nz)=0.0_rk
+              if (sctls%verbose>4) then
+                write(stream,*)'not strong:',A_ghost%indi(i),A_ghost%indj(i)
+              endif
+            endif
+          enddo
+        endif
         S2 = SpMtx_newInit(      &
                    nnz=nz,      & ! non-overlapping simple case
                nblocks=1,       &
@@ -309,10 +407,13 @@ contains
         endif
         call SpMtx_Destroy(SS)
       else ! i.e. smoothers==1 :
+!write(stream,*)'bbb building Restrict...'
+!write(stream,*)'A%ncols===',A%ncols,maxval(A%indj)
         Restrict = SpMtx_AB(A=T,       &
                             B=S,       &
                            AT=.false., &
                            BT=.false.)
+!write(stream,*)'bbb done building Restrict...'
       endif
       call SpMtx_Destroy(S)
       if (smoothers>=2) then
@@ -362,35 +463,82 @@ contains
     endif
   end subroutine IntRestBuild
 
-  subroutine CoarseMtxBuild(A,AC,Restrict)
+  subroutine KeepGivenRowIndeces(A,inds)
+    implicit none
+    Type(SpMtx),intent(inout) :: A ! the fine level matrix
+    integer,dimension(:),pointer :: inds
+    integer,dimension(:),pointer :: indi,indj
+    real(kind=rk),dimension(:),pointer :: val
+    logical,dimension(:),pointer :: isin
+    integer :: i,n,nz
+    allocate(isin(A%nrows))
+    isin=.false.
+    n=size(inds)
+    do i=1,n
+      isin(inds(i))=.true.
+    enddo
+    nz=0
+    do i=1,A%nnz
+      if (isin(A%indi(i))) then
+        nz=nz+1
+        A%indi(nz)=A%indi(i)
+        A%indj(nz)=A%indj(i)
+        A%val(nz)=A%val(i)
+      endif
+    enddo
+    deallocate(isin)
+    if (nz<A%nnz) then
+      allocate(indi(nz))
+      indi=A%indi(1:nz)
+      deallocate(A%indi)
+      allocate(A%indi(nz))
+      A%indi=indi
+      deallocate(indi)
+      allocate(indj(nz))
+      indj=A%indj(1:nz)
+      deallocate(A%indj)
+      allocate(A%indj(nz))
+      A%indj=indj
+      deallocate(indj)
+      allocate(val(nz))
+      val=A%val(1:nz)
+      deallocate(A%val)
+      allocate(A%val(nz))
+      A%val=val
+      deallocate(val)
+      A%nnz=nz
+      A%nrows=maxval(A%indi)
+    endif
+  end subroutine KeepGivenRowIndeces
+
+  subroutine CoarseMtxBuild(A,AC,Restrict,A_ghost)
     Type(SpMtx),intent(inout) :: A ! the fine level matrix
     Type(SpMtx),intent(inout) :: AC ! coarse level matrix
     Type(SpMtx), intent(inout) :: Restrict ! the restriction matrix
+    Type(SpMtx),intent(in),optional :: A_ghost !< additional part to the matrix
     Type(SpMtx) :: T,TT !temporary matrix
+    integer,dimension(:),pointer :: indi,indj
+    real(kind=rk),dimension(:),pointer :: val
+    integer :: i,nz
+    
     ! Timing:
     !real(kind=rk) :: t1, t2
-    ! testing:
-    integer :: i
-    real(kind=rk), dimension(:), pointer :: xc,x,y1,y2,zc1,zc2
-
-    ! SORRY but as the author of geometric coarse grid code,
-    !   it seems somewhat unfair to me to have this used implicitly
-    !  Made its use explicit in aggr.f90
-    !Check, wheather Restrict matrix exists:
-    !if (Restrict%nnz<0) then
-    !  call IntRestBuild(A,Restrict)
-    !endif
-
-    ! Testing how fast the mutiplication works...:
-    !TT=SpMtx_Copy(A)
-    !t1 = MPI_WTIME()
-    !AC = SpMtx_AB(A=A,B=TT,AT=.true.,BT=.false.)
-    !write(*,*) 'A*A time:',MPI_WTIME()-t1
-    !call SpMtx_Destroy(TT)
-
     !t1 = MPI_WTIME()
     ! we need to work with a copy to preserve the structure and ordering of A:
-    TT=SpMtx_Copy(A)
+    if (present(A_ghost).and.associated(A_ghost%indi)) then
+      nz=A%nnz+A_ghost%nnz
+      TT=SpMtx_newInit(nz)
+      TT%indi(1:A%nnz)=A%indi
+      TT%indj(1:A%nnz)=A%indj
+      TT%val(1:A%nnz)=A%val
+      TT%indi(A%nnz+1:nz)=A_ghost%indi
+      TT%indj(A%nnz+1:nz)=A_ghost%indj
+      TT%val(A%nnz+1:nz)=A_ghost%val
+      TT%nrows=maxval(TT%indi)
+      TT%ncols=maxval(TT%indj)
+    else
+      TT=SpMtx_Copy(A)
+    endif
     T = SpMtx_AB(A=TT,        &
                  B=Restrict, &
                 AT=.false.,  &

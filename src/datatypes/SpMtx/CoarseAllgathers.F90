@@ -546,7 +546,7 @@ contains
       enddo
 !write(stream,*)'Global aggregate numbers before exchange are:', aggrnum
       if (max(sctls%overlap,sctls%smoothers)>0) then
-        ! todo to be written
+        call exch_aggr_nums(aggrnum,M)
       else
         call exch_aggr_nums_ol0(aggrnum,M)
       endif

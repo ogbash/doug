@@ -291,41 +291,36 @@ CONTAINS
 ! Diagonal scaling of matrix:
 !   diagonal value is stored in diag
 !------------------------------------------------------
-  subroutine SpMtx_scale(M)
+  subroutine SpMtx_scale(M,A_ghost)
     Implicit None
     Type(SpMtx), intent(in out) :: M
+    Type(SpMtx),intent(in out),optional :: A_ghost
     integer :: i,j,ndiags
     float(kind=rk), dimension(:), pointer :: scalerval
     if (M%scaling==D_SpMtx_SCALE_NO.or.M%scaling==D_SpMtx_SCALE_UNDEF) then
-      ndiags=min(M%nrows,M%ncols)
+      !ndiags=min(M%nrows,M%ncols)
+      ndiags=max(M%nrows,M%ncols)
       if (.not.associated(M%diag)) then
         allocate(M%diag(ndiags))
       endif
       allocate(scalerval(ndiags))
-      !do i=1,M%nnz
       do i=1,M%mtx_bbe(2,2)
         if (M%indi(i)==M%indj(i)) then
-          j=M%indi(i)
-          if (j<M%mtx_inner_bound) then
-            !M%diag(j)=M%val_intf_full(i)
-            M%diag(j)=M%val(i)
-          else
-            M%diag(j)=M%val(i)
-          endif
+          M%diag(M%indi(i))=M%val(i)
         endif
       enddo
+      if (present(A_ghost).and.associated(A_ghost%indi)) then
+        do i=1,A_ghost%nnz
+          if (A_ghost%indi(i)==A_ghost%indj(i)) then
+            M%diag(A_ghost%indi(i))=A_ghost%val(i)
+          endif
+        enddo
+      endif
       if (M%symmstruct.and.M%symmnumeric) then ! the symmetric case:
         do i=1,ndiags
           scalerval(i)=dsqrt(dabs(M%diag(i)))
         enddo
-        do i=M%mtx_bbs(1,1),M%mtx_bbe(M%nblocks,M%nblocks)
-          !M%val_intf_full(i)=M%val_intf_full(i)/scalerval(M%indi(i))
-          !M%val_intf_full(i)=M%val_intf_full(i)/scalerval(M%indj(i))
-          M%val(i)=M%val(i)/scalerval(M%indi(i))
-          M%val(i)=M%val(i)/scalerval(M%indj(i))
-        enddo
-        !do i=M%mtx_bbe(M%nblocks,M%nblocks)+1,M%nnz
-        do i=M%mtx_bbe(M%nblocks,M%nblocks)+1,M%mtx_bbe(2,2)
+        do i=1,M%mtx_bbe(2,2)
           M%val(i)=M%val(i)/scalerval(M%indi(i))
           M%val(i)=M%val(i)/scalerval(M%indj(i))
         enddo
@@ -333,10 +328,7 @@ CONTAINS
         do i=1,ndiags
           scalerval(i)=dabs(M%diag(i))
         enddo
-        do i=M%mtx_bbs(1,1),M%mtx_bbe(M%nblocks,M%nblocks)
-          M%val_intf_full(i)=M%val_intf_full(i)/scalerval(M%indi(i))
-        enddo
-        do i=M%mtx_bbe(M%nblocks,M%nblocks)+1,M%nnz
+        do i=1,M%nnz
           M%val(i)=M%val(i)/scalerval(M%indi(i))
         enddo
       endif
@@ -363,22 +355,13 @@ CONTAINS
     endif
     if (M%scaling==D_SpMtx_SCALE_DIAG.or. &
         M%scaling==D_SpMtx_SCALE_DIAG_FILTERED) then
-      ndiags=min(M%nrows,M%ncols)
-      !if (.not.associated(M%diag)) then
-      !  allocate(M%diag(ndiags))
-      !endif
+      ndiags=max(M%nrows,M%ncols)
       allocate(scalerval(ndiags))
       if (M%symmstruct.and.M%symmnumeric) then ! the symmetric case:
         do i=1,ndiags
           scalerval(i)=dsqrt(dabs(M%diag(i)))
         enddo
-        do i=M%mtx_bbs(1,1),M%mtx_bbe(M%nblocks,M%nblocks)
-          !M%val_intf_full(i)=M%val_intf_full(i)*scalerval(M%indi(i))
-          !M%val_intf_full(i)=M%val_intf_full(i)*scalerval(M%indj(i))
-          M%val(i)=M%val(i)*scalerval(M%indi(i))
-          M%val(i)=M%val(i)*scalerval(M%indj(i))
-        enddo
-        do i=M%mtx_bbe(M%nblocks,M%nblocks)+1,nnz
+        do i=1,nnz
           M%val(i)=M%val(i)*scalerval(M%indi(i))
           M%val(i)=M%val(i)*scalerval(M%indj(i))
         enddo
@@ -386,10 +369,7 @@ CONTAINS
         do i=1,ndiags
           scalerval(i)=dabs(M%diag(i))
         enddo
-        do i=M%mtx_bbs(1,1),M%mtx_bbe(M%nblocks,M%nblocks)
-          M%val_intf_full(i)=M%val_intf_full(i)*scalerval(M%indi(i))
-        enddo
-        do i=M%mtx_bbe(M%nblocks,M%nblocks)+1,nnz
+        do i=1,nnz
           M%val(i)=M%val(i)*scalerval(M%indi(i))
         enddo
       endif
@@ -405,19 +385,20 @@ CONTAINS
 !------------------------------------------------------
 ! Finding strong connections in matrix
 !------------------------------------------------------
-  subroutine SpMtx_find_strong(A,alpha,symmetrise)
+  subroutine SpMtx_find_strong(A,alpha,A_ghost,symmetrise)
     Implicit None
-    Type(SpMtx), intent(in out) :: A
+    Type(SpMtx),intent(in out) :: A
     float(kind=rk), intent(in) :: alpha
+    Type(SpMtx),intent(in out),optional :: A_ghost
     logical,intent(in),optional :: symmetrise
     ! local:
     integer :: i,j,k,start,ending,nnz
     logical :: did_scale
-    logical :: simple=.false.,symm=.true.
+    logical :: simple=.false.,symm=.false.,mirror2ghost=.true.
     float(kind=rk) :: maxndiag,aa
     did_scale=.false.
     if (A%scaling==D_SpMtx_SCALE_NO.or.A%scaling==D_SpMtx_SCALE_UNDEF) then
-      call SpMtx_scale(A)
+      call SpMtx_scale(A,A_ghost)
       did_scale=.true.
     endif
     if (A%mtx_bbe(2,2)>0) then
@@ -429,15 +410,7 @@ CONTAINS
       allocate(A%strong(nnz))
     endif
     if (simple) then
-      do i=A%mtx_bbs(1,1),A%mtx_bbe(A%nblocks,A%nblocks)
-        !if (abs(A%val_intf_full(i))>=alpha) then
-        if (abs(A%val(i))>=alpha) then
-          A%strong(i)=.true.
-        else
-          A%strong(i)=.false.
-        endif
-      enddo
-      do i=A%mtx_bbe(A%nblocks,A%nblocks)+1,nnz
+      do i=1,nnz
         if (abs(A%val(i))>=alpha) then
           A%strong(i)=.true.
         else
@@ -479,17 +452,37 @@ CONTAINS
     endif
     if (symm) then
       do i=1,nnz
-        k=SpMtx_findElem(A,A%indj(i),A%indi(i))
+        if (A%arrange_type == D_SpMtx_ARRNG_ROWS) then
+          k=SpMtx_findElem(A,A%indi(i),A%indj(i))
+        else 
+          k=SpMtx_findElem(A,A%indj(i),A%indi(i))
+        endif
         if (k>0) then
           if (A%strong(i).and..not.A%strong(k)) then
             A%strong(k)=.true.
+write(stream,*)'symmetrising to strong:',A%indi(i),A%indj(i)
           elseif (A%strong(k).and..not.A%strong(i)) then
             A%strong(i)=.true.
+write(stream,*)'symmetrising to strong:',A%indi(i),A%indj(i)
           endif
         else
           write(stream,*) 'Warning: matrix does not have symmetric structure!'
         endif
       enddo
+    endif
+    if (mirror2ghost) then
+      if (present(A_ghost).and.associated(A_ghost%indi)) then
+        allocate(A_ghost%strong(A_ghost%nnz))
+        A_ghost%strong=.false.
+        do i=1,A_ghost%nnz
+          if(A_ghost%indi(i)/=A_ghost%indj(i)) then
+            k=SpMtx_findElem(A,A_ghost%indi(i),A_ghost%indj(i))
+            if (k>0) then
+              A_ghost%strong(i)=A%strong(k)
+            endif
+          endif
+        enddo
+      endif
     endif
   end subroutine SpMtx_find_strong
 
@@ -589,7 +582,9 @@ CONTAINS
         ii=A%indi(i)
         jj=A%indj(i)
         if (ii/=jj) then
-          nnz_in_row(ii) = nnz_in_row(ii) + 1
+          if (jj<=nn) then
+            nnz_in_row(ii) = nnz_in_row(ii) + 1
+          endif
         endif
       endif
     end do
@@ -608,29 +603,31 @@ CONTAINS
           ii=A%indi(i)
           jj=A%indj(i)
           if (ii/=jj) then
-            ind_beg=rowstart(ii)
-            if (nnz_in_row(ii)==0) then ! the first element
-              sortref(ind_beg)=i 
-              nnz_in_row(ii)=1
-            else ! rank and insert into the sorted list:
-              ind = rowstart(ii)+nnz_in_row(ii)-1 ! last existing rowentry
-              j=ind_beg
-        whilr:do while (.true.)
-                if (j==ind+1) then ! adding to the end:
-                  sortref(j)=i
-                  nnz_in_row(ii)=nnz_in_row(ii)+1
-                  exit whilr
-                elseif (abs(A%val(i))>abs(A%val(sortref(j)))) then ! add betw.:
-                  do k=ind+1,j+1,-1 ! advance the rest of the sequence by 1 step:
-                    sortref(k)=sortref(k-1)
-                  enddo
-                  sortref(j)=i
-                  nnz_in_row(ii)=nnz_in_row(ii)+1
-                  exit whilr
-                else !advance to the next sorted element:
-                  j=j+1
-                endif
-              enddo whilr
+            if (jj<=nn) then
+              ind_beg=rowstart(ii)
+              if (nnz_in_row(ii)==0) then ! the first element
+                sortref(ind_beg)=i 
+                nnz_in_row(ii)=1
+              else ! rank and insert into the sorted list:
+                ind = rowstart(ii)+nnz_in_row(ii)-1 ! last existing rowentry
+                j=ind_beg
+          whilr:do while (.true.)
+                  if (j==ind+1) then ! adding to the end:
+                    sortref(j)=i
+                    nnz_in_row(ii)=nnz_in_row(ii)+1
+                    exit whilr
+                  elseif (abs(A%val(i))>abs(A%val(sortref(j)))) then ! add betw.:
+                    do k=ind+1,j+1,-1 ! advance the rest of the sequence by 1 step:
+                      sortref(k)=sortref(k-1)
+                    enddo
+                    sortref(j)=i
+                    nnz_in_row(ii)=nnz_in_row(ii)+1
+                    exit whilr
+                  else !advance to the next sorted element:
+                    j=j+1
+                  endif
+                enddo whilr
+              endif
             endif
           endif
         endif
@@ -646,8 +643,10 @@ CONTAINS
           ii=A%indi(i)
           jj=A%indj(i)
           if (ii/=jj) then
-            colnrs(rowstart(ii)+nnz_in_row(ii))=jj
-            nnz_in_row(ii) = nnz_in_row(ii) + 1
+            if (jj<=nn) then
+              colnrs(rowstart(ii)+nnz_in_row(ii))=jj
+              nnz_in_row(ii) = nnz_in_row(ii) + 1
+            endif
           endif
         endif
       end do
@@ -737,6 +736,20 @@ CONTAINS
         do i=1,A%nrows
           A%aggr%num(i)=G%part(A%aggr%num(i))
         enddo
+        if (sctls%debug==1234) then
+          open(77,FILE='domnums.txt',FORM='FORMATTED',STATUS='new')
+          do i=1,A%nrows
+            write(77,*)A%aggr%num(i)
+          enddo
+          close(77)
+        endif
+        if (sctls%debug==4321) then
+          open(77,FILE='domnums.txt',FORM='FORMATTED',STATUS='old')
+          do i=1,A%nrows
+            read(77,FMT=*)A%aggr%num(i)
+          enddo
+          close(77)
+        endif
         call color_print_aggrs(A%nrows,A%aggr%num,overwrite=.false.)
         call flush(stream)
 !do i=1,A%aggr%nagr
@@ -1286,11 +1299,11 @@ CONTAINS
         if (j/=nnz_p(p)) call DOUG_abort('[SpMtx_distributeWithOverlap] : j/=nnz_p(p)')
         if (p/=1) then
           call MPI_SEND(val, nnz_p(p), MPI_fkind, p-1, &
-		D_TAG_ASSEMBLED_VALS, MPI_COMM_WORLD, status, ierr)
+                D_TAG_ASSEMBLED_VALS, MPI_COMM_WORLD, status, ierr)
           call MPI_SEND(indi, nnz_p(p), MPI_INTEGER, p-1, &
-		D_TAG_ASSEMBLED_IDXS_I, MPI_COMM_WORLD, status, ierr)
+                D_TAG_ASSEMBLED_IDXS_I, MPI_COMM_WORLD, status, ierr)
           call MPI_SEND(indj, nnz_p(p), MPI_INTEGER, p-1, &
-		D_TAG_ASSEMBLED_IDXS_J, MPI_COMM_WORLD, status, ierr)
+                D_TAG_ASSEMBLED_IDXS_J, MPI_COMM_WORLD, status, ierr)
           deallocate(val, indi, indj)
         else
           deallocate(A%val, A%indi, A%indj)
@@ -1305,7 +1318,7 @@ CONTAINS
       p=myrank+1
       allocate(val(nnz_p(p)), indi(nnz_p(p)), indj(nnz_p(p)))
       call MPI_RECV(val, nnz_p(p), MPI_fkind, D_MASTER, &
-		D_TAG_ASSEMBLED_VALS, MPI_COMM_WORLD, status, ierr)
+                D_TAG_ASSEMBLED_VALS, MPI_COMM_WORLD, status, ierr)
       call MPI_RECV(indi, nnz_p(p), MPI_INTEGER, D_MASTER, &
                 D_TAG_ASSEMBLED_IDXS_I, MPI_COMM_WORLD, status, ierr)
       call MPI_RECV(indj, nnz_p(p), MPI_INTEGER, D_MASTER, &

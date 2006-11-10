@@ -96,6 +96,7 @@
 #define UMFPACK_triplet_to_col   umfpack_dl_triplet_to_col
 #define UMFPACK_report_control	 umfpack_dl_report_control
 #define UMFPACK_report_info	 umfpack_dl_report_info
+#define UMFPACK_report_status	 umfpack_dl_report_status
 #define UMFPACK_save_numeric	 umfpack_dl_save_numeric
 #define UMFPACK_save_symbolic	 umfpack_dl_save_symbolic
 #define UMFPACK_load_numeric	 umfpack_dl_load_numeric
@@ -116,6 +117,7 @@
 #define UMFPACK_triplet_to_col   umfpack_di_triplet_to_col
 #define UMFPACK_report_control	 umfpack_di_report_control
 #define UMFPACK_report_info	 umfpack_di_report_info
+#define UMFPACK_report_status	 umfpack_di_report_status
 #define UMFPACK_save_numeric	 umfpack_di_save_numeric
 #define UMFPACK_save_symbolic	 umfpack_di_save_symbolic
 #define UMFPACK_load_numeric	 umfpack_di_load_numeric
@@ -268,6 +270,19 @@ void umf4pinf_ (double Control [UMFPACK_CONTROL], double Info [UMFPACK_INFO])
 {
     fflush (stdout) ;
     UMFPACK_report_info (Control, Info) ;
+    fflush (stdout) ;
+}
+
+/* -------------------------------------------------------------------------- */
+/* umf4pinf: print status */
+/* -------------------------------------------------------------------------- */
+
+/* call umf4psta (control) */
+
+void umf4psta_ (double Control [UMFPACK_CONTROL], Int *status)
+{
+    fflush (stdout) ;
+    UMFPACK_report_status (Control, *status) ;
     fflush (stdout) ;
 }
 
@@ -462,6 +477,19 @@ void umf4pinf (double Control [UMFPACK_CONTROL], double Info [UMFPACK_INFO])
 {
     fflush (stdout) ;
     UMFPACK_report_info (Control, Info) ;
+    fflush (stdout) ;
+}
+
+/* -------------------------------------------------------------------------- */
+/* umf4pinf: print status */
+/* -------------------------------------------------------------------------- */
+
+/* call umf4psta (control) */
+
+void umf4psta (double Control [UMFPACK_CONTROL], Int *status)
+{
+    fflush (stdout) ;
+    UMFPACK_report_status (Control, *status) ;
     fflush (stdout) ;
 }
 

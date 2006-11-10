@@ -39,11 +39,21 @@ Contains
         integer                     :: inds, inde
 
         if (A%arrange_type == D_SpMtx_ARRNG_ROWS) then
-          inds = A%M_bound(i)
-          inde = A%M_bound(i+1)-1
+          if (i+1<=size(A%M_bound)) then
+            inds = A%M_bound(i)
+            inde = A%M_bound(i+1)-1
+          else
+            inds=1
+            inde=0
+          endif
         else if (A%arrange_type == D_SpMtx_ARRNG_COLS) then
-          inds = A%M_bound(j)
-          inde = A%M_bound(j+1)-1
+          if (j+1<=size(A%M_bound)) then
+            inds = A%M_bound(j)
+            inde = A%M_bound(j+1)-1
+          else
+            inds=1
+            inde=0
+          endif
         else
           inds = 1
           inde = A%nnz
