@@ -179,6 +179,9 @@ contains
     ! permutation map
     M%perm_map => NULL()
 
+    M%aggr = Aggrs_New()
+    M%fullaggr = Aggrs_New()
+
   end function SpMtx_New
 
 !> \code

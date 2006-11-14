@@ -45,6 +45,17 @@ Module Aggregate_mod
   logical :: debu = .false.
 CONTAINS
 
+  function Aggrs_New() result (aggr)
+    type(Aggrs) :: aggr
+
+    aggr%nagr=0
+    aggr%radius=0
+    aggr%nisolated=0    
+    nullify(aggr%num)
+    nullify(aggr%starts)
+    nullify(aggr%nodes)
+  end function Aggrs_New
+
   subroutine Form_Aggr(aggr,nagrs,n,radius,nisolated,aggrnum)
     Implicit None
     type(Aggrs) :: aggr
