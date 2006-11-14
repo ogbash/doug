@@ -183,6 +183,23 @@ contains
     M%nnode  = -1
     M%lnnode = -1
 
+    nullify(M%nfrelt)
+    nullify(M%mhead)
+    nullify(M%coords)
+    nullify(M%hash)
+    nullify(M%hashlook)
+    nullify(M%freemap)
+    nullify(M%eptnmap)
+    nullify(M%freemask)
+    nullify(M%inner_interf_fmask)
+    nullify(M%gl_fmap)
+    nullify(M%lg_fmap)
+    nullify(M%nfreesend_map)
+    nullify(M%partnelems)
+    nullify(M%nghbrs)
+    nullify(M%lcoords)
+    nullify(M%lfreemap)
+
   end function Mesh_New
 
 
@@ -478,7 +495,7 @@ contains
     do i = 1,M%nell
        read (50) nfrelt, mhead(1:nfrelt)
        M%nfrelt(i) = nfrelt
-       M%mhead(1:M%nfrelt(i),i) = mhead
+       M%mhead(1:M%nfrelt(i),i) = mhead(1:M%nfrelt(i))
        if (maxval(M%mhead(:,i))>M%ngf) then
           write (*, *) i, M%ngf, maxval(M%mhead(:,i))
           call DOUG_abort('[Mesh_readFileFreelists] - freedom index out of range', -1)

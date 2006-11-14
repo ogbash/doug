@@ -172,6 +172,9 @@ contains
 
     ! arrange type
     M%arrange_type = D_SpMtx_ARRNG_NO
+    M%M_bound => NULL()
+    M%subsolve_ids => NULL()
+    M%subd => NULL()
 
     ! permutation map
     M%perm_map => NULL()
@@ -206,6 +209,8 @@ contains
     integer, intent(in), optional               :: arrange_type
     integer, intent(in), dimension(:), optional :: M_bound
     !- - - - - - - - - - - - -
+    M = SpMtx_New()
+
     allocate(M%indi(nnz), M%indj(nnz), M%val(nnz))
     M%nnz=nnz
 

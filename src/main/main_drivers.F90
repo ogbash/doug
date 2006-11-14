@@ -54,7 +54,7 @@ contains
     implicit none
 
     type(Mesh),     intent(in out) :: Msh !< Mesh
-    type(SpMtx),    intent(in out) :: A !< System matrix
+    type(SpMtx),    intent(out) :: A !< System matrix
     float(kind=rk), dimension(:), pointer :: b !< local RHS
     ! Partitioning
     integer, intent(in) :: nparts !< number of parts to partition a mesh

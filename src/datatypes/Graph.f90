@@ -119,6 +119,12 @@ contains
       G%adjncy => NULL()
     end if
 
+    G%wgtflag = 0
+    G%numflag = 1
+    G%vwgt => NULL()
+    G%adjwgt => NULL()
+    G%part => NULL()
+
     if (present(type)) then
       if ((type == D_GRAPH_DUAL).or.(type == D_GRAPH_NODAL)) then
         G%type = type
