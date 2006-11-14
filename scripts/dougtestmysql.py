@@ -105,6 +105,7 @@ class DougMySQLTestResult(unittest.TestResult):
                 self.connection.close()
 
         def _createTestRun(self):
+            servername = self.conf.get("dougtest", "info-server")
             revision = self.conf.get("dougtest","info-svn")
             revision = revision or None
             compiler = self.conf.get("dougtest","info-fc")
@@ -112,7 +113,7 @@ class DougMySQLTestResult(unittest.TestResult):
             
             self.cursor.execute("insert into testruns (servername, svnrevision, fcompiler, mpi, starttime)"
                                 " values (%s, %s, %s, %s, %s)",
-                                ('kheiron', revision, compiler, mpi, datetime.today()))
+                                (servername, revision, compiler, mpi, datetime.today()))
             self.ID = self.cursor.lastrowid
 
         def _finishTestRun(self):

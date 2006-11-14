@@ -41,6 +41,8 @@ tmpdir: /tmp
 preserveTmpdir: no
 
 # all info-* attributes are not necessary, but may be used by test results
+# name of the server tests are run on
+info-server:
 # DOUG svn version
 info-svn:
 # fortran compiler
