@@ -55,6 +55,9 @@ module globals
   ! Can be overwritten with "-q file_name" option.
   character(100) :: D_SMASTER_LOG_FN = 'log.DOUG'
 
+  ! profile file name prefix
+  ! Can be overwritten with "-p file_name" option.
+  character(100) :: D_PROF_FN = 'prof'
 
   ! MPI:
   integer :: D_INIT_TYPE
@@ -71,6 +74,8 @@ module globals
   logical :: master_stdout = .true.
   logical :: slave_stdout  = .false.
 
+  ! Profiling file stream
+  integer :: pstream = 55
 
   integer, parameter, private :: L = 150
 

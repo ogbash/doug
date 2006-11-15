@@ -69,7 +69,7 @@ program main
   type(ConvInf) :: resStat
 
   ! +
-  real(kind=rk) :: t1
+  real(kind=rk) :: t1, time
   integer :: i,it,ierr
   real(kind=rk) :: res_norm_local,res_norm,cond_num
   real(kind=rk), dimension(:), pointer :: r, y
@@ -90,6 +90,9 @@ program main
   ! Init DOUG
   call DOUG_Init()
 
+  time = MPI_WTime()
+
+  t1 = MPI_WTime()
   ! Master participates in calculations as well
   nparts = numprocs
 
@@ -104,9 +107,11 @@ program main
   case default
      call DOUG_abort('[DOUG main] : Unrecognised input type.', -1)
   end select
+  if(pstream/=0) write(pstream, "(I0,':distribute time:',F0.3)") myrank, MPI_WTIME()-t1
 
   ! Geometric coarse grid processing
   if (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL .and. sctls%levels==2) then
+    t1 = MPI_WTime()
     ! Init some mandatory values if they arent given
     if (mctls%cutbal<=0) mctls%cutbal=1
     if (mctls%maxnd==-1) mctls%maxnd=500
@@ -170,6 +175,7 @@ program main
                               cdat%cdisps,cdat%glg_cfmap,cdat%send)
       call AllRecvCoarselgmap(cdat%send)
 
+      if(pstream/=0) write(pstream, "(I0,':coarse time:',F0.3)") myrank, MPI_WTIME()-t1
   endif
 
   ! Solve the system
@@ -201,6 +207,7 @@ program main
      endif
 
      write(stream,*) 'time spent in pcg():',MPI_WTIME()-t1
+     if(pstream/=0) write(pstream, "(I0,':pcg time:',F0.3)") , myrank, MPI_WTIME()-t1
 
 !call Vect_Print(xl,'xl: local solution')
 
@@ -268,6 +275,8 @@ program main
   call ConvInf_Destroy(resStat)
   call Vect_cleanUp()
   deallocate(b, xl)
+
+  if(pstream/=0) write(pstream, "(I0,':total time:',F0.3)") myrank, MPI_WTIME()-time
 
   call DOUG_Finalize()
 

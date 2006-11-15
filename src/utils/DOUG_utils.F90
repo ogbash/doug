@@ -209,6 +209,43 @@ contains
   end subroutine util_logStreamCreate
 
 
+  !> Creates profiling file stream if specified in command arguments.
+  subroutine util_profStreamCreate()
+    use globals, only : pstream
+
+    character(150) :: fname
+    integer        :: n, i
+    character(150) :: ARG
+    logical :: profile = .FALSE.
+
+    n = iargc()
+    do i = 1, n
+       call getarg(i, ARG)
+       if (trim(ARG).eq.'-p') then
+
+          if (i+1 <= n) then
+             call getarg(i+1,ARG)
+             if ((len(trim(ARG)) /= 0).and. &
+                  (ARG(1:1) /= '-')) then  ! a file name was specified
+                                           ! as argument to '-p'
+                D_PROF_FN = trim(ARG)
+             end if
+             continue
+          end if
+
+          write(fname,'(A,A,I2.2)') trim(D_PROF_FN), '.', myrank
+          profile = .TRUE.
+       end if
+    end do
+
+    if(profile) then
+       ! open stream
+       open(pstream,FILE=fname)
+    else
+       pstream = 0
+    end if
+  end subroutine util_profStreamCreate
+
   !----------------------------------
   ! DOUG_abort()
   !----------------------------------
@@ -355,6 +392,9 @@ contains
     ! Create logging stream(s)
     call util_logStreamCreate(stream_type)
 
+    ! Create profiling output stream
+    call util_profStreamCreate()
+
     ! if (ismaster()) then ! MASTER
     !    write(stream, '(a)') 'master thread'
     ! else ! SLAVES
@@ -480,6 +520,13 @@ contains
                                            ! as argument to '-q'
              skipnext = .true.
           end if
+       else if (trim(ARG).eq.'-p') then ! Profiling, see util_profStreamCreate
+          call getarg(i+1,ARG)
+          if ((len(trim(ARG)) /= 0).and. &
+                  (ARG(1:1) /= '-')) then  ! a file name was specified
+                                           ! as argument to '-p'
+             skipnext = .true.
+          end if
        else if (trim(ARG).eq.'-i') then   ! print control file parameters
           call util_printCtrlFileInfo()
           call DOUG_quietAbort()
@@ -559,16 +606,17 @@ contains
 
     write(stream,*) 'Usage: '
     write(stream,*) '[mpirun -np #] ./progname [[-f file.name] '//&
-         '[-q [file.name]] or [-i][-v][-h]]'
-    write(stream,*) '               : w/o any parameter assumes control'//&
+         '[-q [file.name]] [-p [file.prefix]] or [-i][-v][-h]]'
+    write(stream,*) '                 : w/o any parameter assumes control'//&
          ' file is DOUG.dat'
-    write(stream,*) ' -f file.name  : specifies DOUG control file name'
-    write(stream,*) ' -q [file.name]: quiet mode - master logs to'//&
+    write(stream,*) ' -f file.name    : specifies DOUG control file name'
+    write(stream,*) ' -q [file.name]  : quiet mode - master logs to'//&
          ' log.0/log.DOUG or to file.name'
-    write(stream,*) ' -i            : prints out control file parameters'//&
+    write(stream,*) ' -i              : prints out control file parameters'//&
          ' and exits'
-    write(stream,*) ' -v            : prints DOUG version and exits'
-    write(stream,*) ' -h            : prints this message and exits'
+    write(stream,*) ' -v              : prints DOUG version and exits'
+    write(stream,*) ' -h              : prints this message and exits'
+    write(stream,*) ' -p [file.prefix]: quiet mode - file prefix threads log to'
     call flush(stream)
   end subroutine util_printUsage
 

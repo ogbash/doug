@@ -44,6 +44,9 @@ module pcg_mod
        preconditioner, &
        msolve
 
+  ! profiling
+  real(kind=rk), private, save :: time_preconditioner = 0
+
 contains
 
   !--------------------------------------------
@@ -265,6 +268,9 @@ contains
     type(SpMtx)                        :: A_tmp
     integer :: i,ol
     logical :: add,bugtrack
+    real(kind=rk) :: t1
+
+    t1 = MPI_WTime()
 
     if (present(bugtrack_)) then
       bugtrack=bugtrack_
@@ -615,6 +621,9 @@ if (bugtrack)call Print_Glob_Vect(tmpsol,M,'tmpsol===',chk_endind=M%ninner)
     if (sctls%method>1) then ! For multiplicative Schwarz method...:
       if (associated(res)) deallocate(res)
     endif
+
+    time_preconditioner = time_preconditioner + MPI_WTime()-t1
+
   end subroutine preconditioner
 
   !--------------------------
@@ -791,6 +800,11 @@ if (bugtrack)call Print_Glob_Vect(r,Msh,'global r===')
       if (ismaster()) &
            write(stream, '(i5,a,e22.15)') it,': res_norm=',dsqrt(res_norm)
     end do
+
+    if(pstream/=0) then
+       write(pstream, "(I0,':pcg iterations:',I0)") myrank, it
+       write(pstream, "(I0,':preconditioner time:',F0.3)") myrank, time_preconditioner
+    end if
 
     if (ismaster()) then
       call CalculateEigenvalues(it,dd,ee,alpha,beta,maxit)
