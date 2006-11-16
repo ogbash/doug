@@ -48,6 +48,96 @@ module subsolvers
 
 contains
 
+  subroutine sum_with_interf(nnz, val, indi, indj, &
+                             nnz_interf, val_interf, indi_interf, indj_interf, &
+                             snnz, sval, sindi, sindj)
+    implicit none
+    integer,intent(in) :: nnz
+    real(kind=rk),dimension(:) :: val
+    integer,dimension(:) :: indi,indj
+    integer,intent(in),optional :: nnz_interf
+    real(kind=rk),dimension(:),optional :: val_interf
+    integer,dimension(:),optional :: indi_interf,indj_interf
+    integer,intent(out) :: snnz
+    real(kind=rk),dimension(:) :: sval
+    integer,dimension(:) :: sindi,sindj
+    integer :: i, ii
+
+    if (numprocs==1.or..not.present(nnz_interf)) then 
+      snnz=0
+      do i=1,nnz
+        snnz=snnz+1
+        sindi(snnz)=indi(i)
+        sindj(snnz)=indj(i)
+        sval(snnz)=val(i)
+      enddo
+    else
+      i=1;ii=1
+      snnz=0
+      do while (i<=nnz.or.ii<=nnz_interf)
+        snnz=snnz+1
+        ! checking, that the entries are sorted...:
+        if (i>1.and.i<=nnz) then
+          if (indi(i-1)==indi(i)) then
+            if (indj(i-1)>indj(i)) then
+              write (stream,*)'indi__indj:',indi(i),indj(i)
+              call DOUG_abort('solvers/subsolvers.f90 -- order error A',-1)
+            endif
+          endif
+        endif
+        if (ii>1.and.ii<=nnz_interf) then
+          if (indi_interf(ii-1)==indi_interf(ii)) then
+            if (indj_interf(ii-1)>indj_interf(ii)) then
+              call DOUG_abort('solvers/subsolvers.f90 -- order error B',-1)
+            endif
+          endif
+        endif
+        ! ...checking the order...
+        if (i<=nnz.and.ii<=nnz_interf) then
+          if (indi(i)==indi_interf(ii)) then
+            if (indj(i)==indj_interf(ii)) then
+              sindi(snnz)=indi(i)
+              sindj(snnz)=indj(i)
+              sval(snnz)=val(i)+val_interf(ii)
+              i=i+1
+              ii=ii+1
+            elseif (indj(i)<indj_interf(ii)) then
+              sindi(snnz)=indi(i)
+              sindj(snnz)=indj(i)
+              sval(snnz)=val(i)
+              i=i+1
+            else !(indj(i)>indj_interf(ii))
+              sindi(snnz)=indi_interf(ii)
+              sindj(snnz)=indj_interf(ii)
+              sval(snnz)=val_interf(ii)
+              ii=ii+1
+            endif
+          elseif (indi(i)<indi_interf(ii)) then
+            sindi(snnz)=indi(i)
+            sindj(snnz)=indj(i)
+            sval(snnz)=val(i)
+            i=i+1
+          else !(indi(i)>indi_interf(ii))
+            sindi(snnz)=indi_interf(ii)
+            sindj(snnz)=indj_interf(ii)
+            sval(snnz)=val_interf(ii)
+            ii=ii+1
+          endif
+        elseif (i<=nnz) then ! continue until the end
+          sindi(snnz)=indi(i)
+          sindj(snnz)=indj(i)
+          sval(snnz)=val(i)
+          i=i+1
+        else !(ii<=nnz_interf) ! continue until the end
+          sindi(snnz)=indi_interf(ii)
+          sindj(snnz)=indj_interf(ii)
+          sval(snnz)=val_interf(ii)
+          ii=ii+1
+        endif
+      enddo
+    endif
+  end subroutine sum_with_interf
+
   subroutine free_spmtx_subsolves(A)
     use SpMtx_class
     implicit none
@@ -932,93 +1022,9 @@ contains
         enddo
       else !}{
         ! the case of a single subdomain per processor:
-        !snnz=0
-        !do i=1,nnz
-        !  snnz=snnz+1
-        !  sindi(snnz)=indi(i)
-        !  sindj(snnz)=indj(i)
-        !  sval(snnz)=val(i)
-        !enddo
-        !do i=1,nnz_interf
-        !  snnz=snnz+1
-        !  sindi(snnz)=indi_interf(i)
-        !  sindj(snnz)=indj_interf(i)
-        !  sval(snnz)=val_interf(i)
-        !enddo
-        ! merge the two matrix entries:
-        if (numprocs==1.or..not.present(nnz_interf)) then 
-          snnz=0
-          do i=1,nnz
-            snnz=snnz+1
-            sindi(snnz)=indi(i)
-            sindj(snnz)=indj(i)
-            sval(snnz)=val(i)
-          enddo
-        else
-          i=1;ii=1
-          snnz=0
-          do while (i<=nnz.or.ii<=nnz_interf)
-            snnz=snnz+1
-            !checking, that the entries are sorted...:
-            if (i>1.and.i<=nnz) then
-              if (indi(i-1)==indi(i)) then
-                if (indj(i-1)>indj(i)) then
-                  write (stream,*)'indi__indj:',indi(i),indj(i)
-                  call DOUG_abort('solvers/subsolvers.f90 -- order error A',-1)
-                endif
-              endif
-            endif
-            if (ii>1.and.ii<nnz_interf) then
-              if (indi_interf(ii-1)==indi_interf(ii)) then
-                if (indj_interf(ii-1)>indj_interf(ii)) then
-                  call DOUG_abort('solvers/subsolvers.f90 -- order error B',-1)
-                endif
-              endif
-            endif
-            !...checking the order...
-            if (i<=nnz.and.ii<=nnz_interf) then
-              if (indi(i)==indi_interf(ii)) then
-                if (indj(i)==indj_interf(ii)) then
-                  sindi(snnz)=indi(i)
-                  sindj(snnz)=indj(i)
-                  sval(snnz)=val(i)+val_interf(ii)
-                  i=i+1
-                  ii=ii+1
-                elseif (indj(i)<indj_interf(ii)) then
-                  sindi(snnz)=indi(i)
-                  sindj(snnz)=indj(i)
-                  sval(snnz)=val(i)
-                  i=i+1
-                else !(indj(i)>indj_interf(ii))
-                  sindi(snnz)=indi_interf(ii)
-                  sindj(snnz)=indj_interf(ii)
-                  sval(snnz)=val_interf(ii)
-                  ii=ii+1
-                endif
-              elseif (indi(i)<indi_interf(ii)) then
-                sindi(snnz)=indi(i)
-                sindj(snnz)=indj(i)
-                sval(snnz)=val(i)
-                i=i+1
-              else !(indi(i)>indi_interf(ii))
-                sindi(snnz)=indi_interf(ii)
-                sindj(snnz)=indj_interf(ii)
-                sval(snnz)=val_interf(ii)
-                ii=ii+1
-              endif
-            elseif (i<=nnz) then ! continue until the end
-              sindi(snnz)=indi(i)
-              sindj(snnz)=indj(i)
-              sval(snnz)=val(i)
-              i=i+1
-            else !(ii<=nnz_interf) ! continue until the end
-              sindi(snnz)=indi_interf(ii)
-              sindj(snnz)=indj_interf(ii)
-              sval(snnz)=val_interf(ii)
-              ii=ii+1
-            endif
-          enddo
-        endif
+        call sum_with_interf(nnz, val, indi, indj, &
+                             nnz_interf, val_interf, indi_interf, indj_interf, &
+                             snnz, sval, sindi, sindj)
         nselind=nfreds
         selind(1:nselind)=(/ (i,i=1,nselind) /)
         subrhs(1:nselind)=rhs(selind(1:nselind))
@@ -1401,8 +1407,25 @@ contains
             subd(agr1)%ninds=nselind
             subd(agr1)%inds(1:nselind)=selind(1:nselind)
           enddo
-        else !}{ ! this case is not considered with multiplicative yet now...
-          call DOUG_Abort('1-subdomain-per-proc not considered yet',5464)
+        else !-} {-
+          ! the case of a single subdomain per processor:
+          call sum_with_interf(nnz, val, indi, indj, &
+                               nnz_interf, val_interf, indi_interf, indj_interf, &
+                               snnz, sval, sindi, sindj)
+          nselind=nfreds
+          selind(1:nselind)=(/ (i,i=1,nselind) /)
+          subrhs(1:nselind)=rhs(selind(1:nselind))
+          setuptime=setuptime+(MPI_WTIME()-t1) ! switchoff clock
+          call factorise_and_solve(ids(1),subsol,subrhs,nselind,snnz,sindi,sindj,sval)
+          t1 = MPI_WTIME() ! switch on clock
+          sol(selind(1:nselind))=sol(selind(1:nselind))+subsol(1:nselind)
+          ! update the residual
+          full=.true.
+          call find_sub_residual(1,1,res,A,sol,rhs,nselind,selind,full)
+          ! keep indlist:
+          allocate(subd(1)%inds(nselind))
+          subd(1)%ninds=nselind
+          subd(1)%inds(1:nselind)=selind(1:nselind)
         endif !}
         deallocate(sval)
         deallocate(sindj)

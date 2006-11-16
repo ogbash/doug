@@ -283,6 +283,9 @@ contains
       return
     endif
     sol=0.0_rk
+    if (sctls%method>1) then ! For multiplicative Schwarz method...:
+      allocate(res(size(rhs)))
+    endif
     if (present(CoarseMtx_)) then !{
       if (.not.present(Restrict)) call DOUG_abort("Restriction matrix needs to be passed along with the coarse matrix!")
       if (cdat%active) then
@@ -305,9 +308,6 @@ if (bugtrack)write(stream,*) "local coarse RHS is:",clrhs
       endif
 
       ol=max(sctls%overlap,sctls%smoothers)
-      if (sctls%method>1) then ! For multiplicative Schwarz method...:
-        allocate(res(size(rhs)))
-      endif
       if (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL.or.numprocs>1) then
           call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
                         A_interf_=A_interf_, &
