@@ -65,7 +65,8 @@ class DougTarTestResult(unittest.TestResult):
 	def _getTestDirectory(self, test):
 		import time
 		dirName = "/".join([test.testname,
-				    "s%dm%dnp%d" % (test.solver, test.method, test.nproc),
+				    test.executable,
+				    "s%dm%dl%dnp%d" % (test.solver, test.method, test.levels, test.nproc),
 				    ""])
 		try:
 			testDir = self.tarFile.getmember(dirName)

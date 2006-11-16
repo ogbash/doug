@@ -1575,7 +1575,8 @@ contains
   	integer, intent(in)                      :: iounit   !< IO-unit to write to
     float(kind=rk), dimension(:), intent(in) :: x        !< vector to write out
     integer :: k
-    
+
+    print *, iounit, size(x)
     write(iounit) (x(k), k = 1,size(x))
 
   end subroutine

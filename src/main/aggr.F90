@@ -361,14 +361,21 @@ program aggr
   if (numprocs>1) then
     ! Assemble result on master
     if (ismaster()) then
+       print *, "freedoms", M%ngf
       allocate(x(M%ngf)); x = 0.0_rk
     end if
     call Vect_Gather(xl, x, M)
     if (ismaster().and.sctls%verbose>2.and.(size(x) <= 100)) &
       call Vect_Print(x, 'sol > ')
+    if (ismaster()) then
+       call WriteSolutionToFile(x)
+    end if
+
   elseif (sctls%verbose>2.and.size(xl)<=100) then
     call Vect_Print(xl, 'sol > ')
+    call WriteSolutionToFile(xl)
   endif
+
   deallocate(xchk)
   deallocate(r)
 

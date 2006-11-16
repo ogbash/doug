@@ -124,6 +124,8 @@ def generateTuples(*iters):
     return map(tuple, elems)
 
 def main(testResults):
+    conf.set("DEFAULT", "CWD", os.getcwd())
+    
     # svn
     if conf.getboolean('testscript', 'run-svn'):
         svndoug = svnscripts.run(confFileNames)

@@ -61,6 +61,10 @@ mpihalt-errfilename: lamhalt.err
 
 doug-outfilename: dougtest.out
 doug-errfilename: dougtest.err
+
+# CWD must be filled by the script using dougtest.py module, so may stay commented
+# CWD:
+
 """
 
 LOG = logging.getLogger("dougtest")
@@ -95,13 +99,13 @@ class ControlFile:
 			f.close()
 
 class TestCase (unittest.TestCase):
-	def __init__(self, testname, datadir, ctrlfname, solutionfname, conf, solver, method, levels,
+	def __init__(self, testname, datadir, ctrlfname, csolutionfname, conf, solver, method, levels,
 		     nproc, executable):
 		unittest.TestCase.__init__(self)
 		self.testname = testname
 		self.datadir = datadir
 		self.ctrlfname = ctrlfname
-		self.solutionfname = solutionfname
+		self.csolutionfname = csolutionfname
 		self.conf = conf
 		self.nproc = nproc
 		self.executable = executable
@@ -119,14 +123,19 @@ class TestCase (unittest.TestCase):
 
 	controlAttributesInt = {"solver":"solver", "method":"method",
 			     "levels":"levels", "inputtype":"input_type"}
+	controlAttributes = {"solutionfname":'solution_file'}
 	def __getattr__(self, name):
 		if self.controlAttributesInt.has_key(name):
 			return int(self.controlFile.options[self.controlAttributesInt[name]])
+		if self.controlAttributes.has_key(name):
+			return self.controlFile.options[self.controlAttributes[name]]
 		raise AttributeError("No attribute %s" % name)
 	       
 	def setUp(self):
 		LOG.debug("Preparing testing environment")
                 tmprootdir = self.conf.get("dougtest", "tmpdir")
+		if self.conf.has_option("dougtest", "CWD"):
+			tmprootdir = os.path.join(self.conf.get("dougtest", "CWD"), tmprootdir)
 		tmpdir = os.tempnam(tmprootdir, 'doug-')
 		os.mkdir(tmpdir)
 		LOG.debug("Temporary directory %s created" % tmpdir)
@@ -144,10 +153,9 @@ class TestCase (unittest.TestCase):
 			for fname in files:
 				fullfname = os.path.join(self.datadir, fname)
 
-				if fname == os.path.basename(self.testctrlfname):
-					continue
-				if fname == os.path.basename(self.solutionfname):
-					continue
+				if fname == os.path.basename(self.testctrlfname): continue
+				if fname == os.path.basename(self.csolutionfname): continue
+				if fname == os.path.basename(self.solutionfname): continue
 				if os.path.isdir(fullfname):
 					continue
 				
@@ -287,7 +295,7 @@ class TestCase (unittest.TestCase):
 	    if intarr.itemsize != 4:
 		    intarr = array('i')
 
-            solfilename = os.path.abspath(self.controlFile.options['solution_file'])
+            solfilename = os.path.abspath(self.solutionfname)
             f=open(solfilename, "rb")
             try:
                 try:
@@ -304,7 +312,7 @@ class TestCase (unittest.TestCase):
             finally:
                 f.close()
             
-            f=open(self.solutionfname, "rb")
+            f=open(self.csolutionfname, "rb")
             try:
                 intarr.fromfile(f, 1)
                 smarker = intarr[-1]
