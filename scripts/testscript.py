@@ -51,12 +51,14 @@ mysql-database:
 # set of properties in format
 #  test<name>: <ctrlfile> <solutionfile> <commasep test confs>
 # like
-#  testN1: /tmp/test1/DOUG.dat /tmp/test1/correctanswer.dat conf1,conf2
+#  testN1: tests/test1/DOUG.dat tests/test1/correctanswer.dat conf1,conf2
 # whereas configuration is specified as
 #  [testconf_conf1]
 #  solver=1,2
 #  method=1
+#  levels=1,2
 #  processors=1,4
+#  executables=doug_main,doug_aggr
 """
 
 logconfFileNames = []
@@ -137,6 +139,7 @@ def main(testResults):
     items = conf.items("tests")
     for name, value in items:
         if not name.startswith("test"): continue
+        name = name[4:]
 
         # read test data
         ctrlfname, solutionfname, testconfs = tuple(value.strip().split(" ", 2))
@@ -153,9 +156,11 @@ def main(testResults):
             testconfname = "testconf_%s" % testconf
             solvers = map(int, conf.get(testconfname, "solver").split(","))
             methods = map(int, conf.get(testconfname, "method").split(","))
+            levels = map(int, conf.get(testconfname, "levels").split(","))
             processors = map(int, conf.get(testconfname, "processors").split(","))
+            executables = conf.get(testconfname, "executables").split(",")
 
-            testtuples = generateTuples(solvers, methods, processors)
+            testtuples = generateTuples(solvers, methods, levels, processors, executables)
 
             for testtuple in testtuples:
                 test = dougtest.TestCase(name+"_"+testconf, datadir, ctrlfname, solutionfname, conf, *testtuple)

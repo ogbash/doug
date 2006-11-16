@@ -95,8 +95,8 @@ class ControlFile:
 			f.close()
 
 class TestCase (unittest.TestCase):
-	def __init__(self, testname, datadir, ctrlfname, solutionfname, conf, solver, method, nproc,
-		     executable="doug_main", levels=1):
+	def __init__(self, testname, datadir, ctrlfname, solutionfname, conf, solver, method, levels,
+		     nproc, executable):
 		unittest.TestCase.__init__(self)
 		self.testname = testname
 		self.datadir = datadir
@@ -200,7 +200,7 @@ class TestCase (unittest.TestCase):
 
 	def runTest(self):
 		LOG.debug("Running test")
-		LOG.info("solver=%d, method=%d, nproc=%d" % (self.solver, self.method, self.nproc))
+		LOG.info("solver=%d, method=%d, levels=%d, nproc=%d" % (self.solver, self.method, self.levels, self.nproc))
 		mpirun = self.conf.get("dougtest", "mpirun")
 		dougbindir = os.path.abspath(self.conf.get("dougtest", "dougbindir"))
 		main = os.path.join(dougbindir, self.executable)
