@@ -130,7 +130,7 @@ module SpMtx_class
     type(Aggrs) :: expandedaggr !< aggr + neighbours' on overlap
 
     !> data associated with subsolves:
-    integer                          :: nsubsolves = 0
+    integer                          :: nsubsolves
     integer, dimension(:), pointer   :: subsolve_ids !< numeric object handles
     type(indlist),dimension(:),pointer :: subd !< gives subdomain indeces for
                                                !<   each subdomain
@@ -173,6 +173,7 @@ contains
     ! arrange type
     M%arrange_type = D_SpMtx_ARRNG_NO
     M%M_bound => NULL()
+    M%nsubsolves = 0
     M%subsolve_ids => NULL()
     M%subd => NULL()
 
@@ -182,6 +183,10 @@ contains
     M%aggr = Aggrs_New()
     M%fullaggr = Aggrs_New()
 
+    M%strong => NULL()
+    M%strong_rowstart => NULL()
+    M%strong_colnrs => NULL()
+    M%diag => NULL()
   end function SpMtx_New
 
 !> \code

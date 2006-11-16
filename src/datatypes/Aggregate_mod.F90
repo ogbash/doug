@@ -118,7 +118,7 @@ CONTAINS
     allocate(aggr%num(n))
     allocate(aggr%starts(nagr+1))
     allocate(aggr%nodes(starts(nagr+1)-1))
-    aggr%num=num
+    aggr%num=num(1:n)
     aggr%starts=starts
     aggr%nodes=nodes
   end subroutine Construct_Aggrs

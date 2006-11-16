@@ -376,6 +376,7 @@ subroutine CreateCoarseMesh(M, C, choosecenter)
         enddo
 
         ! Init the priority queue (MaxHeap)
+        queue = BHeap_new()
         call BHeap_init(queue,C%elnum+C%refnum)
 
         ! Recalculate the counts and fill the priority queue

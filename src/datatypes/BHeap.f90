@@ -35,6 +35,13 @@ module BinaryHeap
 
 contains
 
+  function BHeap_new() result(B)
+    type(BHeap) :: B
+    B%size = 0
+    B%by => NULL()
+    B%inds => NULL()
+  end function BHeap_new
+
     !! Allocate the structure (initially empty)
     subroutine BHeap_init(B, max)
         implicit none

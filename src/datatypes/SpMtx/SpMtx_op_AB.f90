@@ -150,7 +150,7 @@ module SpMtx_op_AB
     Bsparsity=int(rl/Bnnz)
     rl=1.0*Anrows*Bncols
     !nnzest=int(rl/min(Asparsity,Bsparsity)*4.0)
-    nnzest=int(rl/min(Asparsity,Bsparsity)*4.0)+max(Annz,Bnnz)
+    nnzest=int(rl/max(1,min(Asparsity,Bsparsity))*4.0)+max(Annz,Bnnz)
     maxrowa=maxval(A%M_bound(2:Anrows+1)-A%M_bound(1:Anrows))
     maxrowb=maxval(B%M_bound(2:Bnrows+1)-B%M_bound(1:Bnrows))
     maxrow=maxrowa*maxrowb

@@ -200,6 +200,8 @@ contains
     nullify(M%lcoords)
     nullify(M%lfreemap)
 
+    M%G = Graph_New()
+
   end function Mesh_New
 
 
