@@ -129,7 +129,7 @@ module SpMtx_op_AB
     if (Ancols /= Bnrows) then
       write(stream,*)"ERROR: A*B is impossible!!!"
       write(stream,*)'Ancols=',Ancols,'Bnrows=',Bnrows
-      stop
+      call DOUG_Abort("[SpMtx_AB] failed", -1)
     endif
 !print *,'Anrows,Ancols,Bnrows,Bncols:',Anrows,Ancols,Bnrows,Bncols
     !write(*,*) 'AB startup-time:',MPI_WTIME()-t1
