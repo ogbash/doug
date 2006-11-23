@@ -624,9 +624,13 @@ subroutine CreateCoarseMesh(M, C, choosecenter)
         deallocate(ctiremap)
 
         ! Move the hanging nodes over as they are
-        ncoords(:,C%nct-C%nhn+1:C%nct)=C%coords(:,hangpt+1:C%nct)
+        if(C%nhn>0) then
+           ncoords(:,C%nct-C%nhn+1:C%nct)=C%coords(:,hangpt+1:size(C%coords))
+        end if
 
         ! Walk the hanging nodes through if needed
+        !> \todo Oleg: Unsure, but seems like hangpt is wrong value here, because it still points
+        !> somewhere to the end of initial coords array.
         if (hangpt/=C%ncti+C%refnum) then
         pcnt=hangpt-(C%ncti+C%refnum)
         do i=1,C%refnum

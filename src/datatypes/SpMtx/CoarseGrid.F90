@@ -119,6 +119,32 @@ module CoarseGrid_class
 
 contains
 
+  function CoarseGrid_new() result(C)
+    type(CoarseGrid) :: C
+
+    C%ncti=-1
+    C%nct=-1
+    C%elnum=-1
+    C%refnum=-1
+    C%nhn=-1
+    C%ngfc=-1
+    C%nlfc=-1
+    C%mlvl=-1
+
+    C%coords => NULL()
+    C%h0 => NULL()
+    C%minvg => NULL()
+    C%maxvg => NULL()
+    C%nc => NULL()
+    C%els => NULL()
+    C%refels => NULL()
+    C%elmap => NULL()
+    C%cfreemap => NULL()
+    C%gl_fmap => NULL()
+    C%lg_fmap => NULL()
+    
+  end function CoarseGrid_new
+
     !> Allocate memory for CoarseGrid
     subroutine CoarseGrid_allocate(C, nsd, nnode, coords, els, &
                                         refels,cfreemap, local)

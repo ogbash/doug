@@ -40,27 +40,27 @@ module Mesh_class
   type Mesh
 
      !! Mesh parameters:
-     integer :: nell   = -1 ! Number of elements in a mesh
-     integer :: ngf    = -1 ! Number of global freedoms
-     integer :: mfrelt = -1 ! Max number of freedoms in element
-     integer :: nsd    = -1 ! Number of spacial dimensions
-     integer :: nnode  = -1 ! Number of nodes
+     integer :: nell   = -1 !< Number of elements in a mesh
+     integer :: ngf    = -1 !< Number of global freedoms
+     integer :: mfrelt = -1 !< Max number of freedoms in element
+     integer :: nsd    = -1 !< Number of spacial dimensions
+     integer :: nnode  = -1 !< Number of nodes
 
      ! Main mesh data:
-     !! Number of free nodes in element : nfrelt[nell] (Graph object creation)
+     !> Number of free nodes in element : nfrelt[nell] (Graph object creation)
      integer,       dimension(:),   pointer :: nfrelt
-     !! Free node list : mhead[mfrelt,nell] (Graph object creation)
+     !> Free node list : mhead[mfrelt,nell] (Graph object creation)
      integer,       dimension(:,:), pointer :: mhead
-     !! For mixed problems - mask for division freedoms into blocks :
+     !> For mixed problems - mask for division freedoms into blocks :
      !! freemask[ngf]
      integer(kind=1), dimension(:), pointer :: freemask
-     !! Global numbering of freedoms : freemap[ngf] (plotting)
+     !> Global numbering of freedoms : freemap[ngf] (plotting)
      integer,       dimension(:),   pointer :: freemap
-     !! Nodes coordinates : coords[nsd,nnode] (coarse mesh generation
+     !> Nodes coordinates : coords[nsd,nnode] (coarse mesh generation
      !! and plotting)
      real(kind=xyzk), dimension(:,:),   pointer :: coords
 
-     !! Local coordinate and freemap data
+     !> Local coordinate and freemap data
      integer :: lnnode = -1
      real(kind=xyzk), dimension(:,:),   pointer :: lcoords
      integer,         dimension(:),     pointer :: lfreemap

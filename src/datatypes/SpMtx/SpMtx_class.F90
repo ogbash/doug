@@ -156,6 +156,7 @@ contains
     ! subblocks boundaries
     M%mtx_bbs => NULL()
     M%mtx_bbe => NULL()
+    M%ol0nnz = -1
 
     ! rows & columns
     M%nrows = 0

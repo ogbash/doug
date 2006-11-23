@@ -147,6 +147,8 @@ contains
         integer :: req, ierr, stat(MPI_STATUS_SIZE), sz, szs
         character, pointer :: buffer(:)
 
+        LC = CoarseGrid_new()
+
         buffer=>NULL()
         hdisp=C%ncti+C%refnum-1 ! the diplacement of beginning of hanging nodes
 
@@ -825,6 +827,8 @@ contains
         ! For MPI
         integer :: stat(MPI_STATUS_SIZE), ierr, szs
         character, pointer :: buffer(:)
+
+        C = CoarseGrid_new()
 
         !*****************************************
         ! Receive the messages

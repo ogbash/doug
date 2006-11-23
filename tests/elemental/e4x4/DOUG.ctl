@@ -1,4 +1,4 @@
-solver 1
+solver 2
 method 1
 input_type 1
 matrix_type 1
@@ -18,4 +18,6 @@ solution_format 1
 solution_file ./solution.file
 debug 0
 verbose 10
-plotting 0
+plotting 1
+maxcie 4
+cutbal 3
