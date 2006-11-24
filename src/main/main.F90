@@ -110,7 +110,7 @@ program main
   if(pstream/=0) write(pstream, "(I0,':distribute time:',F0.3)") myrank, MPI_WTIME()-t1
 
   ! conversion from elemental form to assembled matrix wanted?
-  if (mctls%dump_matrix_only.eq..true.) then
+  if (mctls%dump_matrix_only.eqv..true.) then
      call SpMtx_writeMatrix(A)
      call DOUG_Finalize()
      stop
