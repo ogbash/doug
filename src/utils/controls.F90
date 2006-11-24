@@ -21,7 +21,7 @@
 
 ! Definitions for control file parameters
 
-integer, parameter :: DCTL_NWORDS = 43
+integer, parameter :: DCTL_NWORDS = 45
 character*(50)     :: ctl_words(DCTL_NWORDS)
 
 integer, parameter ::  &
@@ -67,7 +67,9 @@ DCTL_center_type          = 39, &
 DCTL_hanging_nodes        = 40, &
 DCTL_interpolation_type   = 41, &
 DCTL_assembled_rhs_file   = 42, &
-DCTL_assembled_rhs_format = 43
+DCTL_assembled_rhs_format = 43, &
+DCTL_dump_matrix_only     = 44, &
+DCTL_dump_matrix_file     = 45
 
 !!$DCTL_matrix_file           =
 !!$DCTL_rhs_file              =
@@ -104,6 +106,8 @@ ctl_words(DCTL_solution_file)         = 'solution_file'
 ctl_words(DCTL_freedom_mask_file)     = 'freedom_mask_file'  ! block system
 ctl_words(DCTL_start_vec_type)        = 'start_vec_type'
 ctl_words(DCTL_start_vec_file)        = 'start_vec_file'     ! initial estimate
+ctl_words(DCTL_dump_matrix_only)      = 'dump_matrix_only'
+ctl_words(DCTL_dump_matrix_file)      = 'dump_matrix_file'
 
 ! Coarse grid things - value types given in CoarseGrid.f90
 ctl_words(DCTL_maxcie)                = 'maxcie'   ! Max num of initial coarse els

@@ -226,5 +226,34 @@ return
 
     end subroutine SpMtx_printInfo
 
+    !----------------------------------
+	!> Writes a SpMtx to a file determined by the control word dump_matrix_file.
+	!> Only writes local matrix, so if you want the whole matrix, make sure
+	!> you are running on only one node.
+	!----------------------------------
+	subroutine SpMtx_writeMatrix(A)
+	  implicit none
+	  
+	  type(SpMtx), intent(in) :: A !< matrix to be dumped to file
+	  
+	  logical   :: found
+	  integer   :: iounit, k, opened
+	  
+	  if (.not. ismaster()) &
+	    call DOUG_abort('[SpMtx_dumpMatrix] : Can only be called by master node.',-1)
+	  call FindFreeIOUnit(found, iounit)
+	  open(unit=iounit,iostat=opened,file=mctls%dump_matrix_file,status='replace', &
+	  						form='formatted',err=666)
+	  if (opened /= 0) &
+	  	call DOUG_abort('[SpMtx_dumpMatrix] : Could not open file.',-1)
+	  write(iounit, *) A%ncols, A%nnz
+	  do k = 1, A%nnz
+	    write(iounit, '(I10,I10,E24.16)') A%indi(k), A%indj(k), A%val(k)
+	  end do
+	  close(iounit)
+	  return
+	  
+666 call DOUG_abort('[SpMtx_dumpMatrix] : Error while writing to file.',-1)
+	end subroutine SpMtx_writeMatrix
 
 End module SpMtx_util

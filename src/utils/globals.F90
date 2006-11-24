@@ -136,6 +136,8 @@ module globals
      character(L) :: solution_file        = ''
      integer      :: start_vec_type       = -1
      integer      :: solution_format      = -1 ! 0 == text, 1 == binary(TODO:, 2 == like in matrix)
+     logical      :: dump_matrix_only     = .false. ! dump matrix after assembling and exit?
+     character(L) :: dump_matrix_file     = ''
 
      ! Geom. Coarse grid parameters
      integer       :: maxcie           = -1

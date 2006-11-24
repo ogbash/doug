@@ -1074,7 +1074,22 @@ contains
           read(word2, '(l1)') mctls%hanging_nodes
        endif
 
+    ! dump_matrix_only
+    elseif (ctl_num.eq.DCTL_dump_matrix_only) then
+       if (mctls%dump_matrix_only.neqv.(.false.)) then
+          write(6,200) trim(word1), trim(word2)
+       else
+          read(word2, '(l1)') mctls%dump_matrix_only
+       endif
 
+	! dump_matrix_file
+    elseif (ctl_num.eq.DCTL_dump_matrix_file) then
+       if (len_trim(mctls%dump_matrix_file).ne.0) then
+          write(6,200) trim(word1), trim(word2)
+       else
+          mctls%dump_matrix_file = trim(word2)
+       endif
+       
     ! end: MASTER DATA
 
     ! nothing was recognised
@@ -1214,7 +1229,7 @@ contains
     logical, optional, intent(in) :: noheader
 
     integer       :: j, lens
-    character(24) :: fmta, fmti, fmtr, fmtc
+    character(24) :: fmta, fmti, fmtr, fmtc, fmtl
 
     ! Include control parameters desciption file.
     ! Defined are: DCTL_*, ctl_words
@@ -1231,6 +1246,7 @@ contains
     fmti = fmta(1:length(fmta))//" ',i5)"
     fmtr = fmta(1:length(fmta))//" ',1p,e12.3)"
     fmtc = fmta(1:length(fmta))//" ',a)"
+    fmtl = fmta(1:length(fmta))//" ',l1)"
 
     if (.not.present(noheader)) then
        write(stream,*)
@@ -1284,6 +1300,13 @@ contains
            ctl_words(DCTL_start_vec_file) &
            (1:length(ctl_words(DCTL_start_vec_file))), &
            trim(mctls%start_vec_file)
+      write(stream,fmtc) &
+           ctl_words(DCTL_dump_matrix_file) &
+           (1:length(ctl_words(DCTL_dump_matrix_file))), &
+           trim(mctls%dump_matrix_file)
+      write(stream,fmtl) &
+           ctl_words(DCTL_dump_matrix_only) &
+           (1:length(ctl_words(DCTL_dump_matrix_only))), mctls%dump_matrix_only
 
       write(stream,fmti) &
          ctl_words(DCTL_maxcie) &
