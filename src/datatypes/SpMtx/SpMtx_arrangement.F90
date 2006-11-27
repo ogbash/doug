@@ -789,16 +789,13 @@ endif
           enddo
           close(77)
         endif
- allocate(tmpnum(A%nrows))
- tmpnum=(/(i,i=1,A%nrows)/)
- !       call color_print_aggrs(A%nrows,A%aggr%num,overwrite=.false.)
- call color_print_aggrs(n=A%nrows,aggrnum=tmpnum,owner=A%aggr%num)
- deallocate(tmpnum)
-        call flush(stream)
-!do i=1,A%aggr%nagr
-!  write(stream,*)i,':',adjncy(xadj(i):xadj(i+1)-1)
-!enddo
-!call doug_abort('testing rough aggr',434)
+        if (sctls%plotting==1.or.sctls%plotting==3) then
+          allocate(tmpnum(A%nrows))
+          tmpnum=(/(i,i=1,A%nrows)/)
+          call color_print_aggrs(n=A%nrows,aggrnum=tmpnum,owner=A%aggr%num)
+          deallocate(tmpnum)
+          call flush(stream)
+        endif
       elseif (partitioning==ONLY_METIS) then
         if (sctls%plotting==1.or.sctls%plotting==3) then
           write(stream,*)'Rough aggregates:'
