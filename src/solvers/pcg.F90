@@ -809,7 +809,7 @@ if (bugtrack)call Print_Glob_Vect(r,Msh,'global r===')
     if (ismaster()) then
       call CalculateEigenvalues(it,dd,ee,alpha,beta,maxit)
       cond_num=dd(it)/dd(1)
-      write(stream,'(a,i3,a,f10.4)') '#it:',it,' Cond#: ',cond_num
+      write(stream,'(a,i3,a,e10.4)') '#it:',it,' Cond#: ',cond_num
     endif
     !deallocate(beta)
     !deallocate(alpha)

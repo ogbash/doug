@@ -261,12 +261,11 @@ contains
       call ReadInSparseAssembled(A,trim(mctls%assembled_mtx_file))
       allocate(b(A%nrows))
       if (len_trim(mctls%assembled_rhs_file)>0) then
-         write(stream,'(a,a)') ' ##### Assembled RHS file: ##### ', &
-               mctls%assembled_rhs_file
-         call Vect_ReadFromFile(b, trim(mctls%assembled_rhs_file))
+        write(stream,'(a,a)') ' ##### Assembled RHS file: ##### ', &
+              mctls%assembled_rhs_file
+        call Vect_ReadFromFile(b, trim(mctls%assembled_rhs_file))
       else
-         write(stream,'(a,a)') ' ##### (using unit vector as RHS) ##### '
-         b=1.0_rk
+        b=1.0_rk
       end if
     endif
 

@@ -1642,11 +1642,37 @@ contains
     type(Fact),dimension(:),pointer :: fakts_temp
     real(kind=rk) :: t1
 
+    ! ---- for check ----
+    !logical,parameter :: check=.true.
+    logical,parameter :: check=.false.
+    logical :: docheck=.false.
+    real(kind=rk),dimension(:),pointer :: chk
+    real(kind=rk) :: rtmp
+
+    if (check.and.id<=0) then
+      docheck=.true.
+    else
+      docheck=.false.
+    endif
     if (id<=0) call factorise(id,nfreds,nnz,indi,indj,val)
 
     t1=MPI_WTIME()      
     call Fact_Solve(fakts(id), rhs, sol)
     backsolve_time=backsolve_time + MPI_WTIME()-t1
+
+    if (docheck) then
+      allocate(chk(size(rhs)))
+      chk=0.0_rk
+      do i=1,nnz
+        chk(indi(i)+1)=chk(indi(i)+1)+val(i)*sol(indj(i)+1)
+      enddo
+      rtmp=0.0_rk
+      do i=1,size(sol)
+        rtmp=rtmp+abs(rhs(i)-chk(i))
+      enddo
+      deallocate(chk)
+      write(stream,*)'******* subdomain solution error^2:',rtmp
+    endif
   end subroutine factorise_and_solve
 
   function total_setup_time() result(t)

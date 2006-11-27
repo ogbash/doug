@@ -392,7 +392,7 @@ CONTAINS
     Type(SpMtx),intent(in out),optional :: A_ghost
     logical,intent(in),optional :: symmetrise
     ! local:
-    integer :: i,j,k,start,ending,nnz
+    integer :: i,j,k,start,ending,nnz,ndiags
     logical :: did_scale
     logical :: simple=.false.,symm=.false.,mirror2ghost=.true.
     float(kind=rk) :: maxndiag,aa
@@ -418,6 +418,7 @@ CONTAINS
         endif
       enddo
     else ! not the simple case:
+      ndiags=max(A%nrows,A%ncols)
       call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS,sort=.false.)        
       do i=1,A%nrows
         start=A%M_bound(i)
@@ -433,13 +434,20 @@ CONTAINS
         enddo
         maxndiag=maxndiag*alpha
         do j=start,ending
+          aa=abs(A%val(j))
           if (A%indj(j)/=i) then ! not on diagonal
-            aa=abs(A%val(j))
             if (aa>maxndiag) then
               A%strong(j)=.true.
             else
               A%strong(j)=.false.
             endif
+          else
+            if (A%diag(i)>maxndiag) then
+              A%strong(j)=.true.
+            else
+              A%strong(j)=.false.
+            endif
+            !write(stream,*)'diag at i is:',i,A%diag(i),A%strong(j),maxndiag
           endif
         enddo
       enddo
@@ -557,21 +565,30 @@ write(stream,*)'symmetrising to strong:',A%indi(i),A%indj(i)
 !>  for quick strong row reference, symmetric matrix case:
 !>    rowstart(1:n+1), colnrs(1:noffdels)
 !----------------------------------------------------------
-  subroutine SpMtx_build_refs_symm(A,noffdels,rowstart,colnrs,sortdown)
+  subroutine SpMtx_build_refs_symm(A,noffdels,rowstart,colnrs,&
+                                   sortdown,diagstrong)
     Implicit None
     Type(SpMtx), intent(in out)     :: A 
     integer, intent(out) :: noffdels
     integer, dimension(:), pointer :: rowstart,colnrs
     logical,intent(in),optional :: sortdown ! wheather dominant connections first? 
+    logical, dimension(:), pointer, optional :: diagstrong
     integer :: i,j,k,nn,nnz,ind,ind_beg,ii,jj
     integer, dimension(:), allocatable :: nnz_in_row ! #nonzeroes in each row
     integer, dimension(:), allocatable :: sortref ! for getting the sorted list
+    logical :: diagonals
     !- - - - - - - - - - - - - - - - - - - - - - - -
     nn=A%nrows
     if (A%mtx_bbe(2,2)>0) then
       nnz=A%mtx_bbe(2,2)
     else
       nnz=A%nnz
+    endif
+    if (present(diagstrong)) then
+      diagonals=.true.
+      diagstrong=.false.
+    else
+      diagonals=.false.
     endif
     !===== allocate memory
     allocate(nnz_in_row(nn))
@@ -585,6 +602,8 @@ write(stream,*)'symmetrising to strong:',A%indi(i),A%indj(i)
           if (jj<=nn) then
             nnz_in_row(ii) = nnz_in_row(ii) + 1
           endif
+        elseif(diagonals) then
+          diagstrong(ii)=.true.
         endif
       endif
     end do
@@ -677,6 +696,7 @@ write(stream,*)'symmetrising to strong:',A%indi(i),A%indj(i)
     float(kind=rk),dimension(:),pointer :: b_tmp
     integer, parameter :: ONLY_METIS = 1 ! graph partitioner
     integer, parameter :: AGGRND_METIS = 2 ! rough aggregaion based on n random seeds
+    integer,dimension(:),pointer       :: tmpnum,owner
                                     !   going back for 
     integer :: partitioning
     float(kind=rk) :: strong_conn1
@@ -722,8 +742,27 @@ write(stream,*)'symmetrising to strong:',A%indi(i),A%indj(i)
                       maxaggrsize=max_asize1,  &
                             alpha=strong_conn1)
         call SpMtx_buildAggrAdjncy(A,max_asize1,nedges,xadj,adjncy)
-        call SpMtx_unscale(A)
+        call SpMtx_unscale(A) !todo -- check
         G=Graph_newInit(A%aggr%nagr,nedges,xadj,adjncy,D_GRAPH_NODAL)
+if (sctls%plotting==1.or.sctls%plotting==3) then
+ allocate(owner(A%nrows))
+ do i=1,A%nnz
+  if (A%indi(i)==A%indj(i)) then
+    if (A%val(i)<1.0d0) then
+      owner(A%indi(i))=1
+    else
+      owner(A%indi(i))=2
+    endif
+  endif
+ enddo
+ allocate(tmpnum(A%nrows))
+ tmpnum=(/(i,i=1,A%nrows)/)
+ write(stream,*)'Initial Matrix structure -- 1: a(i,i)<1; 2: a(i,i)>=1 '
+ call color_print_aggrs(n=A%nrows,aggrnum=owner)
+ write(stream,*)'...with numbering as follows: '
+ call color_print_aggrs(n=A%nrows,aggrnum=tmpnum,owner=owner)
+ deallocate(tmpnum,owner)
+endif
       elseif (partitioning==ONLY_METIS) then
         call SpMtx_buildAdjncy(A,nedges,xadj,adjncy)
         G=Graph_newInit(A%nrows,nedges,xadj,adjncy,D_GRAPH_NODAL)
@@ -750,7 +789,11 @@ write(stream,*)'symmetrising to strong:',A%indi(i),A%indj(i)
           enddo
           close(77)
         endif
-        call color_print_aggrs(A%nrows,A%aggr%num,overwrite=.false.)
+ allocate(tmpnum(A%nrows))
+ tmpnum=(/(i,i=1,A%nrows)/)
+ !       call color_print_aggrs(A%nrows,A%aggr%num,overwrite=.false.)
+ call color_print_aggrs(n=A%nrows,aggrnum=tmpnum,owner=A%aggr%num)
+ deallocate(tmpnum)
         call flush(stream)
 !do i=1,A%aggr%nagr
 !  write(stream,*)i,':',adjncy(xadj(i):xadj(i+1)-1)
@@ -956,10 +999,11 @@ write(stream,*)'symmetrising to strong:',A%indi(i),A%indj(i)
     integer                     :: newlayersize
     integer,dimension(neighood) :: actanum ! active aggregate number
     integer                     :: nact    ! #active
-    integer :: counter,rs,re,layernode,cn,noffdels
+    integer :: counter,rs,re,layernode,cn,noffdels,weakend
     integer :: nagrs ! number of aggregates
     logical :: overwrite=.false.
     logical :: rounding=.true.
+    logical, dimension(:), pointer :: diagstrong
     n=A%nrows
     allocate(ii(n))
     allocate(A%aggr%num(n))
@@ -972,17 +1016,41 @@ write(stream,*)'symmetrising to strong:',A%indi(i),A%indj(i)
     ! Start aggregating taking seeds from ii
     ! if node j aggregated set ii(j)=-abs(ii(j))
     allocate(stat(n))
+    allocate(diagstrong(n))
     stat=0
     layersize=0
     A%aggr%nagr=0
     nact=0
     counter=0
-    call SpMtx_build_refs_symm(A,noffdels, &
-      A%strong_rowstart,A%strong_colnrs,sortdown=.true.)
+    call SpMtx_build_refs_symm(A,noffdels,      &
+           A%strong_rowstart,A%strong_colnrs,   &
+           sortdown=.true.,diagstrong=diagstrong)
     aggrsize=0
     do i=1,n
       ! find next unaggregated seed in permutation order:
       if (stat(ii(i))==0) then
+        !if weak, put exchange it with a strong one from the end
+        if (.not.diagstrong(ii(i))) then
+          if (weakend>i) then
+            do while(.true.)
+              weakend=weakend-1
+              if (weakend<=i) then
+                exit
+              endif
+              if (stat(ii(weakend))/=0) then 
+                cycle
+              endif
+              if (diagstrong(ii(weakend))) then !exchange
+                j=ii(i)
+                ii(i)=ii(weakend)
+                ii(weakend)=j
+                exit
+              else
+                cycle
+              endif
+            enddo
+          endif
+        endif
         !Add an aggregate
         A%aggr%nagr=A%aggr%nagr+1
         A%aggr%num(ii(i))=A%aggr%nagr
@@ -998,7 +1066,7 @@ write(stream,*)'symmetrising to strong:',A%indi(i),A%indj(i)
         layersize(counter)=1
         layer(1,counter)=ii(i)
         stat(ii(i))=1 ! mark it
-        if (nact>1) then
+        if (nact>1) then !{
         ! build another layer for still-to-grow aggregates:
           do j=1,nact-1
             k=counter-j
@@ -1064,15 +1132,16 @@ write(stream,*)'symmetrising to strong:',A%indi(i),A%indj(i)
               enddo bb
             endif ! rounding
           enddo !j
-        endif
+        endif !} nact
       endif
     enddo
     if (sctls%plotting==1.or.sctls%plotting==3) then
-      write(stream,*)'Subdomains obtained from METIS:'
+      write(stream,*)'Rough Aggregates are:'
       call color_print_aggrs(n=n,aggrnum=A%aggr%num,overwrite=overwrite)
     endif
     deallocate(A%strong_colnrs)
     deallocate(A%strong_rowstart)
+    deallocate(diagstrong)
     deallocate(stat)
     deallocate(ii)
 

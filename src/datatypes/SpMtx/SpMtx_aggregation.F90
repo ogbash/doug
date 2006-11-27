@@ -46,7 +46,8 @@ Module SpMtx_aggregation
 CONTAINS
 
 !> Finding aggregates
-  subroutine SpMtx_aggregate(A,neighood,minaggrsize,maxaggrsize,alpha,Afine,M)
+  subroutine SpMtx_aggregate(A,neighood,&
+               minaggrsize,maxaggrsize,alpha,Afine,M,plotting)
     use globals
     use CoarseAllgathers
     use Mesh_class
@@ -62,6 +63,7 @@ CONTAINS
     Type(SpMtx),intent(inout),optional :: Afine ! fine level matrix
     !type(CoarseData),optional :: cdat !coarse data
     type(Mesh),optional     :: M  ! Mesh
+    integer,optional :: plotting
     !-----
     integer,dimension(:),allocatable :: aggrneigs
     integer,dimension(:),pointer :: stat,distance
@@ -99,13 +101,19 @@ CONTAINS
     integer,dimension(:,:),pointer :: structnodes
     integer :: cnt,col,thiscol
     integer,dimension(:),pointer :: owner
+    integer :: plot
     
     if (sctls%debug==-3) then
       version=3
     endif
     toosmall=.false.
     n=A%nrows
-    if (sctls%plotting==3) then
+    if (present(plotting)) then
+      plot=plotting
+    else
+      plot=sctls%plotting
+    endif
+    if (plot==3) then
       track_print=.true.
       allocate(moviecols(A%nrows))
     endif
@@ -130,7 +138,7 @@ CONTAINS
           write (stream,*) 'no such aggregation version:',version
         endif
       endif
-      if (sctls%plotting==1.or.sctls%plotting==3) then
+      if (plot==1.or.plot==3) then
         if (present(Afine)) then
           write (stream,*) 'Coarse level aggregates:'
         else
@@ -1288,7 +1296,7 @@ endif
     deallocate(fullaggrnum)
     deallocate(aggrnum)
     
-    if (sctls%plotting==1.or.sctls%plotting==3) then
+    if (plot==1.or.plot==3) then
       if (numprocs>1) then
         if (ismaster()) then
           allocate(aggrnum(M%ngf))
@@ -1301,7 +1309,7 @@ endif
         endif
       else
         if (.not.present(Afine)) then
-          if (sctls%plotting==3) then
+          if (plot==3) then
             call color_print_aggrs(A%nrows,A%aggr%num,overwrite=.true.)
           else
             write(stream,*)' fine aggregates:'
@@ -1312,7 +1320,7 @@ endif
             endif
           endif
         else
-          if (sctls%plotting==3) then
+          if (plot==3) then
             call color_print_aggrs(Afine%nrows,Afine%fullaggr%num,A%aggr%num,overwrite=.true.)
           else
             write(stream,*)' coarse aggregates:'
@@ -1325,7 +1333,7 @@ endif
         endif
       endif
     endif
-    if (sctls%plotting==3) then
+    if (plot==3) then
       deallocate(moviecols)
     endif
   end subroutine SpMtx_aggregate

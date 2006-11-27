@@ -113,6 +113,7 @@ program aggr
   integer :: aver_finesize,min_finesize,max_finesize
   integer :: aver_subdsize,min_subdsize,max_subdsize
   integer :: start_radius1,start_radius2
+  integer :: plotting
   ! Parallel coarse level
   !type(CoarseData) :: cdat -- moved into the module itself...
 
@@ -159,11 +160,17 @@ program aggr
     else
       max_asize1=(2*aggr_radius1+1)**2
     endif
+    if (numprocs>1) then
+      plotting=0
+    else
+      plotting=sctls%plotting
+    endif
     call SpMtx_aggregate(A,aggr_radius1, &
            minaggrsize=min_asize1,       &
            maxaggrsize=max_asize1,       &
            alpha=strong_conn1,           &
-           M=M)
+           M=M,                          &
+           plotting=plotting)
     
     call SpMtx_unscale(A)
     ! todo: to be rewritten with aggr%starts and aggr%nodes...:
@@ -266,41 +273,26 @@ program aggr
 ! allocate(xl(A%nrows))
 ! allocate(b(A%nrows))
   allocate(xl(M%nlf))
-!  allocate(b(M%nlf))
   xl = 0.0_rk
-  ! Modifications R.Scheichl 17/06/05
-  ! Set RHS to vector of all 1s
-  ! b = 1.0_rk
-  ! Set solution to random vector and calcluate RHS via b = A*x
-  !allocate(xchk(A%nrows))
-  allocate(xchk(M%nlf))
-  call random_number(xchk(1:M%ninner))
-  xchk(1:M%ninner) = 0.5_8 - xchk(1:M%ninner)
-! if (numprocs>1) then
-!   xchk(1:M%ninner) = M%lg_fmap(1:M%ninner)
-! else
-!   xchk=(/(i,i=1,M%nlf)/)
-! endif
-  call update_outer_ol(xchk,M)
-! if (numprocs>1) then
-!   write(stream,*)'xchk=',xchk- M%lg_fmap(:)
-! endif
-
-!xchk=1.0_rk*M%lg_fmap
-
-!xchk=1.0_rk
-
-  !call SpMtx_pmvm(b,A,xchk,M)
-  !call add_whole_ol(xchk,M)
-  !call Print_Glob_Vect(xchk,M,'global xchk===',rows=.true.)
-  !call Print_Glob_Vect(b,M,'global b===')
-  !call MPI_BARRIER(MPI_COMM_WORLD,i)
-  !call DOUG_abort('[DOUG main] : testing Ax', -1)
-  ! call Print_Glob_Vect(xchk,M,'global xchk===')
-  !b=1.0_rk
-  !nrm=Vect_dot_product(b,b)
-  !b=b/dsqrt(nrm)
-  !xchk=xchk/dsqrt(nrm)
+  if (len_trim(mctls%assembled_rhs_file)<=0) then ! just test the solver
+    ! Set solution to random vector and calcluate RHS via b = A*x
+    write(stream,'(a,a)')' ##### (testing the solver: random RHS with known answer)'
+    allocate(xchk(M%nlf))
+    call random_number(xchk(1:M%ninner))
+    xchk(1:M%ninner) = 0.5_rk - xchk(1:M%ninner)
+    call update_outer_ol(xchk,M)
+    !call Print_Glob_Vect(xchk,M,'global xchk===')
+    call SpMtx_pmvm(b,A,xchk,M)
+    !call Print_Glob_Vect(b,M,'global b===')
+    !call MPI_BARRIER(MPI_COMM_WORLD,i)
+    ! and also normalise the rhs:
+    nrm=Vect_dot_product(b,b)
+    b=b/dsqrt(nrm)
+    xchk=xchk/dsqrt(nrm)
+    ! Another good test
+    !write(stream,'(a,a)') ' ##### (using unit vector as RHS) ##### '
+    !b=1.0_rk
+  endif
 
   select case(sctls%solver)
   case (DCTL_SOLVE_CG)
@@ -342,21 +334,19 @@ program aggr
   case default
      call DOUG_abort('[DOUG main] : Wrong solution method specified', -1)
   end select
-  ! Modifications R.Scheichl 17/06/05
-  ! Check the error
-  if (numprocs==1) then
-    allocate(r(A%nrows))
-  else
-    allocate(r(M%nlf))
+  if (associated(xchk)) then
+    ! Check the error
+    if (numprocs==1) then
+      allocate(r(A%nrows))
+    else
+      allocate(r(M%nlf))
+    endif
+    r = xl - xchk
+    write(stream,*) 'CHECK: The norm of the error is ', &
+           sqrt(Vect_dot_product(r,r)/Vect_dot_product(xchk,xchk))
+    deallocate(xchk)
+    deallocate(r)
   endif
-  r = xl - xchk
- !if (numprocs==1) then
- !  write(stream,*)'error:',r(1:A%nrows)
- !else
- !  write(stream,*)'error:',r(1:M%ninner)
- !endif
-  write(stream,*) 'CHECK: The norm of the error is ', &
-         sqrt(Vect_dot_product(r,r)/Vect_dot_product(xchk,xchk))
 
   if (numprocs>1) then
     ! Assemble result on master
@@ -376,8 +366,6 @@ program aggr
     call WriteSolutionToFile(xl)
   endif
 
-  deallocate(xchk)
-  deallocate(r)
 
   ! Destroy objects
   call Mesh_Destroy(M)

@@ -703,11 +703,14 @@ call MPI_Barrier(MPI_COMM_WORLD,ierr) !TODO: this should be get removed!?
 
     float(kind=rk),dimension(:),intent(in out)   :: x ! Vector
     type(Mesh),                       intent(in) :: M ! Mesh
-    integer :: i,n,n2,p,ol,mx
+    integer :: i,j,k,n,n2,p,ol,mx
     ! MPI
     integer, dimension(:), pointer :: in_reqs
     integer                        :: ierr, out_req, status(MPI_STATUS_SIZE)
     integer, parameter             :: D_TAG_FREE_OUTEROL = 778
+    !logical :: takeaverage=.true.
+    logical :: takeaverage=.false.
+    float(kind=rk),dimension(:),pointer,save :: nowners
 
     if (numprocs==1.or.sctls%input_type/=DCTL_INPUT_TYPE_ASSEMBLED) then
       return
@@ -715,6 +718,19 @@ call MPI_Barrier(MPI_COMM_WORLD,ierr) !TODO: this should be get removed!?
     ol=max(sctls%overlap,sctls%smoothers)
     if (ol<1) then
       return
+    endif
+    if (takeaverage) then
+      if (.not.associated(nowners)) then
+        allocate(nowners(size(x)))
+        nowners=1.0_rk
+        do i=1,M%nnghbrs
+          n=M%ol_solve(i)%ninds
+          do j=1,n
+            k=M%ol_solve(i)%inds(j)
+            nowners(k)=nowners(k)+1.0_rk
+          enddo
+        enddo
+      endif
     endif
     if (.not.D_PMVM_AUXARRS_INITED) then
       allocate(inbufs(M%nnghbrs), outbufs(M%nnghbrs))
@@ -760,6 +776,13 @@ call MPI_Barrier(MPI_COMM_WORLD,ierr)!todo: remove
       endif
 !write(stream,*)'=== the updated vector is:',x
     enddo
+    if (takeaverage) then
+      do i=1,size(x)
+        if (nowners(i)>1.0_rk) then
+          x(i)=x(i)/nowners(i)
+        endif
+      enddo
+    endif
   end subroutine add_whole_ol
 
 !!$  !--------------------------------------
