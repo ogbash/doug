@@ -1,0 +1,42 @@
+#!/bin/bash
+#
+# Script to start PBS LAM-MPI jobs like interactive applications
+#
+# Usage: pbstrackrun numprocs executable [parameters]
+#
+# Ensure, that files:
+#     pbstrackinitrun, track, otsi, jobrun.pbs
+#   can be found in the same directory as current script
+# also, passwordless ssh to execution nodes should work!
+#
+# add the location of the script to the path
+longname=$0
+scriptname=`echo "$0" | awk 'BEGIN {FS = "/"} {print $NF} '`
+#extract path to the script itself:
+export SCRIPTPATH="${longname/$scriptname/}"
+export PATH=$SCRIPTPATH:$PATH
+if [ "$2" == "" ]; then
+  echo "Usage: pbstrackrun numprocs executable [parameters]"
+  exit
+else
+  execid=`echo "$2" | awk 'BEGIN {FS = "/"} {print $NF} '`
+fi
+echo "pbstrackinitrun $execid $* "
+id=`pbstrackinitrun $execid $* `
+# need to check for an error, the script above can precede some rubbish...:
+nidl=`echo "$id" | awk '{nlines++} END {print nlines}'`
+if [ "$nidl" != "1" ]; then
+  jd=`echo "$id" | tail -1 `
+  id="$jd"
+fi
+if [ "$id" == "" ]; then
+  echo "=== The job submition to $np processors failed ==="
+else
+  echo "=== The job submitted into the queue with id: $id"
+  #trap "echo '***** executing: qdel $id' ; qdel $id; sleep 1; exit" EXIT
+  # delete the job on exit (silently), especially when ctrl-c is pressed:
+  trap "qdel $id &>/dev/null; sleep 1; exit" EXIT
+  echo "###### track $id execid"
+  # track is csh script, therefore path to the otsi function needs to be supplied
+  track $id $execid $SCRIPTPATH
+fi

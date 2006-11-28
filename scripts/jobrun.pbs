@@ -1,0 +1,71 @@
+#!/bin/csh
+##############################################################
+############### Config script for using LAM-MPI ################
+##############################################################
+
+# Run dir:
+set RUNDIR = "$RUN_DIR"
+
+# Application name:
+set APPLICATION = "$EXECUTABLE"
+
+# Extra flags for Application
+set RUNFLAGS = "$PARAMETERS"
+
+# Extra flags for mpich:
+set EXTRAMPI = ""
+
+
+##############################################################
+#        Below this nothing should have to be changed        #
+##############################################################
+
+#echo Running from MPI $MPI_HOME
+echo 
+echo Changing to $RUNDIR
+cd $RUNDIR
+ 
+set nodes = `cat $PBS_NODEFILE`
+cat $PBS_NODEFILE >> /tmp/nodes
+#set nnodes = $#nodes
+set nnodes = "$NP"
+echo nnodes="$nnodes"
+
+echo Nodes: $nodes
+
+set confile = "/tmp/$PBS_JOBID.conf"
+
+set prev = "" 
+# Figure out whether we have 2 jobs or one determined with last entry
+foreach i ( $nodes )
+  if ( ${prev} != ${i} ) then
+    set pp = ":1"
+  else
+    set pp = ":2"
+  endif
+  set prev = ${i}
+end
+
+set prev = ""
+# Now create the confile
+foreach i ( $nodes )
+   if ( ${i} != ${prev} ) then
+#     if ( "$COMPILER" == "lam-gcc" ) then
+       echo "$i" >> $confile
+#     else
+#       echo "$i$pp" >> $confile
+#     endif
+   endif
+   set prev = ${i}
+end 
+
+echo booting LAM at:
+cat $confile
+echo executing lamboot $confile
+lamboot -v $confile
+echo "Will run command: mpirun -np $nnodes $EXTRAMPI $APPLICATION $RUNFLAGS"
+echo "Starting job..."
+time mpirun -np $nnodes $EXTRAMPI $APPLICATION $RUNFLAGS
+echo executing wipe $confile
+wipe $confile
+rm -rf $confile

@@ -1,0 +1,71 @@
+#!/bin/csh
+if ( "$2" == "" ) then
+  echo "Usage: track jobID executable path_to_otsi"
+else
+  set myrun=`qstat |grep $1`
+  if ( "$myrun" == "" ) then
+    echo "Job $1 does not exist"
+    exit
+  endif
+  # wait until process is running:
+  set running="N"
+  set said="no"
+  while ( "$running" != "R" )
+    set running=`qstat |grep $1 | awk '{print $5}'`
+    if ( "$said" == "no" ) then
+      qstat -a
+      if ( "$running" != "R" ) then
+        echo "(job $1 not running yet...)"
+      endif
+      set said="yes" 
+    endif
+    if ( "$running" != "R" ) then
+      sleep 1
+      # Jobs can exit sometimes very quickly, lets check it's still there:
+      set myrun=`qstat |grep $1`
+      if ( "$myrun" == "" ) then
+        echo "Job $1 has already exited! Look at logfile in running dir!"
+        exit
+      endif
+    endif
+  end
+  #find the host:
+  set host="nil"
+  while ( "$host" == "nil" )
+    set host=`qstat -f $1 |awk '/host/{print $3}' |awk 'BEGIN {FS ="/" } { print $1}'x `
+    #echo "host is: $host"
+    if ( "$host" == "nil" ) then
+      sleep 1
+    endif
+    if ( "$host" == "" ) then
+      set host="nil"
+      sleep 1
+    endif
+    # Jobs can exit sometimes very quickly, lets check it's still there:
+    set myrun=`qstat |grep $1`
+    if ( "$myrun" == "" ) then
+      echo "Job $1 has already exited! Look at logfile in running dir!"
+      exit
+    endif
+  end
+  set spid="no"
+  while ( "$spid" == "no" )
+    set spid=`ssh $host $3/otsi $2 |awk '{print $4}'`
+    #echo "spid: $spid"
+    sleep 1
+  end
+  #echo "spid: $spid"
+  set file=`ssh $host /bin/ls /var/spool/pbs/spool`
+  if ( "$file" == "" ) then # the run is done
+    echo "#############################################################"
+    echo "# Result of the run in the file:" `ls *.o$1`
+    echo "#############################################################"
+    #echo " the result file: *.o$1"
+    cat *.o$1
+  else # go and track the running job:
+    echo "#############################################################"
+    echo "#       host: $host       file: $file"
+    echo "#############################################################"
+    ssh $host tail --pid=$spid -n +1 -f /var/spool/pbs/spool/$file
+  endif
+endif

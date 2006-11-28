@@ -1,0 +1,16 @@
+#!/bin/bash
+execid=$1
+if [ "$2" == "1" ]; then 
+  nodes="$2"
+else
+  nn=$(( $(( $2+1 )) /2))
+  nodes="$nn:ppn=2"
+fi
+export NP="$2"
+export EXECUTABLE="$3"
+export PARAMETERS="$4 $5 $6 $7 $8"
+export RUN_DIR=`pwd`
+cd $RUN_DIR
+  qsub -v EXECUTABLE,PARAMETERS,RUN_DIR,NP -N $execid -j oe -l nodes=$nodes,walltime=199:00:00 $SCRIPTPATH/jobrun.pbs &>/dev/null
+id=`qstat -a | grep $execid | awk 'BEGIN {FS ="." } { print $1}'`
+echo "$id"
