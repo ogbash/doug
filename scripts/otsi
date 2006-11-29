@@ -1,5 +1,6 @@
 #!/bin/csh
-set j=`ps -lfU $USER |grep -v grep | grep -v csh | grep $* |awk '/eero/{print $4}'` 
+set str='/'"$USER"'/{print $4}'
+set j=`ps -lfU $USER |grep -v grep | grep -v csh | grep $* |awk "$str"` 
 if ( "$j" != "" ) then
   echo $* : $j
   @ i =1
