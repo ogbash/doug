@@ -1,0 +1,30 @@
+// Simple Poisson problem in a L-shape region
+include "common.edp"
+
+border Ba(t=0.0,1.0) { x=t;   y=0.0; }
+border Bb(t=0.0,0.5) { x=1;   y=t;   }
+border Bc(t=0.0,0.5) { x=1-t; y=0.5; }
+border Bd(t=0.5,1.0) { x=0.5; y=t;   }
+border Be(t=0.5,1.0) { x=1-t; y=1.0; }
+border Bf(t=0.0,1.0) { x=0;   y=1-t; }
+mesh Th = buildmesh(Ba(N)+Bb(N)+Bc(N)+Bd(N)+Be(N)+Bf(N));
+fespace Vh(Th,P1);
+Vh u,v;
+func real f(real x, real y) { return x*y; }
+varf Poisson(u,v) =
+   int2d(Th)(dx(u)*dx(v) + dy(u)*dy(v))
+ + on(Ba, u=0)
+ + on(Bb, u=0)
+ + on(Bc, u=0)
+ + on(Bd, u=0)
+ + on(Be, u=0)
+ + on(Bf, u=0);
+varf PoissonRHS(unused, v) =
+   int2d(Th)(f(x,y)*v);
+matrix A = Poisson(Vh,Vh);
+real[int] b(u.n); b = PoissonRHS(0,Vh);
+u[] = A^(-1) * b;
+WriteSparseMatrix("assembled_mtx.txt", A);
+WriteVector("assembled_rhs.txt", b);
+WriteVector("assembled_sol.txt", u[]);
+//plot(u);
