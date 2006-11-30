@@ -263,7 +263,7 @@ contains
       if (len_trim(mctls%assembled_rhs_file)>0) then
         write(stream,'(a,a)') ' ##### Assembled RHS file: ##### ', &
               mctls%assembled_rhs_file
-        call Vect_ReadFromFile(b, trim(mctls%assembled_rhs_file))
+        call Vect_ReadFromFile(b, trim(mctls%assembled_rhs_file), mctls%assembled_rhs_format)
       else
         b=1.0_rk
       end if
