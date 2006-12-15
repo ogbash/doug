@@ -51,16 +51,6 @@ import org.apache.axis.utils.Options;
  */
 public class DougWSClient {
 
-	public static final String CONTROL_FILE = "DOUG.dat";
-	public static final String INFO_FILE = "doug_info.dat";
-	public static final String FREEDOM_LISTS_FILE = "doug_element.dat";
-	public static final String ELEMENT_RHS_FILE = "doug_system.dat";
-	public static final String COORDS_FILE = "doug_coord.dat";
-	public static final String FREEMAP_FILE = "doug_freemap.dat";
-	public static final String FREEDOM_MASK_FILE = "doug_freemask.dat";
-	public static final String DUMP_MATRIX_FILE = "assembled.txt";
-	private static final String ENDPOINT_ADRESS = "http://localhost:8080/axis/services/doug";
-
 	private void makeControlFileForSolving() {
 
 	}
@@ -84,22 +74,22 @@ public class DougWSClient {
 	private void makeControlFileForConverting(boolean freedomListFile,
 			boolean elementRHSFile, boolean coordsFile, boolean freemapFile,
 			boolean freedomMaskFile) throws IOException {
-		FileWriter writer = new FileWriter(CONTROL_FILE, false);
+		FileWriter writer = new FileWriter(Settings.CONTROL_FILE, false);
 		writer.write("solver 2\n");
 		writer.write("method 1\n");
 		writer.write("input_type 1\n");
 		writer.write("matrix_type 1\n");
-		writer.write("info_file " + INFO_FILE + "\n");
+		writer.write("info_file " + Settings.INFO_FILE + "\n");
 		if (freedomListFile)
-			writer.write("freedom_lists_file " + FREEDOM_LISTS_FILE + "\n");
+			writer.write("freedom_lists_file " + Settings.FREEDOM_LISTS_FILE + "\n");
 		if (elementRHSFile)
-			writer.write("elemmat_rhs_file " + ELEMENT_RHS_FILE + "\n");
+			writer.write("elemmat_rhs_file " + Settings.ELEMENT_RHS_FILE + "\n");
 		if (coordsFile)
-			writer.write("coords_file " + COORDS_FILE + "\n");
+			writer.write("coords_file " + Settings.COORDS_FILE + "\n");
 		if (freemapFile)
-			writer.write("freemap_file " + FREEMAP_FILE + "\n");
+			writer.write("freemap_file " + Settings.FREEMAP_FILE + "\n");
 		if (freedomMaskFile)
-			writer.write("freedom_mask_file " + FREEDOM_MASK_FILE + "\n");
+			writer.write("freedom_mask_file " + Settings.FREEDOM_MASK_FILE + "\n");
 		writer.write("number_of_blocks 1\n");
 		writer.write("initial_guess 2\n");
 		writer.write("solve_tolerance 1.0e-12\n");
@@ -107,7 +97,7 @@ public class DougWSClient {
 		writer.write("verbose 10\n");
 		writer.write("plotting 0\n");
 		writer.write("dump_matrix_only true\n");
-		writer.write("dump_matrix_file " + DUMP_MATRIX_FILE + "\n");
+		writer.write("dump_matrix_file " + Settings.DUMP_MATRIX_FILE + "\n");
 
 		// start_vec_file ./NOT.DEFINED.start_vec_file
 		// start_vec_type 2
@@ -165,7 +155,7 @@ public class DougWSClient {
 		// XXX keep control file in memory instead of file. absolutly not need
 		// to write it.
 		attachments[files.size()] = new DataHandler(new FileDataSource(
-				CONTROL_FILE));
+				Settings.CONTROL_FILE));
 
 		/* prepare call */
 		Service service = new Service();
@@ -175,9 +165,8 @@ public class DougWSClient {
 		} catch (ServiceException e) {
 			throw new DougServiceException(e.getMessage(), e);
 		}
-		call.setTargetEndpointAddress(ENDPOINT_ADRESS); // TODO: Hardwired for
-														// now, change, use
-														// Option
+		// TODO: Hardwired for now, change, use Option
+		call.setTargetEndpointAddress(Settings.ENDPOINT_ADRESS); 
 		call.setOperationName(new QName("urn:DougService",
 				"elementalToAssembled")); // This is the target services
 											// method to invoke.

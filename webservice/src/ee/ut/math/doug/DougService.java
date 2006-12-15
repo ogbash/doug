@@ -138,50 +138,13 @@ public class DougService {
     	
     	/* save files to working dir */
     	try  {
-    		InputStream in;
-			FileOutputStream out;
-			in = freedom_lists_file.getDataSource().getInputStream();
-			out = new FileOutputStream(WORKING_DIR
-					+ DougWSClient.FREEDOM_LISTS_FILE);
-			IOUtils.copy(in, out);
-			out.flush();
-			out.close();
-			in = elemmat_rhs_file.getDataSource().getInputStream();
-			out = new FileOutputStream(WORKING_DIR
-					+ DougWSClient.ELEMENT_RHS_FILE);
-			IOUtils.copy(in, out);
-			out.flush();
-			out.close();
-			in = coords_file.getDataSource().getInputStream();
-			out = new FileOutputStream(WORKING_DIR
-					+ DougWSClient.COORDS_FILE);
-			IOUtils.copy(in, out);
-			out.flush();
-			out.close();
-			in = freemap_file.getDataSource().getInputStream();
-			out = new FileOutputStream(WORKING_DIR
-					+ DougWSClient.FREEMAP_FILE);
-			IOUtils.copy(in, out);
-			out.flush();
-			out.close();
-			in = freedom_mask_file.getDataSource().getInputStream();
-			out = new FileOutputStream(WORKING_DIR
-					+ DougWSClient.FREEDOM_MASK_FILE);
-			IOUtils.copy(in, out);
-			out.flush();
-			out.close();
-			in = info_file.getDataSource().getInputStream();
-			out = new FileOutputStream(WORKING_DIR
-					+ DougWSClient.INFO_FILE);
-			IOUtils.copy(in, out);
-			out.flush();
-			out.close();
-			in = control_file.getDataSource().getInputStream();
-			out = new FileOutputStream(WORKING_DIR
-					+ DougWSClient.CONTROL_FILE);
-			IOUtils.copy(in, out);
-			out.flush();
-			out.close();
+    		writeFile(freedom_lists_file, WORKING_DIR + Settings.FREEDOM_LISTS_FILE);
+    		writeFile(elemmat_rhs_file, WORKING_DIR + Settings.ELEMENT_RHS_FILE);
+    		writeFile(coords_file, WORKING_DIR + Settings.COORDS_FILE);
+    		writeFile(freemap_file, WORKING_DIR + Settings.FREEMAP_FILE);
+    		writeFile(freedom_mask_file, WORKING_DIR + Settings.FREEDOM_MASK_FILE);
+    		writeFile(info_file, WORKING_DIR + Settings.INFO_FILE);
+    		writeFile(control_file, WORKING_DIR + Settings.CONTROL_FILE);
     	} catch (IOException e) {
 //    		TODO: Fault
     		System.out.println(e.getMessage());
@@ -207,37 +170,42 @@ public class DougService {
     		e.printStackTrace();
     	}
 		/* return result */
-    	FileDataSource fds = new FileDataSource(WORKING_DIR + DougWSClient.DUMP_MATRIX_FILE);
+    	FileDataSource fds = new FileDataSource(WORKING_DIR + Settings.DUMP_MATRIX_FILE);
     	DataHandler result = new DataHandler(fds);
     	return result;
     }
     
-    private double[] parseSolutionFile() {
+    /**
+     * Writes a file in a DataHandler onto the filesystem.
+     * @param dh DataHandler containing the file to be written
+     * @param filen Filename of the resulting file
+     * @throws IOException If either the read from the DataHandler or the write
+     * 		to the filesystem fails.
+     */
+    private void writeFile(DataHandler dh, String filen) throws IOException  {
+		InputStream in;
+		FileOutputStream out;
+		in = dh.getDataSource().getInputStream();
+		out = new FileOutputStream(filen);
+		IOUtils.copy(in, out);
+		out.flush();
+		out.close();
+	}
+
+	private double[] parseSolutionFile() throws FileNotFoundException, IOException {
 		
-    	String s;
-		int numOfElem;
-		double[] solution = null;
-		
-		try {
-			File file = new File(WORKING_DIR);
-			FileReader reader = new FileReader(file);
-			BufferedReader buf = new BufferedReader(reader);
+		File file = new File(WORKING_DIR + Settings.SOLUTION_FILE);
+		FileReader reader = new FileReader(file);
+		BufferedReader buf = new BufferedReader(reader);
+		String s = buf.readLine();
+		s = s.trim();
+		int numOfElem = Integer.parseInt(s);
+		double[] solution = new double[numOfElem];
+		for (int i=0; i<numOfElem; i++) {
 			s = buf.readLine();
 			s = s.trim();
-			numOfElem = Integer.parseInt(s);
-			solution = new double[numOfElem];
-			for (int i=0; i<numOfElem; i++) {
-				s = buf.readLine();
-				s = s.trim();
-				solution[i] = Double.parseDouble(s);
-			}
-		} catch (FileNotFoundException ex) {
-			ex.printStackTrace();
-			System.exit(-1);
-		} catch (IOException ex) {
-			ex.printStackTrace();
-			System.exit(-1);
-		} 
+			solution[i] = Double.parseDouble(s);
+		}
 		return solution;
     }
     
