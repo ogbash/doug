@@ -1,3 +1,6 @@
+This software is provided unter LGPL except ee.ut.math.doug.StreamGobbler.
+Libraries in ./lib/ have different licences (Apache and Sun) and cannot be published.
+
 Licence for class ee.ut.math.doug.StreamGobbler:
 
 Copyright (c) 2005 - 2006 Swiss Federal Institute of Technology (ETH Zurich),
