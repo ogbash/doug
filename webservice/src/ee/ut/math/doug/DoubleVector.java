@@ -134,4 +134,13 @@ public class DoubleVector {
 		}
 		return new DoubleVector(result);
 	}
+	
+	public String toString() {
+		StringBuffer buf = new StringBuffer();
+		buf.append(vector.length  + "\n");
+		for (int i=0; i < vector.length; i++) {
+			buf.append(vector[i] + "\n");
+		}
+		return buf.toString();
+	}
 }

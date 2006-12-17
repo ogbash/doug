@@ -50,7 +50,6 @@ public class AssembledMatrix {
 	private int filledUpTo;
 	
 	private final static String FILE="/home/poecher/dump_matrix.file";  //TODO: put in properties
-	private final static String FILE2="/home/poecher/wrote.txt";
 	
 	public AssembledMatrix(int nnz, int ncols, int nrows) {
 		indi = new int[nnz];
@@ -67,7 +66,7 @@ public class AssembledMatrix {
 	}
 	
 /* 
- * Needed for immutable implementation, which is not done here,
+ * Needed for immutable implementation, which is not done here
  * because of efficiency concerns. Can be uncommented as soon as hashCode() is
  * implemented.
  */ 	 
@@ -104,11 +103,30 @@ public class AssembledMatrix {
 //		return true;
 //	}
 	
-	public String toString() {
+	/**
+	 * Generates human-readable representation of matrix.
+	 * 
+	 * @return human-readable String of matrix
+	 */
+	public String print() {
 		StringBuffer buf = new StringBuffer();
 		buf.append("nnz = " + nnz + ";  ncols = " + ncols + ";  nrows = " + nrows + "\n");
 		for (int k=0; k < val.length; k++) {
 			buf.append("i: " + indi[k] + "\tj: " + indj[k] + "\tval: "+ val[k] + "\n");
+		}
+		return buf.toString();
+	}
+	
+	/**
+	 * Outputs String representation in standard DOUG format.
+	 * 
+	 * @see java.lang.Object#toString()
+	 */
+	public String toString() {
+		StringBuffer buf = new StringBuffer();
+		buf.append(ncols + " " + nnz + "\n");
+		for (int k = 0; k<nnz; k++) {
+			buf.append(indi[k] + " " +  indj[k] + " " + val[k] + "\n");
 		}
 		return buf.toString();
 	}
@@ -193,12 +211,9 @@ public class AssembledMatrix {
 	 * 
 	 * @throws IOException
 	 */
-	public void writeToDisk() throws IOException {
-		FileWriter writer = new FileWriter(FILE2, false);
-		writer.write(ncols + " " + nnz + "\n");
-		for (int k = 0; k<nnz; k++) {
-			writer.write(indi[k] + " " +  indj[k] + " " + val[k] + "\n");
-		}
+	public void writeToDisk(String fname) throws IOException {
+		FileWriter writer = new FileWriter(fname, false);
+		writer.write(this.toString());
 		writer.flush();
 		writer.close();
 	}
@@ -270,8 +285,8 @@ public class AssembledMatrix {
 	public static void main(String[] args) throws Exception {
 		AssembledMatrix a = AssembledMatrix.readFromDisk();
 		a.plusSigmaTimesIdentity(9.99);
-		System.out.print(a.toString());
-		a.writeToDisk();
+		System.out.print(a.print());
+		a.writeToDisk("wrote.txt");
 	}
 	
 }

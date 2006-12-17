@@ -22,7 +22,6 @@ package ee.ut.math.doug;
 // mailto:info(at)dougdevel.org)
 
 import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -38,6 +37,7 @@ import javax.xml.rpc.ParameterMode;
 import javax.xml.rpc.ServiceException;
 
 import org.apache.axis.AxisFault;
+import org.apache.axis.attachments.PlainTextDataSource;
 import org.apache.axis.client.Call;
 import org.apache.axis.client.Service;
 import org.apache.axis.encoding.ser.JAFDataHandlerDeserializerFactory;
@@ -51,8 +51,34 @@ import org.apache.axis.utils.Options;
  */
 public class DougWSClient {
 
-	private void makeControlFileForSolving() {
-
+	private String makeControlFileForSolving() {
+		StringBuffer buf = new StringBuffer();
+		buf.append("solver 2\n");
+		buf.append("solve_maxiters 3000\n");
+		buf.append("method 1\n");
+		buf.append("levels  2\n");
+		buf.append("overlap 2\n");
+		buf.append("smoothers 2\n");
+		buf.append("input_type 2\n");
+		buf.append("symmstruct T\n");
+		buf.append("symmnumeric T\n");
+		buf.append("radius1 2\n");
+		buf.append("strong1 0.67e0\n");
+		buf.append("minasize1 4\n");
+		buf.append("radius2 5\n");
+		buf.append("strong2 0.67e0\n");
+		buf.append("minasize2 3\n");
+		buf.append("matrix_type 1\n");
+		buf.append("number_of_blocks 1\n");
+		buf.append("initial_guess 2\n");
+		buf.append("solve_tolerance 1.0e-6\n");
+		buf.append("solution_format 2\n");
+		buf.append("solution_file " + Settings.SOLUTION_FILE +"\n");
+		buf.append("debug 0\n");
+		buf.append("verbose 1\n");
+		buf.append("plotting 3\n");
+		buf.append("assembled_mtx_file " + Settings.ASSEMBLED_MTX_FILE + "\n");
+		return buf.toString();
 	}
 
 	/*
@@ -61,55 +87,60 @@ public class DougWSClient {
 	 * become a library at some point and control words should then be passed as
 	 * arguments to a function call.
 	 */
-	/*
-	 * Rather write to memory instead to a file.
-	 */
 	/**
-	 * Writes a file that can be used as control file for converting elemental
+	 * Makes a String that can be used as control file for converting elemental
 	 * input into an AssembledMatrix with DOUG.
-	 * 
-	 * @throws IOException
-	 *             if file writing fails
 	 */
-	private void makeControlFileForConverting(boolean freedomListFile,
+	private String makeControlFileForConverting(boolean freedomListFile,
 			boolean elementRHSFile, boolean coordsFile, boolean freemapFile,
-			boolean freedomMaskFile) throws IOException {
-		FileWriter writer = new FileWriter(Settings.CONTROL_FILE, false);
-		writer.write("solver 2\n");
-		writer.write("method 1\n");
-		writer.write("input_type 1\n");
-		writer.write("matrix_type 1\n");
-		writer.write("info_file " + Settings.INFO_FILE + "\n");
+			boolean freedomMaskFile) {
+		StringBuffer buf = new StringBuffer();
+		buf.append("solver 2\n");
+		buf.append("method 1\n");
+		buf.append("input_type 1\n");
+		buf.append("matrix_type 1\n");
+		buf.append("info_file " + Settings.INFO_FILE + "\n");
 		if (freedomListFile)
-			writer.write("freedom_lists_file " + Settings.FREEDOM_LISTS_FILE + "\n");
+			buf.append("freedom_lists_file " + Settings.FREEDOM_LISTS_FILE + "\n");
 		if (elementRHSFile)
-			writer.write("elemmat_rhs_file " + Settings.ELEMENT_RHS_FILE + "\n");
+			buf.append("elemmat_rhs_file " + Settings.ELEMENT_RHS_FILE + "\n");
 		if (coordsFile)
-			writer.write("coords_file " + Settings.COORDS_FILE + "\n");
+			buf.append("coords_file " + Settings.COORDS_FILE + "\n");
 		if (freemapFile)
-			writer.write("freemap_file " + Settings.FREEMAP_FILE + "\n");
+			buf.append("freemap_file " + Settings.FREEMAP_FILE + "\n");
 		if (freedomMaskFile)
-			writer.write("freedom_mask_file " + Settings.FREEDOM_MASK_FILE + "\n");
-		writer.write("number_of_blocks 1\n");
-		writer.write("initial_guess 2\n");
-		writer.write("solve_tolerance 1.0e-12\n");
-		writer.write("debug 0\n");
-		writer.write("verbose 10\n");
-		writer.write("plotting 0\n");
-		writer.write("dump_matrix_only true\n");
-		writer.write("dump_matrix_file " + Settings.DUMP_MATRIX_FILE + "\n");
-
-		// start_vec_file ./NOT.DEFINED.start_vec_file
-		// start_vec_type 2
-		// solution_format 0
-		// solution_file ./solution.file
-		// assembled_rhs_file ./NOT.DEFINED.solution.file
-		// assembled_rhs_format 0
-
-		writer.flush();
-		writer.close();
+			buf.append("freedom_mask_file " + Settings.FREEDOM_MASK_FILE + "\n");
+		buf.append("number_of_blocks 1\n");
+		buf.append("initial_guess 2\n");
+		buf.append("solve_tolerance 1.0e-12\n");
+		buf.append("debug 0\n");
+		buf.append("verbose 10\n");
+		buf.append("plotting 0\n");
+		buf.append("dump_matrix_only true\n");
+		buf.append("dump_matrix_file " + Settings.DUMP_MATRIX_FILE + "\n");
+		return buf.toString();
 	}
 
+	/**
+	 * Runs the assembled version of DOUG to solve the linear equation a x = b.
+	 * 
+	 * @param a Matrix
+	 * @param b right hand side vector
+	 * @return x = a^-1 b
+	 * @throws IOException
+	 * @throws DougServiceException
+	 */
+	public DoubleVector runAssebled(AssembledMatrix a, DoubleVector b)
+		throws IOException, DougServiceException  {
+		DataHandler mtxHandler = 
+			new DataHandler(new PlainTextDataSource(null, a.toString()));
+		DataHandler rhsHandler =
+			new DataHandler(new PlainTextDataSource(null, b.toString()));
+		
+		
+		return null;
+	}
+	
 	/**
 	 * Converts elemental input into an AssembledMatrix by calling DOUG.
 	 * Parameters are local filename. They will be replaced on the server side
@@ -139,14 +170,14 @@ public class DougWSClient {
 		boolean ff = (freemap_file != null);
 		boolean fmf = (freedom_mask_file != null);
 
-		List files = new LinkedList();
+		List files = new LinkedList();  //eats up possible nulls
 		files.add(freedom_lists_file);
 		files.add(elemmat_rhs_file);
 		files.add(coords_file);
 		files.add(freemap_file);
 		files.add(freedom_mask_file);
 		files.add(info_file);
-		makeControlFileForConverting(flf, erf, cf, ff, fmf);
+		String control = makeControlFileForConverting(flf, erf, cf, ff, fmf);
 
 		DataHandler[] attachments = new DataHandler[files.size() + 1];
 		for (int i = 0; i < files.size(); i++) {
@@ -154,8 +185,10 @@ public class DougWSClient {
 		}
 		// XXX keep control file in memory instead of file. absolutly not need
 		// to write it.
-		attachments[files.size()] = new DataHandler(new FileDataSource(
-				Settings.CONTROL_FILE));
+		attachments[files.size()] = 
+			new DataHandler(new PlainTextDataSource(null ,control));
+//		attachments[files.size()] = new DataHandler(new FileDataSource(
+//				Settings.CONTROL_FILE));
 
 		/* prepare call */
 		Service service = new Service();

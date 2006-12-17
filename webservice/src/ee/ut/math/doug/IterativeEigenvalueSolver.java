@@ -45,7 +45,6 @@ public class IterativeEigenvalueSolver {
 		
 		y = initialGuess;
 		a.plusSigmaTimesIdentity(shift * -1.0);
-		a.writeToDisk();
 		while (true) {
 			v = y.div( y.norm() );
 			y = solve(a, v);
