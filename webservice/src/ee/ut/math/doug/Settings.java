@@ -42,5 +42,5 @@ public interface Settings {
 	public static final String SOLUTION_FILE = "solution.file";
 	public static final String DUMP_MATRIX_FILE = "assembled.txt";
 	public static final String ASSEMBLED_MTX_FILE = "assebled.txt";
-	public static final String ENDPOINT_ADRESS = "http://localhost:8080/axis/services/doug";
+	public static final String ENDPOINT_ADRESS = "http://localhost:8080/axis/services/DougService";
 }

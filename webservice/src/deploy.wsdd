@@ -1,6 +1,7 @@
 <deployment xmlns="http://xml.apache.org/axis/wsdd/"
-    xmlns:java="http://xml.apache.org/axis/wsdd/providers/java">
-  <service name="doug" provider="java:RPC">
+    xmlns:java="http://xml.apache.org/axis/wsdd/providers/java"
+    xmlns:ns1="http://doug.math.ut.ee/">
+  <service name="DougService" provider="java:RPC">
     <parameter name="className" value="ee.ut.math.doug.DougService"/>
     <parameter name="allowedMethods" value="*"/>
     <typeMapping
@@ -17,6 +18,13 @@
       qname="ns1:DataHandler"
       serializer="org.apache.axis.encoding.ser.JAFDataHandlerSerializerFactory" 
       encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"
+    />
+    
+    <beanMapping qname="ns1:AssebledMatrix"
+    	languageSpecificType="java:ee.ut.math.doug.AssembledMatrix"
+    />
+	<beanMapping qname="ns1:DoubleVector"
+    	languageSpecificType="java:ee.ut.math.doug.DoubleVector"
     />
   </service>
 </deployment>

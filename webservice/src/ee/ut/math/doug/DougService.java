@@ -20,17 +20,13 @@
 // mailto:info(at)dougdevel.org)
 
 package ee.ut.math.doug;
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
-import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 
 import javax.activation.DataHandler;
-import javax.activation.FileDataSource;
 
 import org.apache.commons.io.IOUtils;
 
@@ -43,7 +39,7 @@ public class DougService {
 
     /* Dir and executable name fixed by producing WS for security reasons. */
     /* TODO: make editable properties file */
-    private static final String WORKING_DIR = "/home/poecher/working/"; //WebDAV
+    private static final String WORKING_DIR = "/home/poecher/working/";
     private static final String NO_OF_PROCESSES = "4";
     private static final String DOUG_MAIN_EXECUTABLE = "DOUG_main";
     private static final String[] EXE_CONV = {"mpirun", "-np", "1", DOUG_MAIN_EXECUTABLE, "-q"}; // TODO: better run DOUG without mpirun, but cannot find file. why?
@@ -107,7 +103,7 @@ public class DougService {
         }
         return output;
     }
-    
+    /*
     public double[] runDoug1() {
     		
     		Process pro;
@@ -125,13 +121,9 @@ public class DougService {
 	    }
     		return solution;
     }
+    */
     
-    /* 
-     * retruns DataHandler and not AssembledMatrix, because of less 
-     * interwoven code. making sense of the file is up to the client.
-     * service is only providing the data.
-     */
-    public DataHandler elementalToAssembled(DataHandler freedom_lists_file,
+    public AssembledMatrix elementalToAssembled(DataHandler freedom_lists_file,
     		DataHandler elemmat_rhs_file, DataHandler coords_file,
     		DataHandler freemap_file, DataHandler freedom_mask_file,
     		DataHandler info_file, DataHandler control_file) {
@@ -170,9 +162,15 @@ public class DougService {
     		e.printStackTrace();
     	}
 		/* return result */
-    	FileDataSource fds = new FileDataSource(WORKING_DIR + Settings.DUMP_MATRIX_FILE);
-    	DataHandler result = new DataHandler(fds);
-    	return result;
+    	AssembledMatrix matrix = null;
+    	try {
+    		matrix = AssembledMatrix.readFromDisk(WORKING_DIR + Settings.DUMP_MATRIX_FILE);
+    	} catch (IOException e) {
+    		//TODO: Fault
+    		System.out.println(e.getMessage());
+    		e.printStackTrace();
+    	} 
+    	return matrix;
     }
     
     /**
@@ -192,7 +190,8 @@ public class DougService {
 		out.close();
 	}
 
-	private double[] parseSolutionFile() throws FileNotFoundException, IOException {
+	/*
+	 private double[] parseSolutionFile() throws FileNotFoundException, IOException {
 		
 		File file = new File(WORKING_DIR + Settings.SOLUTION_FILE);
 		FileReader reader = new FileReader(file);
@@ -208,7 +207,7 @@ public class DougService {
 		}
 		return solution;
     }
-    
+    */
     /*
      * for testing only
      */

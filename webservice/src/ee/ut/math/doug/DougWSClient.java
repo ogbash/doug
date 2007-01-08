@@ -23,8 +23,6 @@ package ee.ut.math.doug;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.net.MalformedURLException;
 import java.rmi.RemoteException;
 import java.util.LinkedList;
@@ -40,6 +38,8 @@ import org.apache.axis.AxisFault;
 import org.apache.axis.attachments.PlainTextDataSource;
 import org.apache.axis.client.Call;
 import org.apache.axis.client.Service;
+import org.apache.axis.encoding.ser.BeanDeserializerFactory;
+import org.apache.axis.encoding.ser.BeanSerializerFactory;
 import org.apache.axis.encoding.ser.JAFDataHandlerDeserializerFactory;
 import org.apache.axis.encoding.ser.JAFDataHandlerSerializerFactory;
 import org.apache.axis.utils.Options;
@@ -132,13 +132,70 @@ public class DougWSClient {
 	 */
 	public DoubleVector runAssebled(AssembledMatrix a, DoubleVector b)
 		throws IOException, DougServiceException  {
-		DataHandler mtxHandler = 
-			new DataHandler(new PlainTextDataSource(null, a.toString()));
-		DataHandler rhsHandler =
-			new DataHandler(new PlainTextDataSource(null, b.toString()));
 		
+		/* prepare attachments */
+		String controlFile = makeControlFileForSolving();
+		DataHandler controlHandler =
+			new DataHandler(new PlainTextDataSource(null, controlFile));
 		
-		return null;
+		/* prepare call */
+		Service service = new Service();
+		Call call;
+		try {
+			call = (Call) service.createCall();
+		} catch (ServiceException e) {
+			throw new DougServiceException(e.getMessage(), e);
+		}
+		// TODO: Hardwired for now, change, use Option
+		call.setTargetEndpointAddress(Settings.ENDPOINT_ADRESS); 
+		call.setOperationName(new QName("urn:DougService",
+				"runAssebled")); // This is the target service's method to invoke.
+		
+		// Add serializer for attachment.
+		QName qnameAttachment = new QName("urn:DougService", "DataHandler");
+		call.registerTypeMapping(
+				controlHandler.getClass(), qnameAttachment, 
+				JAFDataHandlerSerializerFactory.class,
+				JAFDataHandlerDeserializerFactory.class);
+		// Add (de-)serializer for AssebledMatrix.
+		QName qnameAssembledMatrix = new QName("urn:DougService", "AssebledMatrix");
+		call.registerTypeMapping(AssembledMatrix.class, qnameAssembledMatrix,
+                new BeanSerializerFactory(AssembledMatrix.class, qnameAssembledMatrix),        
+                new BeanDeserializerFactory(AssembledMatrix.class, qnameAssembledMatrix));
+		// Add (de-)serializer for DoubleVector.
+		QName qnameDoubleVector = new QName("urn:DougService", "AssebledMatrix");
+		call.registerTypeMapping(DoubleVector.class, qnameDoubleVector,
+                new BeanSerializerFactory(DoubleVector.class, qnameAssembledMatrix),        
+                new BeanDeserializerFactory(DoubleVector.class, qnameAssembledMatrix));
+		
+		call.addParameter("a", qnameAssembledMatrix, ParameterMode.IN);
+		call.addParameter("b", qnameDoubleVector, ParameterMode.IN);
+		call.addParameter("control_file", qnameAttachment, ParameterMode.IN);
+		call.setReturnType(qnameDoubleVector);
+		
+		/* invoke call */
+		Object ret = call.invoke( new Object[] {a, b, controlHandler} );
+		
+		/* sanity check return data */
+		if (null == ret) {
+			System.out.println("Received null ");
+			throw new AxisFault("", "Received null", null, null);
+		}
+		if (ret instanceof String) {
+			System.out.println("Received problem response from server: " + ret);
+			throw new AxisFault("", (String) ret, null, null);
+		}
+		if (!(ret instanceof DoubleVector)) {
+			// The wrong type of object that what was expected.
+			System.out.println("Received problem response from server:"
+					+ ret.getClass().getName());
+			throw new AxisFault("", "Received problem response from server:"
+					+ ret.getClass().getName(), null, null);
+		}
+		
+		/* process return data */
+		DoubleVector x = (DoubleVector) ret;
+		return x;
 	}
 	
 	/**
@@ -183,12 +240,8 @@ public class DougWSClient {
 		for (int i = 0; i < files.size(); i++) {
 			attachments[i] = new DataHandler(new FileDataSource((File) files.get(i)));
 		}
-		// XXX keep control file in memory instead of file. absolutly not need
-		// to write it.
 		attachments[files.size()] = 
 			new DataHandler(new PlainTextDataSource(null ,control));
-//		attachments[files.size()] = new DataHandler(new FileDataSource(
-//				Settings.CONTROL_FILE));
 
 		/* prepare call */
 		Service service = new Service();
@@ -201,26 +254,27 @@ public class DougWSClient {
 		// TODO: Hardwired for now, change, use Option
 		call.setTargetEndpointAddress(Settings.ENDPOINT_ADRESS); 
 		call.setOperationName(new QName("urn:DougService",
-				"elementalToAssembled")); // This is the target services
-											// method to invoke.
+				"elementalToAssembled")); // This is the target service's method to invoke.
+		// Add (de-)serializer for attachment.
 		QName qnameAttachment = new QName("urn:DougService", "DataHandler");
 		call.registerTypeMapping(
-				attachments[0].getClass(), // Add serializer for attachment.
-				qnameAttachment, JAFDataHandlerSerializerFactory.class,
+				attachments[0].getClass(), qnameAttachment, 
+				JAFDataHandlerSerializerFactory.class,
 				JAFDataHandlerDeserializerFactory.class);
-		call.addParameter("freedom_lists_file", qnameAttachment,
-				ParameterMode.IN);
-		call.addParameter("elemmat_rhs_file", qnameAttachment,
-				ParameterMode.IN);
+		// Add (de-)serializer for AssebledMatrix.
+		QName qnameAssembledMatrix = new QName("urn:DougService", "AssembledMatrix");
+		call.registerTypeMapping(AssembledMatrix.class, qnameAssembledMatrix,
+                new BeanSerializerFactory(AssembledMatrix.class, qnameAssembledMatrix),        
+                new BeanDeserializerFactory(AssembledMatrix.class, qnameAssembledMatrix));
+		
+		call.addParameter("freedom_lists_file", qnameAttachment, ParameterMode.IN);
+		call.addParameter("elemmat_rhs_file", qnameAttachment, ParameterMode.IN);
 		call.addParameter("coords_file", qnameAttachment, ParameterMode.IN);
 		call.addParameter("freemap_file", qnameAttachment, ParameterMode.IN);
-		call.addParameter("freedom_mask_file", qnameAttachment,
-				ParameterMode.IN);
+		call.addParameter("freedom_mask_file", qnameAttachment, ParameterMode.IN);
 		call.addParameter("info_file", qnameAttachment, ParameterMode.IN);
 		call.addParameter("control_file", qnameAttachment, ParameterMode.IN);
-		call.setReturnType(qnameAttachment);
-		// call.setProperty(Call.ATTACHMENT_ENCAPSULATION_FORMAT,
-		// 		   Call.ATTACHMENT_ENCAPSULATION_FORMAT_DIME);
+		call.setReturnType(qnameAssembledMatrix);
 
 		/* invoke call */
 		Object ret = call.invoke(attachments);
@@ -234,7 +288,7 @@ public class DougWSClient {
 			System.out.println("Received problem response from server: " + ret);
 			throw new AxisFault("", (String) ret, null, null);
 		}
-		if (!(ret instanceof DataHandler)) {
+		if (!(ret instanceof AssembledMatrix)) {
 			// The wrong type of object that what was expected.
 			System.out.println("Received problem response from server:"
 					+ ret.getClass().getName());
@@ -243,10 +297,7 @@ public class DougWSClient {
 		}
 
 		/* process return data */
-		DataHandler rdh = (DataHandler) ret;
-		InputStream is = rdh.getDataSource().getInputStream();
-		InputStreamReader isr = new InputStreamReader(is);
-		AssembledMatrix m = AssembledMatrix.readFromReader(isr);
+		AssembledMatrix m = (AssembledMatrix) ret;
 		return m;
 	}
 

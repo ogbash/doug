@@ -58,4 +58,28 @@
 			<fileset dir="${clientTarget}" includes="**/*" />
 	  	</delete>
 	</target>
+	
+	<target name="register"
+		description="registers webservice in axis, that is process services WSDD file">
+		<java classname="org.apache.axis.client.AdminClient">
+			<classpath>
+				<fileset dir="${lib}">
+					<include name="**/*.jar" />
+				</fileset>
+			</classpath>
+			<arg file="${src}/deploy.wsdd"/>
+		</java>
+	</target>
+	
+	<target name="unregister"
+		description="unregisters webservice in axis, that is process services WSDD file">
+		<java classname="org.apache.axis.client.AdminClient">
+			<classpath>
+				<fileset dir="${lib}">
+					<include name="**/*.jar" />
+				</fileset>
+			</classpath>
+			<arg file="${src}/undeploy.wsdd"/>
+		</java>
+	</target>
 </project>

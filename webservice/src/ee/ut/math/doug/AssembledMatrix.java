@@ -23,12 +23,10 @@
 package ee.ut.math.doug;
 
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Reader;
-import java.util.NoSuchElementException;
 import java.util.StringTokenizer;
 
 /**
@@ -49,7 +47,7 @@ public class AssembledMatrix {
 	private int nnz, ncols, nrows;
 	private int filledUpTo;
 	
-	private final static String FILE="/home/poecher/dump_matrix.file";  //TODO: put in properties
+//	private final static String FILE="/home/poecher/dump_matrix.file";  //TODO: put in properties
 	
 	public AssembledMatrix(int nnz, int ncols, int nrows) {
 		indi = new int[nnz];
@@ -63,6 +61,14 @@ public class AssembledMatrix {
 	
 	public AssembledMatrix(int nnz) {
 		this(nnz, -1, -1);
+	}
+	
+	/**
+	 * For compability with BeanSerializer only. Can be removed as soon as custom 
+	 * serializer is written. 
+	 * @depricated
+	 */
+	public AssembledMatrix() {
 	}
 	
 /* 
@@ -232,35 +238,29 @@ public class AssembledMatrix {
 	 * @throws IOException If a read operation on the Reader fails.
 	 * @throws FileFormatException If the data is different, than expected.
 	 */
-	public static AssembledMatrix readFromReader(Reader r) throws IOException, DougServiceException {
+	public static AssembledMatrix readFromReader(Reader r) throws IOException {
 		AssembledMatrix m;
 		String s;
 		StringTokenizer toki;
 		int nnz, ncols, indi, indj;
 		double val;
+		/* header line */
 		BufferedReader buf = new BufferedReader(r);
-		try {
-			/* header line */
+		s = buf.readLine();
+		s = s.trim();
+		toki = new StringTokenizer(s);
+		ncols = Integer.parseInt(toki.nextToken());
+		nnz = Integer.parseInt(toki.nextToken());
+		m = new AssembledMatrix(nnz, ncols, ncols);
+		/* body */
+		for (int k=0; k<nnz; k++) {
 			s = buf.readLine();
 			s = s.trim();
 			toki = new StringTokenizer(s);
-			ncols = Integer.parseInt(toki.nextToken());
-			nnz = Integer.parseInt(toki.nextToken());
-			m = new AssembledMatrix(nnz, ncols, ncols);
-			/* body */
-			for (int k=0; k<nnz; k++) {
-				s = buf.readLine();
-				s = s.trim();
-				toki = new StringTokenizer(s);
-				indi = Integer.parseInt(toki.nextToken());
-				indj = Integer.parseInt(toki.nextToken());
-				val = Double.parseDouble(toki.nextToken());
-				m.addElement(indi, indj, val);
-			}
-		} catch (NumberFormatException ex) {
-			throw new DougServiceException("A number could not be parsed correctly. Wrong format.", ex);
-		} catch (NoSuchElementException ex) {
-			throw new DougServiceException("Attemted to read more data than availible. Is nnz not correct?", ex);
+			indi = Integer.parseInt(toki.nextToken());
+			indj = Integer.parseInt(toki.nextToken());
+			val = Double.parseDouble(toki.nextToken());
+			m.addElement(indi, indj, val);
 		}
 		r.close();
 		return m;
@@ -275,18 +275,144 @@ public class AssembledMatrix {
 	 * @throws FileFormatException If the data is different, than expected.
 	 * @throws DougServiceException 
 	 */
-	public static AssembledMatrix readFromDisk() throws IOException, DougServiceException {
-		File file = new File(FILE);
+	public static AssembledMatrix readFromDisk(String file) throws IOException {
 		FileReader reader = new FileReader(file);
 		AssembledMatrix m = readFromReader(reader);
 		return m;
 	}
 	
+	/**
+	 * For compability with BeanSerializer only. Can be removed as soon as custom 
+	 * serializer is written. 
+	 * @depricated
+	 */
+	public int getFilledUpTo() {
+		return filledUpTo;
+	}
+	
+	/**
+	 * For compability with BeanSerializer only. Can be removed as soon as custom 
+	 * serializer is written. 
+	 * @depricated
+	 */
+	public void setFilledUpTo(int filledUpTo) {
+		this.filledUpTo = filledUpTo;
+	}
+
+	/**
+	 * For compability with BeanSerializer only. Can be removed as soon as custom 
+	 * serializer is written. 
+	 * @depricated
+	 */
+	public int[] getIndi() {
+		return indi;
+	}
+
+	/**
+	 * For compability with BeanSerializer only. Can be removed as soon as custom 
+	 * serializer is written. 
+	 * @depricated
+	 */
+	public void setIndi(int[] indi) {
+		this.indi = indi;
+	}
+
+	/**
+	 * For compability with BeanSerializer only. Can be removed as soon as custom 
+	 * serializer is written. 
+	 * @depricated
+	 */
+	public int[] getIndj() {
+		return indj;
+	}
+
+	/**
+	 * For compability with BeanSerializer only. Can be removed as soon as custom 
+	 * serializer is written. 
+	 * @depricated
+	 */
+	public void setIndj(int[] indj) {
+		this.indj = indj;
+	}
+
+	/**
+	 * For compability with BeanSerializer only. Can be removed as soon as custom 
+	 * serializer is written. 
+	 * @depricated
+	 */
+	public int getNcols() {
+		return ncols;
+	}
+
+	/**
+	 * For compability with BeanSerializer only. Can be removed as soon as custom 
+	 * serializer is written. 
+	 * @depricated
+	 */
+	public void setNcols(int ncols) {
+		this.ncols = ncols;
+	}
+
+	/**
+	 * For compability with BeanSerializer only. Can be removed as soon as custom 
+	 * serializer is written. 
+	 * @depricated
+	 */
+	public int getNnz() {
+		return nnz;
+	}
+
+	/**
+	 * For compability with BeanSerializer only. Can be removed as soon as custom 
+	 * serializer is written. 
+	 * @depricated
+	 */
+	public void setNnz(int nnz) {
+		this.nnz = nnz;
+	}
+
+	/**
+	 * For compability with BeanSerializer only. Can be removed as soon as custom 
+	 * serializer is written. 
+	 * @depricated
+	 */
+	public int getNrows() {
+		return nrows;
+	}
+
+	/**
+	 * For compability with BeanSerializer only. Can be removed as soon as custom 
+	 * serializer is written. 
+	 * @depricated
+	 */
+	public void setNrows(int nrows) {
+		this.nrows = nrows;
+	}
+
+	/**
+	 * For compability with BeanSerializer only. Can be removed as soon as custom 
+	 * serializer is written. 
+	 * @depricated
+	 */
+	public double[] getVal() {
+		return val;
+	}
+
+	/**
+	 * For compability with BeanSerializer only. Can be removed as soon as custom 
+	 * serializer is written. 
+	 * @depricated
+	 */
+	public void setVal(double[] val) {
+		this.val = val;
+	}
+	
+	/* For Testing only 
 	public static void main(String[] args) throws Exception {
 		AssembledMatrix a = AssembledMatrix.readFromDisk();
 		a.plusSigmaTimesIdentity(9.99);
 		System.out.print(a.print());
 		a.writeToDisk("wrote.txt");
 	}
-	
+	*/
 }
