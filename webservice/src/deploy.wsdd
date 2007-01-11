@@ -20,7 +20,7 @@
       encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"
     />
     
-    <beanMapping qname="ns1:AssebledMatrix"
+    <beanMapping qname="ns1:AssembledMatrix"
     	languageSpecificType="java:ee.ut.math.doug.AssembledMatrix"
     />
 	<beanMapping qname="ns1:DoubleVector"

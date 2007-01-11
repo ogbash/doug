@@ -23,8 +23,6 @@ package ee.ut.math.doug;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.MalformedURLException;
-import java.rmi.RemoteException;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -42,10 +40,9 @@ import org.apache.axis.encoding.ser.BeanDeserializerFactory;
 import org.apache.axis.encoding.ser.BeanSerializerFactory;
 import org.apache.axis.encoding.ser.JAFDataHandlerDeserializerFactory;
 import org.apache.axis.encoding.ser.JAFDataHandlerSerializerFactory;
-import org.apache.axis.utils.Options;
 
 /**
- * Client for the DOUG webservice
+ * Client for the DOUG webservice.
  * 
  * @author Christian Poecher
  */
@@ -149,7 +146,7 @@ public class DougWSClient {
 		// TODO: Hardwired for now, change, use Option
 		call.setTargetEndpointAddress(Settings.ENDPOINT_ADRESS); 
 		call.setOperationName(new QName("urn:DougService",
-				"runAssebled")); // This is the target service's method to invoke.
+				"runAssembled")); // This is the target service's method to invoke.
 		
 		// Add serializer for attachment.
 		QName qnameAttachment = new QName("urn:DougService", "DataHandler");
@@ -158,12 +155,12 @@ public class DougWSClient {
 				JAFDataHandlerSerializerFactory.class,
 				JAFDataHandlerDeserializerFactory.class);
 		// Add (de-)serializer for AssebledMatrix.
-		QName qnameAssembledMatrix = new QName("urn:DougService", "AssebledMatrix");
+		QName qnameAssembledMatrix = new QName("urn:DougService", "AssembledMatrix");
 		call.registerTypeMapping(AssembledMatrix.class, qnameAssembledMatrix,
                 new BeanSerializerFactory(AssembledMatrix.class, qnameAssembledMatrix),        
                 new BeanDeserializerFactory(AssembledMatrix.class, qnameAssembledMatrix));
 		// Add (de-)serializer for DoubleVector.
-		QName qnameDoubleVector = new QName("urn:DougService", "AssebledMatrix");
+		QName qnameDoubleVector = new QName("urn:DougService", "DoubleVector");
 		call.registerTypeMapping(DoubleVector.class, qnameDoubleVector,
                 new BeanSerializerFactory(DoubleVector.class, qnameAssembledMatrix),        
                 new BeanDeserializerFactory(DoubleVector.class, qnameAssembledMatrix));
@@ -309,34 +306,34 @@ public class DougWSClient {
 	 *            optional parameters to specify service URI are: -h <host> -p
 	 *            <port>
 	 */
-	public static void main(String[] args) {
-		try {
-			Options options = new Options(args);
-			String endpoint = "http://" + options.getHost() + ":"
-					+ options.getPort() + "/axis/services/doug";
-
-			System.out.println("Calling Service on endpoint " + endpoint + ".");
-			Service service = new Service();
-			Call call = (Call) service.createCall();
-
-			call.setTargetEndpointAddress(new java.net.URL(endpoint));
-			call.setOperationName("runDoug");
-			call.setReturnClass(String[].class);
-
-			/* Call without parameters */
-			String[] output = (String[]) call.invoke(new Object[] {});
-
-			System.out.println(output[0]); // stdout -> stdout
-			System.err.println(output[1]); // stderr -> stderr
-		} catch (MalformedURLException e) {
-			System.err.println("Either host or port parameter are malformed.");
-			e.printStackTrace();
-		} catch (ServiceException e) {
-			System.err.println("Error while preparing service object.");
-			e.printStackTrace();
-		} catch (RemoteException e) {
-			System.err.println("Error in server or while parsing result occurred.");
-			e.printStackTrace();
-		}
-	}
+//	public static void main(String[] args) {
+//		try {
+//			Options options = new Options(args);
+//			String endpoint = "http://" + options.getHost() + ":"
+//					+ options.getPort() + "/axis/services/doug";
+//
+//			System.out.println("Calling Service on endpoint " + endpoint + ".");
+//			Service service = new Service();
+//			Call call = (Call) service.createCall();
+//
+//			call.setTargetEndpointAddress(new java.net.URL(endpoint));
+//			call.setOperationName("runDoug");
+//			call.setReturnClass(String[].class);
+//
+//			/* Call without parameters */
+//			String[] output = (String[]) call.invoke(new Object[] {});
+//
+//			System.out.println(output[0]); // stdout -> stdout
+//			System.err.println(output[1]); // stderr -> stderr
+//		} catch (MalformedURLException e) {
+//			System.err.println("Either host or port parameter are malformed.");
+//			e.printStackTrace();
+//		} catch (ServiceException e) {
+//			System.err.println("Error while preparing service object.");
+//			e.printStackTrace();
+//		} catch (RemoteException e) {
+//			System.err.println("Error in server or while parsing result occurred.");
+//			e.printStackTrace();
+//		}
+//	}
 }

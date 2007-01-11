@@ -20,14 +20,14 @@
 // mailto:info(at)dougdevel.org)
 
 package ee.ut.math.doug;
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.Reader;
 import java.util.Arrays;
 
 /**
- * 
- */
-
-/**
- * @author Christian P�cher
+ * @author Christian Poecher
  *
  * Standard mathematical vector of doubles. Also implements equality of
  * vectors in the usual mathemathical meaning.
@@ -142,5 +142,26 @@ public class DoubleVector {
 			buf.append(vector[i] + "\n");
 		}
 		return buf.toString();
+	}
+	
+	public static DoubleVector readFromReader(Reader r) throws IOException {
+		BufferedReader buf = new BufferedReader(r);
+		String s = buf.readLine();
+		s = s.trim();
+		int numOfElem = Integer.parseInt(s);
+		double[] solution = new double[numOfElem];
+		for (int i=0; i<numOfElem; i++) {
+			s = buf.readLine();
+			s = s.trim();
+			solution[i] = Double.parseDouble(s);
+		}
+		DoubleVector vector = new DoubleVector(solution);
+		return vector;
+	}
+	
+	public static DoubleVector readFromDisk(String fname) throws IOException {
+		FileReader reader = new FileReader(fname);
+		DoubleVector vector = readFromReader(reader);
+		return vector;
 	}
 }

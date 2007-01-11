@@ -275,8 +275,8 @@ public class AssembledMatrix {
 	 * @throws FileFormatException If the data is different, than expected.
 	 * @throws DougServiceException 
 	 */
-	public static AssembledMatrix readFromDisk(String file) throws IOException {
-		FileReader reader = new FileReader(file);
+	public static AssembledMatrix readFromDisk(String fname) throws IOException {
+		FileReader reader = new FileReader(fname);
 		AssembledMatrix m = readFromReader(reader);
 		return m;
 	}

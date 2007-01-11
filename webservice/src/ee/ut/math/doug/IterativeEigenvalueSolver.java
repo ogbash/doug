@@ -37,8 +37,7 @@ public class IterativeEigenvalueSolver {
 	 * @return EigenSpace with one Eigenvalue and at least one Eigenvector
 	 */
 	public EigenSpace inverseIteration(AssembledMatrix a, DoubleVector initialGuess, 
-			double shift, double error) throws IOException {
-		
+			double shift, double error) throws IOException, DougServiceException {
 		EigenSpace eSpace;
 		DoubleVector v,y;
 		double sigma;
@@ -63,9 +62,22 @@ public class IterativeEigenvalueSolver {
 	 * @param v the vector
 	 * @return the resultvector x
 	 */
-	private DoubleVector solve(AssembledMatrix a, DoubleVector v) {
-		DoubleVector x = null;
-		// TODO Code, rely on DougWSClient
+	private DoubleVector solve(AssembledMatrix a, DoubleVector v) throws IOException, DougServiceException {
+		//TODO: Change DougServiceException into domain internally Exception
+		DougWSClient ws = new DougWSClient();
+		DoubleVector x = ws.runAssebled(a, v);
 		return x;
+	}
+	
+	public static void main(String[] args) throws Exception {
+		AssembledMatrix a = AssembledMatrix.readFromDisk(args[0]);
+		DoubleVector initialGuess = DoubleVector.readFromDisk(args[1]);
+		//double shift = Double.parseDouble(args[2]);
+		//double error = Double.parseDouble(args[3]);
+		
+		IterativeEigenvalueSolver solver = new IterativeEigenvalueSolver();
+		DoubleVector vec = solver.solve(a, initialGuess);
+		//EigenSpace es = solver.inverseIteration(a, initialGuess, shift, error);
+		System.out.print(vec);
 	}
 }
