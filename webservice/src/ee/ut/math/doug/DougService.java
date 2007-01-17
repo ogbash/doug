@@ -35,7 +35,7 @@ import org.apache.commons.io.IOUtils;
  * 
  * @author Christian Poecher
  */
-public class DougService {
+public class DougService implements I_DougService {
 
     /* Dir and executable name fixed by producing WS for security reasons. */
     /* TODO: make editable properties file */
@@ -105,6 +105,9 @@ public class DougService {
         return output;
     }
 
+    /* (non-Javadoc)
+	 * @see ee.ut.math.doug.IDougService#runAssembled(ee.ut.math.doug.AssembledMatrix, ee.ut.math.doug.DoubleVector, javax.activation.DataHandler)
+	 */
     public DoubleVector runAssembled(AssembledMatrix matrix, DoubleVector rhs, DataHandler control_file) {
     	/* save files to working dir */
     	try {
@@ -147,6 +150,9 @@ public class DougService {
     	return solution;
     }
     
+    /* (non-Javadoc)
+	 * @see ee.ut.math.doug.IDougService#elementalToAssembled(javax.activation.DataHandler, javax.activation.DataHandler, javax.activation.DataHandler, javax.activation.DataHandler, javax.activation.DataHandler, javax.activation.DataHandler, javax.activation.DataHandler)
+	 */
     public AssembledMatrix elementalToAssembled(DataHandler freedom_lists_file,
     		DataHandler elemmat_rhs_file, DataHandler coords_file,
     		DataHandler freemap_file, DataHandler freedom_mask_file,
