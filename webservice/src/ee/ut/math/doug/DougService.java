@@ -40,7 +40,7 @@ public class DougService {
     /* Dir and executable name fixed by producing WS for security reasons. */
     /* TODO: make editable properties file */
     private static final String WORKING_DIR = "/home/poecher/working/";
-    private static final String NO_OF_PROCESSES = "4";
+    private static final String NO_OF_PROCESSES = "1"; //TODO: buggy with #nodes > 1
     private static final String DOUG_MAIN_EXECUTABLE = "DOUG_main";
     private static final String DOUG_AGGR_EXECUTABLE = "DOUG_aggr";
     private static final String[] EXE_CONV = {"mpirun", "-np", "1", DOUG_MAIN_EXECUTABLE, "-q"}; // TODO: better run DOUG without mpirun, but cannot find file. why?
@@ -104,11 +104,12 @@ public class DougService {
         }
         return output;
     }
-    
-    public DoubleVector runAssebled(AssembledMatrix matrix, DataHandler control_file) {
+
+    public DoubleVector runAssembled(AssembledMatrix matrix, DoubleVector rhs, DataHandler control_file) {
     	/* save files to working dir */
     	try {
 	    	matrix.writeToDisk(WORKING_DIR + Settings.ASSEMBLED_MTX_FILE);
+	    	rhs.writeToDisk(WORKING_DIR + Settings.RHS_FILE);
 	    	writeFile(control_file, WORKING_DIR + Settings.CONTROL_FILE);
     	} catch (IOException e) {
     		//TODO: Fault

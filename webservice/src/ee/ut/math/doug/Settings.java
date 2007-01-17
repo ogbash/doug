@@ -42,5 +42,7 @@ public interface Settings {
 	public static final String SOLUTION_FILE = "solution.file";
 	public static final String DUMP_MATRIX_FILE = "assembled.txt";
 	public static final String ASSEMBLED_MTX_FILE = "assembled.txt";
+	public static final String RHS_FILE = "rhs.txt";
 	public static final String ENDPOINT_ADRESS = "http://localhost:8080/axis/services/DougService";
+	public static final String NAMESPACE_ID = "http://doug.math.ut.ee/";
 }

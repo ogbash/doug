@@ -22,6 +22,7 @@
 package ee.ut.math.doug;
 import java.io.BufferedReader;
 import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Reader;
 import java.util.Arrays;
@@ -142,6 +143,19 @@ public class DoubleVector {
 			buf.append(vector[i] + "\n");
 		}
 		return buf.toString();
+	}
+	
+	/**
+	 * Writes vector to file. Uses same format as
+	 * DOUG uses for input/solution file.
+	 * 
+	 * @throws IOException
+	 */
+	public void writeToDisk(String fname) throws IOException {
+		FileWriter writer = new FileWriter(fname, false);
+		writer.write(this.toString());
+		writer.flush();
+		writer.close();
 	}
 	
 	public static DoubleVector readFromReader(Reader r) throws IOException {

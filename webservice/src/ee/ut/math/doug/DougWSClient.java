@@ -69,12 +69,14 @@ public class DougWSClient {
 		buf.append("number_of_blocks 1\n");
 		buf.append("initial_guess 2\n");
 		buf.append("solve_tolerance 1.0e-6\n");
-		buf.append("solution_format 2\n");
+		buf.append("solution_format 0\n");
 		buf.append("solution_file " + Settings.SOLUTION_FILE +"\n");
 		buf.append("debug 0\n");
 		buf.append("verbose 1\n");
 		buf.append("plotting 3\n");
 		buf.append("assembled_mtx_file " + Settings.ASSEMBLED_MTX_FILE + "\n");
+		buf.append("assembled_rhs_file " + Settings.RHS_FILE + "\n");
+        buf.append("assembled_rhs_format 0");
 		return buf.toString();
 	}
 
@@ -145,25 +147,25 @@ public class DougWSClient {
 		}
 		// TODO: Hardwired for now, change, use Option
 		call.setTargetEndpointAddress(Settings.ENDPOINT_ADRESS); 
-		call.setOperationName(new QName("urn:DougService",
+		call.setOperationName(new QName(Settings.NAMESPACE_ID,
 				"runAssembled")); // This is the target service's method to invoke.
 		
-		// Add serializer for attachment.
-		QName qnameAttachment = new QName("urn:DougService", "DataHandler");
-		call.registerTypeMapping(
-				controlHandler.getClass(), qnameAttachment, 
-				JAFDataHandlerSerializerFactory.class,
-				JAFDataHandlerDeserializerFactory.class);
 		// Add (de-)serializer for AssebledMatrix.
-		QName qnameAssembledMatrix = new QName("urn:DougService", "AssembledMatrix");
+		QName qnameAssembledMatrix = new QName(Settings.NAMESPACE_ID, "AssembledMatrix");
 		call.registerTypeMapping(AssembledMatrix.class, qnameAssembledMatrix,
                 new BeanSerializerFactory(AssembledMatrix.class, qnameAssembledMatrix),        
                 new BeanDeserializerFactory(AssembledMatrix.class, qnameAssembledMatrix));
 		// Add (de-)serializer for DoubleVector.
-		QName qnameDoubleVector = new QName("urn:DougService", "DoubleVector");
+		QName qnameDoubleVector = new QName(Settings.NAMESPACE_ID, "DoubleVector");
 		call.registerTypeMapping(DoubleVector.class, qnameDoubleVector,
-                new BeanSerializerFactory(DoubleVector.class, qnameAssembledMatrix),        
-                new BeanDeserializerFactory(DoubleVector.class, qnameAssembledMatrix));
+                new BeanSerializerFactory(DoubleVector.class, qnameDoubleVector),        
+                new BeanDeserializerFactory(DoubleVector.class, qnameDoubleVector));
+		// Add serializer for attachment.
+		QName qnameAttachment = new QName(Settings.NAMESPACE_ID, "DataHandler");
+		call.registerTypeMapping(
+				controlHandler.getClass(), qnameAttachment, 
+				JAFDataHandlerSerializerFactory.class,
+				JAFDataHandlerDeserializerFactory.class);
 		
 		call.addParameter("a", qnameAssembledMatrix, ParameterMode.IN);
 		call.addParameter("b", qnameDoubleVector, ParameterMode.IN);
@@ -250,16 +252,16 @@ public class DougWSClient {
 		}
 		// TODO: Hardwired for now, change, use Option
 		call.setTargetEndpointAddress(Settings.ENDPOINT_ADRESS); 
-		call.setOperationName(new QName("urn:DougService",
+		call.setOperationName(new QName(Settings.NAMESPACE_ID,
 				"elementalToAssembled")); // This is the target service's method to invoke.
 		// Add (de-)serializer for attachment.
-		QName qnameAttachment = new QName("urn:DougService", "DataHandler");
+		QName qnameAttachment = new QName(Settings.NAMESPACE_ID, "DataHandler");
 		call.registerTypeMapping(
 				attachments[0].getClass(), qnameAttachment, 
 				JAFDataHandlerSerializerFactory.class,
 				JAFDataHandlerDeserializerFactory.class);
 		// Add (de-)serializer for AssebledMatrix.
-		QName qnameAssembledMatrix = new QName("urn:DougService", "AssembledMatrix");
+		QName qnameAssembledMatrix = new QName(Settings.NAMESPACE_ID, "AssembledMatrix");
 		call.registerTypeMapping(AssembledMatrix.class, qnameAssembledMatrix,
                 new BeanSerializerFactory(AssembledMatrix.class, qnameAssembledMatrix),        
                 new BeanDeserializerFactory(AssembledMatrix.class, qnameAssembledMatrix));
