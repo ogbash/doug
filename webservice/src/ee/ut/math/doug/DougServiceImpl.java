@@ -35,7 +35,7 @@ import org.apache.commons.io.IOUtils;
  * 
  * @author Christian Poecher
  */
-public class DougService implements I_DougService {
+public class DougServiceImpl implements DougService {
 
     /* Dir and executable name fixed by producing WS for security reasons. */
     /* TODO: make editable properties file */
