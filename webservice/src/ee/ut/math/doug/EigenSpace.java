@@ -21,6 +21,7 @@
 
 package ee.ut.math.doug;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Set;
 
 /**
@@ -56,5 +57,16 @@ public class EigenSpace {
 	
 	public EigenSpace(double eigenvalue) {
 		setEigenValue(eigenvalue);
+	}
+	
+	public String toString() {
+		StringBuffer buf = new StringBuffer();
+		buf.append("Eigenvalue: " + eigenValue + "\n");
+		Iterator iter = eigenVectors.iterator();
+		while (iter.hasNext()) {
+			buf.append("Eigenvector:\n");
+			buf.append(iter.next().toString());
+		}
+		return buf.toString();
 	}
 }

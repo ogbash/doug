@@ -51,6 +51,9 @@ public class DougService implements I_DougService {
     /**
      * Starts DOUG synchronously and returns stdout and stderr. 
      * 
+     * @deprecated Does not handle result correctly, if too large since it relies
+     * on the output to stdout. Use runAssebled or write a new method similar
+     * to it.
      * @return String array consisting of stdout and stderr.
      */
     public String[] runDoug() {

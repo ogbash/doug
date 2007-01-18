@@ -36,15 +36,19 @@ public class IterativeEigenvalueSolver implements I_IterativeEigenvalueSolver {
 			double shift, double error) throws IOException, DougServiceException {
 		EigenSpace eSpace;
 		DoubleVector v,y;
-		double sigma;
+		double sigma, left, right;
+		int iteration = 0;
 		
 		y = initialGuess;
 		a.plusSigmaTimesIdentity(shift * -1.0);
 		while (true) {
+			System.out.println("Iteration " + iteration++);
 			v = y.div( y.norm() );
 			y = solve(a, v);
 			sigma = y.timesVector(v);
-			if (y.minus(v.timesScalar(sigma)).norm() <= error * Math.abs(sigma))
+			left = y.minus(v.timesScalar(sigma)).norm();
+			right = error * Math.abs(sigma);
+			if (left <= right)
 				break;
 		}
 		eSpace = new EigenSpace(shift + 1 / sigma);
@@ -65,15 +69,41 @@ public class IterativeEigenvalueSolver implements I_IterativeEigenvalueSolver {
 		return x;
 	}
 	
+	private void test() {
+		AssembledMatrix a = new AssembledMatrix(9, 3, 3);
+		a.addElement(1, 1, 2.23);
+		a.addElement(1,2, 1.15);
+		a.addElement(1,3, 1.77);
+		a.addElement(2,1, -1.15);
+		a.addElement(2, 2, 9.25);
+		a.addElement(2,3, -2.13);
+		a.addElement(3,1, 1.77);
+		a.addElement(3,2, 2.13);
+		a.addElement(3, 3, 1.56);
+		
+		DoubleVector initialGuess = new DoubleVector(new double[] {1,0,0});
+		double shift = 10;
+		double error = 0.1;
+		
+		IterativeEigenvalueSolver solver = new IterativeEigenvalueSolver();
+		
+		try {
+			EigenSpace es = solver.inverseIteration(a, initialGuess, shift, error);
+			System.out.print(es);
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		
+	}
+	
 	public static void main(String[] args) throws Exception {
 		AssembledMatrix a = AssembledMatrix.readFromDisk(args[0]);
 		DoubleVector initialGuess = DoubleVector.readFromDisk(args[1]);
-		//double shift = Double.parseDouble(args[2]);
-		//double error = Double.parseDouble(args[3]);
+		double shift = Double.parseDouble(args[2]);
+		double error = Double.parseDouble(args[3]);
 		
 		IterativeEigenvalueSolver solver = new IterativeEigenvalueSolver();
-		DoubleVector vec = solver.solve(a, initialGuess);
-		//EigenSpace es = solver.inverseIteration(a, initialGuess, shift, error);
-		System.out.print(vec);
+		EigenSpace es = solver.inverseIteration(a, initialGuess, shift, error);
+		System.out.print(es);
 	}
 }
