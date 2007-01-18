@@ -18,7 +18,7 @@
 // or contact the authors (University of Tartu, Faculty of Computer Science, Chair
 // of Distributed Systems, Liivi 2, 50409 Tartu, Estonia, http://dougdevel.org,
 // mailto:info(at)dougdevel.org)
-
+   
 package ee.ut.math.doug;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -35,7 +35,7 @@ import org.apache.commons.io.IOUtils;
  * 
  * @author Christian Poecher
  */
-public class DougServiceImpl implements DougService {
+public class DougService implements I_DougService {
 
     /* Dir and executable name fixed by producing WS for security reasons. */
     /* TODO: make editable properties file */
