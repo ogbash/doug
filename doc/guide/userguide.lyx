@@ -1,17 +1,13 @@
-#LyX 1.4.2 created this file. For more info see http://www.lyx.org/
+#LyX 1.4.3-5 created this file. For more info see http://www.lyx.org/
 \lyxformat 245
 \begin_document
 \begin_header
-\textclass report
-\begin_preamble
-\usepackage{pstricks}
-\end_preamble
+\textclass article
 \language english
 \inputencoding auto
 \fontscheme default
 \graphics default
 \paperfontsize default
-\spacing single
 \papersize default
 \use_geometry false
 \use_amsmath 1
@@ -27,13 +23,33 @@
 \papersides 1
 \paperpagestyle default
 \tracking_changes false
-\output_changes false
+\output_changes true
 \end_header
 
 \begin_body
 
+\begin_layout Title
+DOUG - Domain Decomposition on Unstructured Grids
+\end_layout
+
+\begin_layout Title
+User Guide
+\end_layout
+
 \begin_layout Section
-A brief introduction
+Contents
+\end_layout
+
+\begin_layout Standard
+\begin_inset LatexCommand \tableofcontents{}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Section
+Introduction
 \end_layout
 
 \begin_layout Standard
@@ -57,68 +73,48 @@ By itself DOUG is NOT a package for solving PDEs using finite element methods,
  in order to be used in this way a finite element package must also be found.
 \end_layout
 
-\begin_layout Standard
-For more extensive details on the methods used in DOUG see the technical
- report 
-\shape italic
-Automatic Domain Decomposition on Unstructured Grids (DOUG)
-\shape default
- by M.J.
- Hagger, available at 
-\family typewriter
-www.maths.bath.ac.uk/MATHEMATICS/preprints.html
-\family default
- (preprint # maths9706), or by ftp from 
-\family typewriter
-ftp.maths.bath.ac.uk
-\family default
-.
- The report will also appear in 
-\begin_inset Quotes els
-\end_inset
-
-Advances in Computational Mathematics'.
-\end_layout
-
 \begin_layout Section
-Installing DOUG
-\end_layout
-
-\begin_layout Section
-Running an MPI program
-\end_layout
-
-\begin_layout Section
-Running DOUG
-\end_layout
-
-\begin_layout Section
-The DOUG data files
-\end_layout
-
-\begin_layout Standard
-\begin_inset LatexCommand \label{sec:files}
-
-\end_inset
-
- Input of the linear system to DOUG is via the format produced, at some
- stage, by most finite element codes.
- The stiffness matrix is not assembled but is instead input to DOUG in the
- form of the element stiffness matrices, together with element right hand
- side vectors.
- (The element right hand side vectors are simply the combination of the
- element load vectors and any Dirichlet boundary conditions that apply to
- that element.) For example in 2D using linear basis functions on triangles,
- this would mean that we have 
-\begin_inset Formula $3\times3$
-\end_inset
-
- matrices, each with a corresponding vector of size 3.
- This is illustrated in the following example.
+Installation
 \end_layout
 
 \begin_layout Subsection
-A finite element method example
+Prerequisites
+\end_layout
+
+\begin_layout Subsection
+Configuration
+\end_layout
+
+\begin_layout Subsection
+Compilation
+\end_layout
+
+\begin_layout Section
+Using DOUG
+\end_layout
+
+\begin_layout Subsection
+Running DOUG
+\end_layout
+
+\begin_layout Subsection
+Configuration file format
+\end_layout
+
+\begin_layout Subsection
+Input files formats
+\end_layout
+
+\begin_layout Subsection
+Output file formats
+\end_layout
+
+\begin_layout Subsection
+Examples
+\end_layout
+
+\begin_layout Subsubsection
+Simple FEM problem
 \end_layout
 
 \begin_layout Standard
@@ -218,6 +214,38 @@ status open
 \begin_layout Caption
 Simple mesh, showing node and element numbers
 \end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Subsubsection
+Using FreeFEM++ package for creating sparse linear system
+\end_layout
+
+\begin_layout Section
+DOUG Internals
+\end_layout
+
+\begin_layout Subsection
+Domain Decomposition methods
+\end_layout
+
+\begin_layout Subsection
+Solvers
+\end_layout
+
+\begin_layout Subsection
+Sequence of execution
+\end_layout
+
+\begin_layout Section
+Bibliography
+\end_layout
+
+\begin_layout Standard
+\begin_inset LatexCommand \bibtex[plain]{}
 
 \end_inset
 
