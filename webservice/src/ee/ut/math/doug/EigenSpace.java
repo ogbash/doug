@@ -59,6 +59,14 @@ public class EigenSpace {
 		setEigenValue(eigenvalue);
 	}
 	
+	/**
+	 * For compability with BeanSerializer only. Can be removed as soon as custom 
+	 * serializer is written. 
+	 * @depricated
+	 */
+	public EigenSpace() {
+	}
+	
 	public String toString() {
 		StringBuffer buf = new StringBuffer();
 		buf.append("Eigenvalue: " + eigenValue + "\n");

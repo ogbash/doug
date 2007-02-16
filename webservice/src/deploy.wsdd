@@ -29,8 +29,8 @@
   </service>
   
   <service name="IterativeEigenvalueSolver" provider="java:RPC">
-    <parameter name="className" value="ee.ut.math.doug.DougWsGui"/>
-    <name="allowedMethods" value="*"/>
+    <parameter name="className" value="ee.ut.math.doug.IterativeEigenvalueSolver"/>
+    <parameter name="allowedMethods" value="*"/>
     <beanMapping qname="ns1:AssembledMatrix"
     	languageSpecificType="java:ee.ut.math.doug.AssembledMatrix"
     />
@@ -40,4 +40,5 @@
     <beanMapping qname="ns1:EigenSpace"
     	languageSpecificType="java:ee.ut.math.doug.EigenSpace"
     />
+  </service>
 </deployment>

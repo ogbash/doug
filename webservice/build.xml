@@ -27,11 +27,9 @@
 	</target>
 
 	<target name="deployServer" depends="compile" description="put the files into Axis classes directory">
-		<!-- Copy all files except those with "Client" in their name to ${serverTarget} -->
+		<!-- Copy all files in their name to ${serverTarget} regardless, if they are for the server or not.-->
 		<copy todir="${serverTarget}">
-			<fileset dir="${build}">
-				<exclude name="**/*Client*"/>
-			</fileset>
+			<fileset dir="${build}"/>
 		</copy>
 	</target>
 

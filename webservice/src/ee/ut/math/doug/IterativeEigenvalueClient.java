@@ -16,7 +16,7 @@ import org.apache.axis.encoding.ser.BeanDeserializerFactory;
 import org.apache.axis.encoding.ser.BeanSerializerFactory;
 
 /**
- * @author Christian Pšcher
+ * @author Christian Pï¿½cher
  * 
  */
 public class IterativeEigenvalueClient {
@@ -68,8 +68,8 @@ public class IterativeEigenvalueClient {
 		call.setReturnType(qnameEigenSpace);
 
 		/* invoke call */
-		Object ret = call.invoke(new Object[] { matrix, initialGuess, shift,
-				error });
+		Object ret = call.invoke(new Object[] { matrix, initialGuess,
+				new Double(shift), new Double(error) });
 
 		/* sanity check return data */
 		if (null == ret) {

@@ -145,7 +145,8 @@ public class DougWsGui extends JPanel implements ActionListener {
     	} else if ("ok".equals(e.getActionCommand())) {
     		try {
     			validateData();
-    			execute();
+    			EigenSpace result = execute();
+    			showResultMsg(result);
     		} catch (ValidationException ex) {
     			printErrorMsg(ex.getMessage());
     		} catch (IOException ex) {
@@ -158,7 +159,14 @@ public class DougWsGui extends JPanel implements ActionListener {
     	}
     }
     
-    /**
+    private void showResultMsg(EigenSpace result) {
+    	String message = "The calulated result is:\n" + result.toString();
+		JOptionPane.showMessageDialog(this,
+    		    message, "Result", JOptionPane.OK_OPTION);
+		
+	}
+
+	/**
      * Check if data entered makes sense.
      * 
      * @throws ValidationException if and only if data is not valid
