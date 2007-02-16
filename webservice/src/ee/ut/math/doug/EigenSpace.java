@@ -69,4 +69,13 @@ public class EigenSpace {
 		}
 		return buf.toString();
 	}
+
+	/**
+	 * For compability with BeanSerializer only. Can be removed as soon as custom 
+	 * serializer is written. 
+	 * @depricated
+	 */
+	public void setEigenVectors(Set eigenVectors) {
+		this.eigenVectors = eigenVectors;
+	}
 }

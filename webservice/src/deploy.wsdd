@@ -27,4 +27,17 @@
     	languageSpecificType="java:ee.ut.math.doug.DoubleVector"
     />
   </service>
+  
+  <service name="IterativeEigenvalueSolver" provider="java:RPC">
+    <parameter name="className" value="ee.ut.math.doug.DougWsGui"/>
+    <name="allowedMethods" value="*"/>
+    <beanMapping qname="ns1:AssembledMatrix"
+    	languageSpecificType="java:ee.ut.math.doug.AssembledMatrix"
+    />
+	<beanMapping qname="ns1:DoubleVector"
+    	languageSpecificType="java:ee.ut.math.doug.DoubleVector"
+    />
+    <beanMapping qname="ns1:EigenSpace"
+    	languageSpecificType="java:ee.ut.math.doug.EigenSpace"
+    />
 </deployment>

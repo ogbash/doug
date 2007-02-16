@@ -146,7 +146,7 @@ public class DougWSClient {
 			throw new DougServiceException(e.getMessage(), e);
 		}
 		// TODO: Hardwired for now, change, use Option
-		call.setTargetEndpointAddress(Settings.ENDPOINT_ADRESS); 
+		call.setTargetEndpointAddress(Settings.ENDPOINT_ADRESS_DOUG); 
 		call.setOperationName(new QName(Settings.NAMESPACE_ID,
 				"runAssembled")); // This is the target service's method to invoke.
 		
@@ -251,7 +251,7 @@ public class DougWSClient {
 			throw new DougServiceException(e.getMessage(), e);
 		}
 		// TODO: Hardwired for now, change, use Option
-		call.setTargetEndpointAddress(Settings.ENDPOINT_ADRESS); 
+		call.setTargetEndpointAddress(Settings.ENDPOINT_ADRESS_DOUG); 
 		call.setOperationName(new QName(Settings.NAMESPACE_ID,
 				"elementalToAssembled")); // This is the target service's method to invoke.
 		// Add (de-)serializer for attachment.

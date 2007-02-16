@@ -148,6 +148,10 @@ public class DougWsGui extends JPanel implements ActionListener {
     			execute();
     		} catch (ValidationException ex) {
     			printErrorMsg(ex.getMessage());
+    		} catch (IOException ex) {
+    			printErrorMsg(ex.getMessage());
+    		} catch (IterativeEVServiceException ex) {
+    			printErrorMsg(ex.getMessage());
     		}
     	} else {
     		System.err.println("invalid ActionCommand recieved");
@@ -180,9 +184,15 @@ public class DougWsGui extends JPanel implements ActionListener {
 
 	/**
      * Starts the calculation.
+	 * @throws IterativeEVServiceException 
      */
-    private void execute() {
-		
+    private EigenSpace execute() throws IOException, IterativeEVServiceException {
+		AssembledMatrix m = AssembledMatrix.readFromDisk(txtMatrix.getText());
+		DoubleVector b = DoubleVector.readFromDisk(txtGuess.getText());
+		double shift = Double.parseDouble(txtShift.getText());
+		double error = Double.parseDouble(txtError.getText());
+		IterativeEigenvalueClient client = new IterativeEigenvalueClient();
+		return client.runSolver(m, b, shift, error);
 	}
 
     /**
