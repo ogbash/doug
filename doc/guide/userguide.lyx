@@ -1,4 +1,4 @@
-#LyX 1.4.3-5 created this file. For more info see http://www.lyx.org/
+#LyX 1.4.3 created this file. For more info see http://www.lyx.org/
 \lyxformat 245
 \begin_document
 \begin_header
@@ -105,8 +105,351 @@ Configuration file format
 Input files formats
 \end_layout
 
+\begin_layout Subsubsection
+Introduction
+\end_layout
+
+\begin_layout Standard
+DOUG supports input files in various formats (both text based and binary).
+ This section describes format of DOUG input and output files and presents
+ few examples how to generate them or read them.
+ DOUG can be used with both assembled matrices and with element matrices
+ (usually produced by FEM software).
+ 
+\end_layout
+
+\begin_layout Standard
+Note: DOUG is written in Fortran 95 and uses Fortran unformatted IO for
+ reading elemental input files.
+ This may be incompatible with applications producing DOUG input (or application
+s consuming DOUG output) if applications are compiled with different Fortran
+ compilers (or data files are used across multiple architectures).
+ In that case user may need to store input files in a platform-independent
+ format and convert them to valid host-specific unformatted files on host
+ computers.
+\end_layout
+
+\begin_layout Subsubsection
+Assembled format
+\end_layout
+
+\begin_layout Standard
+Assembled format is specified by setting parameter 'input_type' to 2 in
+ DOUG control file.
+ Matrix file in sparse text format is specified using 'assembled_mtx_file'
+ parameter.
+ The first row in the file should contain 2 integers - the number of freedoms
+ in the system and the number of following non-zero matrix elements.
+ Each of the following lines should contain the row and column number and
+ value for the non-zero elements (row and column numbers are indexed starting
+ from 1).
+\end_layout
+
+\begin_layout Standard
+For example, 2x2 identity matrix is described as:
+\end_layout
+
+\begin_layout LyX-Code
+2 2
+\end_layout
+
+\begin_layout LyX-Code
+1 1 1.0
+\end_layout
+
+\begin_layout LyX-Code
+2 2 1.0
+\end_layout
+
+\begin_layout Standard
+System RHS vector file is specified using 'assembled_rhs_file' parameter.
+ Its format depends on 'assembled_rhs_format' parameter.
+ If 0, then RHS vector is specified in text format as a dense array.
+ The first line must contain the dimension of the vector (note: must be
+ same as the dimension of the matrix!).
+ Following lines contain vector component values.
+\end_layout
+
+\begin_layout Standard
+For example, 2d vector (5, 1) is described as:
+\end_layout
+
+\begin_layout LyX-Code
+2
+\end_layout
+
+\begin_layout LyX-Code
+5.0
+\end_layout
+
+\begin_layout LyX-Code
+1.0
+\end_layout
+
+\begin_layout Standard
+If the value of 'assembled_rhs_format' is 1, then the RHS vector is assumed
+ to be in unformatted binary format.
+ 
+\end_layout
+
+\begin_layout Subsubsection
+Elemental format
+\end_layout
+
+\begin_layout Standard
+Elemental format is specified by setting parameter 'input_type' to 1 in
+ DOUG configuration file.
+ If elemental format is used, then user must specify at least 3 data files:
+ mesh info file, freedom lists file and file containing element values and
+ RHS vector values.
+ With elemental format, full system matrix is presented indirectly - the
+ full system matrix can be extracted by summing all element matrices together
+ (with corresponding node remapping).
+ In elemental format the RHS vector is also associated with elements and
+ when summed together, forms the final RHS vector.
+ So, both matrix and RHS vector data are contained in a single file.
+\end_layout
+
+\begin_layout Subsubsection
+Mesh info file
+\end_layout
+
+\begin_layout Standard
+Mesh info file is specified by parameter 'info_file'.
+ The file is in binary format and must contain 5 INTEGERs stored as one
+ continous record:
+\end_layout
+
+\begin_layout LyX-Code
+NELL NGF NSD MFRELT NNODE
+\end_layout
+
+\begin_layout Standard
+This file provides information about the finite element mesh, in particular
+ the number of elements (NELL), the number of freedoms (NGF), the spatial
+ dimension (NSD), (i.e.
+ 2 or 3), the maximum number of freedoms on an element (MFRELT), and the
+ number of nodes in the finite element grid (NNODE).
+ 
+\end_layout
+
+\begin_layout Subsubsection
+Freedom lists file
+\end_layout
+
+\begin_layout Standard
+Freedom lists file is specified by 'freedom_lists_file' parameter.
+ This file provides, for each element, the number of freedoms that lie on
+ the element, followed by a list of the freedom numbers.
+ For each element el (1..NELL), these INTEGER entries are stored as one record
+ in the following format 
+\end_layout
+
+\begin_layout LyX-Code
+NELFR(el) FREELIST(1,el) FREELIST(2,el) ..
+ FREELIST(NELFR(el),el)
+\end_layout
+
+\begin_layout Standard
+Example for generating the file
+\end_layout
+
+\begin_layout LyX-Code
+open(iounit, FILE='freelists', STATUS='OLD', FORM='UNFORMATTED')
+\end_layout
+
+\begin_layout LyX-Code
+do el=1,NELL
+\end_layout
+
+\begin_layout LyX-Code
+  write (iounit) NELFR(el), (FREELIST(k,el), k=1,NELFR(el))
+\end_layout
+
+\begin_layout LyX-Code
+end do
+\end_layout
+
+\begin_layout LyX-Code
+close(iounit)
+\end_layout
+
+\begin_layout Subsubsection
+Element and RHS vector file
+\end_layout
+
+\begin_layout Standard
+Both matrix and RHS vector are specified by parameter 'elemmat_rhs_file'.
+ The file must contain element values for each element freedoms followed
+ by the corresponding right hand side of the element.
+ Element row values and RHS vector values are written as sequences of DOUBLE
+ PRECISION values.
+ For each element el (1..NELL), the file should contain following values
+\end_layout
+
+\begin_layout LyX-Code
+ELEM(1,1,el) ELEM(2,1,el) ..
+ ELEM(NELFR(el),1,el)
+\end_layout
+
+\begin_layout LyX-Code
+ELEM(1,2,el) ELEM(2,2,el) ..
+ ELEM(NELFR(el),2,el)
+\end_layout
+
+\begin_layout LyX-Code
+..
+\end_layout
+
+\begin_layout LyX-Code
+ELEM(1,NELFR(el),el) ELEM(2,NELFR(el),el) ..
+ ELEM(NELFR(el),NELFR(el),el)
+\end_layout
+
+\begin_layout LyX-Code
+RHS(1,el) RHS(2,el) ..
+ RHS(NELFR(el), el)
+\end_layout
+
+\begin_layout Standard
+Example for generating the file
+\end_layout
+
+\begin_layout LyX-Code
+open(iounit, FILE='elemmat_rhs', STATUS='OLD', FORM='UNFORMATTED')
+\end_layout
+
+\begin_layout LyX-Code
+do el=1,NELL
+\end_layout
+
+\begin_layout LyX-Code
+  do j=1,NELFR(el)
+\end_layout
+
+\begin_layout LyX-Code
+    write (iounit) (ELEM(k,j,el), k=1,NELFR(el))
+\end_layout
+
+\begin_layout LyX-Code
+  end do
+\end_layout
+
+\begin_layout LyX-Code
+  write (iounit) (RHS(k, el), k=1,NELFR(el))
+\end_layout
+
+\begin_layout LyX-Code
+end do
+\end_layout
+
+\begin_layout LyX-Code
+close(iounit)
+\end_layout
+
+\begin_layout Subsubsection
+Mesh coordinate file
+\end_layout
+
+\begin_layout Standard
+Mesh coordinate file is specified by parameter 'coords_file'.
+ This file provides the spatial location of the nodes in the finite element
+ grid.
+ The format is DOUBLE PRECISION and the entries are stored in one continuous
+ record as 
+\end_layout
+
+\begin_layout LyX-Code
+XYZ(1,1) ..
+ XYZ(NSD,1) XYZ(1,2) ..
+ XYZ(NSD,2) ..
+ ..
+ XYZ(NSD,NNODE).
+\end_layout
+
+\begin_layout Standard
+This file is optional.
+\end_layout
+
+\begin_layout Subsubsection
+Freedom mapping file
+\end_layout
+
+\begin_layout Standard
+DOUG supports custom mapping of freedoms to nodes.
+ In the general case NGF may be smaller than NNODE.
+ If 'freemap_file' is specified (optional), then this file must contain
+ node number for each freedom.
+ The file must contain a single continous record of INTEGERs in the following
+ format
+\end_layout
+
+\begin_layout LyX-Code
+FREEMAP(1) FREEMAP(2) ..
+ FREEMAP(NGF)
+\end_layout
+
+\begin_layout Standard
+If 'freemap_file' parameter is not specified, then it is assumed that freedoms
+ 1..NGF correspond to nodes 1..NGF.
+\end_layout
+
+\begin_layout Subsubsection
+Freedom mask file
+\end_layout
+
+\begin_layout Standard
+Optional parameter, specified by 'freedom_mask_file'.
+ Currently unused, reserved for future.
+\end_layout
+
 \begin_layout Subsection
 Output file formats
+\end_layout
+
+\begin_layout Standard
+DOUG can output solution vector in both text and binary formats.
+ The name of the output file is specified by 'solution_file' parameter and
+ its format by 'solution_format' parameter.
+\end_layout
+
+\begin_layout Subsubsection
+Text format
+\end_layout
+
+\begin_layout Standard
+If 'solution_format' is set to 0, output file is written in text format.
+ The first row contains the size of the vector and each following row in
+ the output file corresponds to a single node value of the solution.
+ For example, solution vector (3,5) is written as
+\end_layout
+
+\begin_layout LyX-Code
+2
+\end_layout
+
+\begin_layout LyX-Code
+3.0
+\end_layout
+
+\begin_layout LyX-Code
+5.0
+\end_layout
+
+\begin_layout Subsubsection
+Binary format
+\end_layout
+
+\begin_layout Standard
+Solution is written in unformatted binary format when 'solution_format'
+ is set to 1.
+ Solution is written as a single continuous record of DOUBLE PRECISION reals
+ in the following format
+\end_layout
+
+\begin_layout LyX-Code
+X(1) X(2) ..
+ X(NNODE)
 \end_layout
 
 \begin_layout Subsection
