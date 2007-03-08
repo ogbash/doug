@@ -640,36 +640,35 @@ if (bugtrack)call Print_Glob_Vect(tmpsol,M,'tmpsol===',chk_endind=M%ninner)
     end do
   end subroutine msolve
 
+  !--------------------------
+  !> Preconditioned conjugent gradient method with eigenvalues
+  !--------------------------
   subroutine pcg_weigs (A,b,x,Msh,it,cond_num,A_interf_,tol_,maxit_, &
        x0_,solinf,resvects_,CoarseMtx_,Restrict,refactor_)
     use CoarseAllgathers
 
     implicit none
     
-    type(SpMtx),intent(in out) :: A ! System matrix (sparse)
-    float(kind=rk),dimension(:),pointer :: b ! RHS
-    float(kind=rk),dimension(:),pointer :: x ! Solution
-    ! Mesh - aux data for Ax operation
-    type(Mesh),intent(in) :: Msh
+    type(SpMtx),intent(in out)          :: A !< System matrix (sparse)
+    float(kind=rk),dimension(:),pointer :: b !< RHS
+    float(kind=rk),dimension(:),pointer :: x !< Solution
+    type(Mesh),intent(in)               :: Msh !< Mesh - aux data for Ax operation
 
     integer,intent(out) :: it
     real(kind=rk),intent(out) :: cond_num
+    
     ! Optional arguments
-    type(SpMtx),intent(in out),optional :: A_interf_ !matr@interf. 
-    ! Tolerance of the method
-    real(kind=rk),          intent(in), optional :: tol_
-    ! Max number of iterations
-    integer,                intent(in), optional :: maxit_
-    ! Initial guess
-    float(kind=rk), dimension(:), intent(in), optional :: x0_
-    ! Solution statistics
-    type(ConvInf),            intent(in out), optional :: solinf
-    ! Fill in the 'resvect' or not
-    logical,                      intent(in), optional :: resvects_
-    type(SpMtx),optional :: CoarseMtx_ ! Coarse matrix
-    type(SpMtx),optional :: Restrict ! Restriction mtx
-
-    logical,intent(in),optional :: refactor_
+    type(SpMtx),intent(in out),optional                :: A_interf_ !< matr@interf. 
+    real(kind=rk), intent(in), optional                :: tol_ !< Tolerance of the method
+    integer,       intent(in), optional                :: maxit_ !< Max number of iterations
+    float(kind=rk), dimension(:), intent(in), optional :: x0_ !< Initial guess
+    type(ConvInf),            intent(in out), optional :: solinf !< Solution statistics
+    logical,                      intent(in), optional :: resvects_ !< Fill in the 'resvect' or not
+    type(SpMtx),optional                               :: CoarseMtx_ !< Coarse matrix
+    type(SpMtx),optional                               :: Restrict !< Restriction mtx
+    logical,intent(in),optional                        :: refactor_
+    
+    ! Local variables
     logical :: refactor
 
     real(kind=rk) :: tol   ! Tolerance
@@ -759,6 +758,7 @@ if (bugtrack)call Print_Glob_Vect(x,Msh,'global x===')
       it = it + 1
  
 if (bugtrack)call Print_Glob_Vect(r,Msh,'global r===',chk_endind=Msh%ninner)
+   write(6,*) '############# CALLING PRECOND #############' !XXX
       call preconditioner(sol=z,          &
                             A=A,          &
                           rhs=r,          &
