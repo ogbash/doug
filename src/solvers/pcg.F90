@@ -243,7 +243,7 @@ contains
   end subroutine pcg
 
   !-------------------------------
-  ! Make preconditioner
+  !> Make preconditioner
   !-------------------------------
   subroutine preconditioner(sol,A,rhs,M, &
                A_interf_,CoarseMtx_,Restrict,refactor_,bugtrack_)
@@ -252,15 +252,15 @@ contains
     use CoarseAllgathers
     use Vect_mod
     implicit none
-    real(kind=rk),dimension(:),pointer :: sol
-    type(SpMtx)                        :: A
-    real(kind=rk),dimension(:),pointer :: rhs
-    type(Mesh),intent(in)              :: M ! Mesh
-    real(kind=rk),dimension(:),pointer :: res ! -- residual vector, allocated
-                                              ! here for multiplicative Schwarz
-    type(SpMtx),optional               :: A_interf_  ! matr@interf.
-    type(SpMtx),optional               :: CoarseMtx_ ! Coarse matrix
-    type(SpMtx),optional               :: Restrict ! Restriction matrix
+    real(kind=rk),dimension(:),pointer :: sol !< solution
+    type(SpMtx)                        :: A   !< sparse system matrix
+    real(kind=rk),dimension(:),pointer :: rhs !< right hand side
+    type(Mesh),intent(in)              :: M   !< Mesh
+    real(kind=rk),dimension(:),pointer :: res !< residual vector, allocated
+                                              !! here for multiplicative Schwarz
+    type(SpMtx),optional               :: A_interf_  !< matr@interf.
+    type(SpMtx),optional               :: CoarseMtx_ !< Coarse matrix
+    type(SpMtx),optional               :: Restrict   !< Restriction matrix
     logical,intent(inout),optional :: refactor_
     logical,optional                   :: bugtrack_
     ! ----- local: ------
@@ -650,7 +650,7 @@ if (bugtrack)call Print_Glob_Vect(tmpsol,M,'tmpsol===',chk_endind=M%ninner)
     implicit none
     
     type(SpMtx),intent(in out)          :: A !< System matrix (sparse)
-    float(kind=rk),dimension(:),pointer :: b !< RHS
+    float(kind=rk),dimension(:),pointer :: b !< right hand side
     float(kind=rk),dimension(:),pointer :: x !< Solution
     type(Mesh),intent(in)               :: Msh !< Mesh - aux data for Ax operation
 
