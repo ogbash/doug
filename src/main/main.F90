@@ -96,17 +96,8 @@ program main
   ! Master participates in calculations as well
   nparts = numprocs
 
-  ! Select input type
-  select case (sctls%input_type)
-  case (DCTL_INPUT_TYPE_ELEMENTAL)
-     ! ELEMENTAL
-     call parallelAssembleFromElemInput(M,A,b,nparts,part_opts,A_interf)
-  case (DCTL_INPUT_TYPE_ASSEMBLED)
-     ! ASSEMBLED
-     call parallelDistributeAssembledInput(M,A,b,A_interf)
-  case default
-     call DOUG_abort('[DOUG main] : Unrecognised input type.', -1)
-  end select
+  call parallelDistributeInput(sctls%input_type,M,A,b,nparts,part_opts,A_interf)
+
   if(pstream/=0) write(pstream, "(I0,':distribute time:',F0.3)") myrank, MPI_WTIME()-t1
 
   ! conversion from elemental form to assembled matrix wanted?

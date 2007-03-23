@@ -123,17 +123,7 @@ program aggr
   ! Master participates in calculations as well
   nparts = numprocs
 
-  ! Select input type
-  select case (sctls%input_type)
-  case (DCTL_INPUT_TYPE_ELEMENTAL)
-     ! ELEMENTAL
-     call parallelAssembleFromElemInput(M, A, b, nparts, part_opts, A_ghost)
-  case (DCTL_INPUT_TYPE_ASSEMBLED)
-     ! ASSEMBLED
-     call parallelDistributeAssembledInput(M, A, b, A_ghost)
-  case default
-     call DOUG_abort('[DOUG main] : Unrecognised input type.', -1)
-  end select
+  call parallelDistributeInput(sctls%input_type,M,A,b,nparts,part_opts,A_ghost)
 
   if (sctls%levels>1.or.(numprocs==1.and.sctls%levels==1)) then !todo remove
     ! Testing aggregation: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA

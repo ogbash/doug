@@ -40,11 +40,37 @@ module main_drivers
 #endif
 
   public :: &
-       parallelAssembleFromElemInput, &
-       parallelDistributeAssembledInput
-
+       parallelDistributeInput, &
+       parallelAssembleFromElemInput ! TODO: make private, changing test_SpMtx_symmetry_at_pmvm first
+       
 contains
 
+  !----------------------------------------------------------------
+  !> Distributes data, chooses algorithm based on input type
+  !----------------------------------------------------------------
+  subroutine parallelDistributeInput(input_type, M, A, b, nparts, part_opts, A_interf)
+    implicit none
+
+    integer,        intent(in)     :: input_type !< Input Type
+    type(Mesh),     intent(in out) :: M !< Mesh
+    type(SpMtx),    intent(out) :: A !< System matrix
+    float(kind=rk), dimension(:), pointer :: b !< local RHS
+    ! Partitioning
+    integer, intent(in) :: nparts !< number of parts to partition a mesh
+    integer, dimension(6), intent(in) :: part_opts !< partition options (see METIS manual)
+    type(SpMtx),intent(in out),optional :: A_interf !< matrix at interface
+
+    select case (input_type)
+    case (DCTL_INPUT_TYPE_ELEMENTAL)
+       ! ELEMENTAL
+       call parallelAssembleFromElemInput(M,A,b,nparts,part_opts,A_interf)
+    case (DCTL_INPUT_TYPE_ASSEMBLED)
+       ! ASSEMBLED
+       call parallelDistributeAssembledInput(M,A,b,A_interf)
+    case default
+       call DOUG_abort('[DOUG main] : Unrecognised input type.', -1)
+    end select
+  end subroutine parallelDistributeInput
 
   !----------------------------------------------------------------
   !> Parallel assemble of system matrix and RHS from elemental input

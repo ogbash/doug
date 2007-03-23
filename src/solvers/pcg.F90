@@ -758,7 +758,6 @@ if (bugtrack)call Print_Glob_Vect(x,Msh,'global x===')
       it = it + 1
  
 if (bugtrack)call Print_Glob_Vect(r,Msh,'global r===',chk_endind=Msh%ninner)
-   write(6,*) '############# CALLING PRECOND #############' !XXX
       call preconditioner(sol=z,          &
                             A=A,          &
                           rhs=r,          &
