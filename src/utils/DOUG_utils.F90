@@ -1536,7 +1536,7 @@ contains
   	   
     float(kind=rk), dimension(:), intent(in) :: x        !< vector to write out
  
-    integer :: i,n,iounit,opened
+    integer :: iounit,opened
 	logical :: found
 
 	call FindFreeIOUnit(found, iounit)
