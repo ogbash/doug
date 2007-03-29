@@ -51,7 +51,7 @@ public class DougService implements I_DougService {
     /**
      * Starts DOUG synchronously and returns stdout and stderr. 
      * 
-     * @deprecated Does not handle result correctly, if too large since it relies
+     * @deprecated Does not handle result correctly, if too large, since it relies
      * on the output to stdout. Use runAssebled or write a new method similar
      * to it.
      * @return String array consisting of stdout and stderr.
@@ -122,34 +122,10 @@ public class DougService implements I_DougService {
     		System.out.println(e.getMessage());
     		e.printStackTrace();
     	}
-    	/* test if executable is present */
-    	File exe = new File(WORKING_DIR + DOUG_MAIN_EXECUTABLE);
-    	if (exe.canRead() == false) {
-    		//TODO: Fault
-    		System.out.println("Executable not readable!");
-    	}
-    	/* run */
-    	try {
-	    	Process pro = Runtime.getRuntime().exec(EXE_AGGR, null, new File(WORKING_DIR));
-			pro.waitFor();
-    	} catch (IOException e) {
-    		//TODO: Fault
-    		System.out.println(e.getMessage());
-    		e.printStackTrace();
-    	} catch (InterruptedException e) {
-    		//TODO: Fault
-    		System.out.println(e.getMessage());
-    		e.printStackTrace();
-    	}
+    	/* run */ 
+    	runExecutable(DOUG_AGGR_EXECUTABLE , EXE_AGGR);
     	/* return result */
-    	DoubleVector solution = null;
-    	try {
-			solution = DoubleVector.readFromDisk(WORKING_DIR + Settings.SOLUTION_FILE);
-		} catch (IOException e) {
-    		//TODO: Fault
-    		System.out.println(e.getMessage());
-    		e.printStackTrace();
-		}
+    	DoubleVector solution = parseSolution();
     	return solution;
     }
     
@@ -161,39 +137,11 @@ public class DougService implements I_DougService {
     		DataHandler freemap_file, DataHandler freedom_mask_file,
     		DataHandler info_file, DataHandler control_file) {
     	
-    	/* save files to working dir */
-    	try  {
-    		writeFile(freedom_lists_file, WORKING_DIR + Settings.FREEDOM_LISTS_FILE);
-    		writeFile(elemmat_rhs_file, WORKING_DIR + Settings.ELEMENT_RHS_FILE);
-    		writeFile(coords_file, WORKING_DIR + Settings.COORDS_FILE);
-    		writeFile(freemap_file, WORKING_DIR + Settings.FREEMAP_FILE);
-    		writeFile(freedom_mask_file, WORKING_DIR + Settings.FREEDOM_MASK_FILE);
-    		writeFile(info_file, WORKING_DIR + Settings.INFO_FILE);
-    		writeFile(control_file, WORKING_DIR + Settings.CONTROL_FILE);
-    	} catch (IOException e) {
-    		//TODO: Fault
-    		System.out.println(e.getMessage());
-    		e.printStackTrace();
-    	}
-    	/* test if executable is present */
-    	File exe = new File(WORKING_DIR + DOUG_MAIN_EXECUTABLE);
-    	if (exe.canRead() == false) {
-    		//TODO: Fault
-    		System.out.println("Executable not readable!");
-    	}
-    	/* run */
-    	try {
-	    	Process pro = Runtime.getRuntime().exec(EXE_CONV, null, new File(WORKING_DIR));
-			pro.waitFor();
-    	} catch (IOException e) {
-    		//TODO: Fault
-    		System.out.println(e.getMessage());
-    		e.printStackTrace();
-    	} catch (InterruptedException e) {
-    		//TODO: Fault
-    		System.out.println(e.getMessage());
-    		e.printStackTrace();
-    	}
+    	/* write files */ 
+    	writeElementalData(freedom_lists_file, elemmat_rhs_file, coords_file,
+    			freemap_file, freedom_mask_file, info_file, control_file);
+    	/* run */ 
+    	runExecutable(DOUG_MAIN_EXECUTABLE , EXE_CONV);
 		/* return result */
     	AssembledMatrix matrix = null;
     	try {
@@ -205,6 +153,53 @@ public class DougService implements I_DougService {
     	} 
     	return matrix;
     }
+    
+    /* (non-Javadoc)
+	 * @see ee.ut.math.doug.IDougService#runElemental(javax.activation.DataHandler, javax.activation.DataHandler, javax.activation.DataHandler, javax.activation.DataHandler, javax.activation.DataHandler, javax.activation.DataHandler, javax.activation.DataHandler)
+	 */
+    public DoubleVector runElemental(DataHandler freedom_lists_file,
+    		DataHandler elemmat_rhs_file, DataHandler coords_file,
+    		DataHandler freemap_file, DataHandler freedom_mask_file,
+    		DataHandler info_file, DataHandler control_file) {
+    	
+    	/* write files */ 
+    	writeElementalData(freedom_lists_file, elemmat_rhs_file, coords_file, 
+    			freemap_file, freedom_mask_file, info_file, control_file);
+    	/* run */ 
+    	runExecutable(DOUG_MAIN_EXECUTABLE , EXE_MAIN);
+    	/* return result */
+    	DoubleVector solution = parseSolution();
+    	return solution;
+    }
+
+	/**
+	 * Checks, if <code>executable</code> is present, then executes 
+	 * <code>cmdLine</code>. Blocks until process is finished.
+	 * 
+	 * @param executable is checked, if it can be read
+	 * @param cmdLine is executed
+	 */
+	private void runExecutable(String executable, String[] cmdLine) {
+		/* test if executable is present */
+    	File exe = new File(WORKING_DIR + executable);
+    	if (exe.canRead() == false) {
+    		//TODO: Fault
+    		System.out.println("Executable not readable!");
+    	}
+    	/* run */
+    	try {
+	    	Process pro = Runtime.getRuntime().exec(cmdLine, null, new File(WORKING_DIR));
+			pro.waitFor();
+    	} catch (IOException e) {
+    		//TODO: Fault
+    		System.out.println(e.getMessage());
+    		e.printStackTrace();
+    	} catch (InterruptedException e) {
+    		//TODO: Fault
+    		System.out.println(e.getMessage());
+    		e.printStackTrace();
+    	}
+	}
     
     /**
      * Writes a file in a DataHandler onto the filesystem.
@@ -223,6 +218,54 @@ public class DougService implements I_DougService {
 		out.close();
 	}
 
+
+	/**
+	 * save files to working dir
+	 * 
+	 * @param freedom_lists_file
+	 * @param elemmat_rhs_file
+	 * @param coords_file
+	 * @param freemap_file
+	 * @param freedom_mask_file
+	 * @param info_file
+	 * @param control_file
+	 */
+	private void writeElementalData(DataHandler freedom_lists_file, 
+			DataHandler elemmat_rhs_file, DataHandler coords_file, 
+			DataHandler freemap_file, DataHandler freedom_mask_file, 
+			DataHandler info_file, DataHandler control_file) {
+    	try  {
+    		writeFile(freedom_lists_file, WORKING_DIR + Settings.FREEDOM_LISTS_FILE);
+    		writeFile(elemmat_rhs_file, WORKING_DIR + Settings.ELEMENT_RHS_FILE);
+    		writeFile(coords_file, WORKING_DIR + Settings.COORDS_FILE);
+    		writeFile(freemap_file, WORKING_DIR + Settings.FREEMAP_FILE);
+    		writeFile(freedom_mask_file, WORKING_DIR + Settings.FREEDOM_MASK_FILE);
+    		writeFile(info_file, WORKING_DIR + Settings.INFO_FILE);
+    		writeFile(control_file, WORKING_DIR + Settings.CONTROL_FILE);
+    	} catch (IOException e) {
+    		//TODO: Fault
+    		System.out.println(e.getMessage());
+    		e.printStackTrace();
+    	}
+	}
+	
+
+	/**
+	 * @param solution
+	 * @return
+	 */
+	private DoubleVector parseSolution() {
+		DoubleVector solution = null;
+		try {
+			solution = DoubleVector.readFromDisk(WORKING_DIR + Settings.SOLUTION_FILE);
+		} catch (IOException e) {
+    		//TODO: Fault
+    		System.out.println(e.getMessage());
+    		e.printStackTrace();
+		}
+		return solution;
+	}
+	
     /*
      * for testing only
      */

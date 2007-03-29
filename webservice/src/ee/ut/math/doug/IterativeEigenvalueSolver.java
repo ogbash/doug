@@ -69,7 +69,7 @@ public class IterativeEigenvalueSolver implements I_IterativeEigenvalueSolver {
 		return x;
 	}
 	
-	private void test() {
+	private static void test() {
 		AssembledMatrix a = new AssembledMatrix(9, 3, 3);
 		a.addElement(1, 1, 2.23);
 		a.addElement(1,2, 1.15);
@@ -97,13 +97,14 @@ public class IterativeEigenvalueSolver implements I_IterativeEigenvalueSolver {
 	}
 	
 	public static void main(String[] args) throws Exception {
-		AssembledMatrix a = AssembledMatrix.readFromDisk(args[0]);
-		DoubleVector initialGuess = DoubleVector.readFromDisk(args[1]);
-		double shift = Double.parseDouble(args[2]);
-		double error = Double.parseDouble(args[3]);
-		
-		IterativeEigenvalueSolver solver = new IterativeEigenvalueSolver();
-		EigenSpace es = solver.inverseIteration(a, initialGuess, shift, error);
-		System.out.print(es);
+		IterativeEigenvalueSolver.test();
+//		AssembledMatrix a = AssembledMatrix.readFromDisk(args[0]);
+//		DoubleVector initialGuess = DoubleVector.readFromDisk(args[1]);
+//		double shift = Double.parseDouble(args[2]);
+//		double error = Double.parseDouble(args[3]);
+//		
+//		IterativeEigenvalueSolver solver = new IterativeEigenvalueSolver();
+//		EigenSpace es = solver.inverseIteration(a, initialGuess, shift, error);
+//		System.out.print(es);
 	}
 }
