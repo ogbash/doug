@@ -405,14 +405,12 @@ contains
     implicit none
     type(SpMtx),intent(in out) :: A   ! System matrix
     character*(*),intent(in) :: filename
-    integer, parameter  :: file_p = 44 ! Pointer to inputfile
+    integer  :: fHandler  !< file Handler
     integer :: n,nnz,nsd,i,j
     float :: val
 
-    open(file_p,FILE=trim(filename),STATUS='OLD',FORM='FORMATTED', &
-             ERR=444)  !XXX TODO
-    !read(file_p, '(3i)') n,nnz,nsd
-    read(file_p,FMT=*,END=500) n,nnz !,nsd
+	call ReadInSparseAssembledHeader(filename, fHandler, n, nnz)
+
     nsd=2
     if (n>nnz) then
       i=nnz
@@ -426,27 +424,173 @@ contains
                     symmstruct=sctls%symmstruct,       &
                    symmnumeric=sctls%symmnumeric       &
                   )
+    
+    call ReadInSparseAssembledBulk(fHandler, A)
+    
     do i=1,nnz
-      read(file_p, FMT=*,END=500 ) A%indi(i),A%indj(i),A%val(i)
       if (i<3.or.i>nnz-2) then
-        write(stream,'(I4,A,I2,I2,E24.16)') i,' mat:',A%indi(i),a%indj(i),A%val(i)
+        write(stream,'(I4,A,I2,I2,E24.16)') i,' mat:',A%indi(i),A%indj(i),A%val(i)
       endif
     enddo
     if (A%indi(1)==0) then
       A%indi=A%indi+1
       A%indj=A%indj+1
     endif
-    close(file_p)
+    call CloseSparseAssembledFile(fHandler)
+    
     ! this is undistributed matrix:
     A%mtx_bbs(1,1)=1
     A%mtx_bbe(1,1)=0
     A%mtx_bbs(2,2)=1
     A%mtx_bbe(2,2)=A%nnz
     return
+  end subroutine ReadInSparseAssembled
+
+  !----------------------------------------------------------
+  !> Opens a file and reads first line of matrix in sparse form
+  !----------------------------------------------------------
+  subroutine ReadInSparseAssembledHeader(filename, fHandler, n, nnz)
+    implicit none
+    
+    character*(*),intent(in)  :: filename
+    integer      ,intent(out) :: fHandler
+    integer      ,intent(out) :: n
+    integer      ,intent(out) :: nnz
+    
+    if (mctls%assembled_mtx_format == 0) then
+      call ReadInSparseAssembledHeader_Text(filename, fHandler, n, nnz)
+    elseif (mctls%assembled_mtx_format == 2) then
+      call ReadInSparseAssembledHeader_XDR(filename, fHandler, n, nnz)
+    else
+      call DOUG_abort('[ReadInSparseAssembledHeader] Data format not recognized. 0=text, 2=XDR', -1)
+
+    endif
+  end subroutine ReadInSparseAssembledHeader
+  
+  !----------------------------------------------------------
+  !> Opens a file and reads first line of matrix in sparse form (text version)
+  !----------------------------------------------------------
+  subroutine ReadInSparseAssembledHeader_Text(filename, fHandler, n, nnz)
+    implicit none
+    
+    character*(*),intent(in)  :: filename
+    integer      ,intent(out) :: fHandler
+    integer      ,intent(out) :: n
+    integer      ,intent(out) :: nnz
+    
+    logical :: found
+
+    call FindFreeIOUnit(found, fHandler)
+    if (.NOT. found) &
+      call DOUG_abort('[ReadInSparseAssembledHeader_Text] No free IO unit.', -1)
+      
+    open(fHandler,FILE=trim(filename),STATUS='OLD',FORM='FORMATTED', &
+             ERR=444)
+    read(fHandler,FMT=*,END=500) n,nnz
+	return
+	
 444 call DOUG_abort('Unable to open assembled file: '//trim(filename)//' ', -1)
 500 continue ! End of file reached too soon
     call DOUG_abort('File '//trim(filename)//' too short! ', -1)
-  end subroutine ReadInSparseAssembled
+  end subroutine ReadInSparseAssembledHeader_Text
+  
+  !----------------------------------------------------------
+  !> Opens a file and reads first line of matrix in sparse form (XDR version)
+  !----------------------------------------------------------
+  subroutine ReadInSparseAssembledHeader_XDR(filename, fHandler, n, nnz)
+    implicit none
+    include 'fxdr.inc'
+    
+    character*(*),intent(in)  :: filename
+    integer      ,intent(out) :: fHandler
+    integer      ,intent(out) :: n
+    integer      ,intent(out) :: nnz
+    
+    integer :: ierr
+    
+    fHandler = initxdr( trim(filename), 'r', .FALSE. )
+    ierr  = ixdrint( fHandler, n )
+    ierr  = ixdrint( fHandler, nnz )
+
+  end subroutine ReadInSparseAssembledHeader_XDR
+
+  !----------------------------------------------------------
+  !> Reads bulk of matrix in sparse form of already open file
+  !----------------------------------------------------------
+  subroutine ReadInSparseAssembledBulk(fHandler, A)
+    implicit none
+    
+    integer        ,intent(in) :: fHandler
+    type(SpMtx), intent(inout) :: A
+    
+    if (mctls%assembled_mtx_format == 0) then
+      call ReadInSparseAssembledBulk_Text(fHandler, A)
+    elseif (mctls%assembled_mtx_format == 2) then
+      call ReadInSparseAssembledBulk_XDR(fHandler, A)
+    else
+      call DOUG_abort('[ReadInSparseAssembledBulk] Data format not recognized. 0=text, 2=XDR', -1)
+    endif
+    
+  end subroutine ReadInSparseAssembledBulk
+
+  !----------------------------------------------------------
+  !> Reads bulk of matrix in sparse form (Text version) of already open file
+  !----------------------------------------------------------
+  subroutine ReadInSparseAssembledBulk_Text(fHandler, A)
+    implicit none
+    
+    integer        ,intent(in) :: fHandler
+    type(SpMtx), intent(inout) :: A
+    integer :: i
+    
+    do i=1,A%nnz
+      read(fHandler, FMT=*,END=500 ) A%indi(i),A%indj(i),A%val(i)
+    enddo
+    return
+    
+500 continue ! End of file reached too soon
+    call DOUG_abort('[ReadInSparseAssembledBulk_Text] File too short! ', -1)
+  
+  end subroutine ReadInSparseAssembledBulk_Text
+
+  !----------------------------------------------------------
+  !> Reads bulk of matrix in sparse form (XDR version) of already open file
+  !----------------------------------------------------------
+  subroutine ReadInSparseAssembledBulk_XDR (fHandler, A)
+    implicit none
+    include 'fxdr.inc'
+    
+    integer        ,intent(in) :: fHandler
+    type(SpMtx), intent(inout) :: A
+    integer :: ierr, i
+    
+    do i=1,A%nnz
+      ierr = ixdrint( fHandler, A%indi(i) )
+	  ierr = ixdrint( fHandler, A%indj(i) )
+	  ierr = ixdrdouble( fHandler, A%val(i) )
+    enddo
+    
+  end subroutine ReadInSparseAssembledBulk_XDR
+  
+  !----------------------------------------------------------
+  !> Reads bulk of matrix in sparse form of already open file
+  !----------------------------------------------------------
+  subroutine CloseSparseAssembledFile(fHandler)
+    implicit none
+    include 'fxdr.inc'
+    
+    integer        ,intent(in) :: fHandler
+    integer :: ierr
+    
+    if (mctls%assembled_mtx_format == 0) then ! text
+	  close(fHandler)
+    elseif (mctls%assembled_mtx_format == 2) then ! XDR
+      ierr = ixdrclose(fHandler)
+    else
+      call DOUG_abort('[CloseSparseAssembledFile] Data format not recognized. 0=text, 2=XDR', -1)
+    endif
+    
+  end subroutine CloseSparseAssembledFile
 
 !> \code
 !>----------------------------------------------------------
