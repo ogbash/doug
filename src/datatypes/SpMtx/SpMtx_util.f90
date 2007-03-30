@@ -243,7 +243,7 @@ return
 	    call DOUG_abort('[SpMtx_dumpMatrix] : Can only be called by master node.',-1)
 	  call FindFreeIOUnit(found, iounit)
 	  open(unit=iounit,iostat=opened,file=mctls%dump_matrix_file,status='replace', &
-	  						form='formatted',err=666)
+	  						form='formatted',err=666)     !XXX TODO
 	  if (opened /= 0) &
 	  	call DOUG_abort('[SpMtx_dumpMatrix] : Could not open file.',-1)
 	  write(iounit, *) A%ncols, A%nnz

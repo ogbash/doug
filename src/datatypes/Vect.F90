@@ -849,7 +849,7 @@ contains
           fmt = format
         endif
 
-    call FindFreeIOUnit(found, iounit)
+    call FindFreeIOUnit(found, iounit) !XXX TODO rhs
     if (found) then
       if (fmt == D_RHS_TEXT) then
             open(iounit,FILE=trim(fnVect),STATUS='OLD',FORM='FORMATTED', ERR=444)

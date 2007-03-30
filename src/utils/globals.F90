@@ -124,6 +124,7 @@ module globals
   type MasterCtrlData
      ! elemental input data
      character(L) :: assembled_mtx_file   = '' ! assembled matrix data
+     integer      :: assembled_mtx_format = -1 ! 0 == text, 2 == XDR
      character(L) :: assembled_rhs_file   = '' ! assembled matrix RHS
      integer      :: assembled_rhs_format = -1 ! 0 == text, 1 == binary(TODO:, 2 == like in matrix)
      character(L) :: info_file            = '' ! info data for the mesh

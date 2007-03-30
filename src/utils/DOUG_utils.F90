@@ -937,6 +937,14 @@ contains
        else
           mctls%assembled_mtx_file = trim(word2)
        endif
+	
+	! assembled_mtx_format
+    elseif (ctl_num.eq.DCTL_assembled_mtx_format) then
+       if (mctls%assembled_mtx_format.ne.-1) then
+          write(6,200) trim(word1), trim(word2)
+       else
+          read(word2, '(i10)') mctls%assembled_mtx_format
+       endif
 
     ! assembled_rhs
     elseif (ctl_num.eq.DCTL_assembled_rhs_file) then
@@ -1271,6 +1279,10 @@ contains
            ctl_words(DCTL_assembled_mtx_file) &
            (1:length(ctl_words(DCTL_assembled_mtx_file))), &
            trim(mctls%assembled_mtx_file)
+      write(stream,fmti) &
+           ctl_words(DCTL_assembled_mtx_format) &
+           (1:length(ctl_words(DCTL_assembled_mtx_format))), &
+           mctls%assembled_mtx_format
     elseif (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL) then
       write(stream,fmtc) &
            ctl_words(DCTL_info_file)(1:length(ctl_words(DCTL_info_file))), &
@@ -1531,7 +1543,8 @@ contains
   !-------------------------------------
   !> Writes vector x to the solution file.
   !-------------------------------------
-  subroutine WriteSolutionToFile(x)
+  subroutine WriteSolutionToFile(x) !TODO: Refactor, XDR stuff finds free IO unit by itself.
+  									!	   open should be made inside specific subroutines.
   	implicit none
   	   
     float(kind=rk), dimension(:), intent(in) :: x        !< vector to write out
@@ -1554,6 +1567,10 @@ contains
 	    if (opened.eq.0) &
           call WriteSolutionBinaryFormat(iounit, x)
 
+      ! XDR format 
+      elseif (mctls%solution_format == 2) then
+        call WriteSolutionXDRFormat(mctls%solution_file, x)
+        
       ! Default case.
       else
       	write (stream,*) 'Solution format is not valid. Set it in the control file.'
@@ -1589,7 +1606,7 @@ contains
   !> in binary format.
   !> The format is like this:
   !> \code
-  !> x(1), x(2), ..., x(n)
+  !> n, x(1), x(2), ..., x(n)
   !> \endcode
   !----------------------------------
   subroutine WriteSolutionBinaryFormat(iounit, x)
@@ -1603,6 +1620,30 @@ contains
     write(iounit) (x(k), k = 1,size(x))
 
   end subroutine
+
+  !----------------------------------
+  !> Writes the solution to a file in binary format using the FXDR library.
+  !> The values are written as double precision (64 bit).
+  !> The format is like this:
+  !> \code
+  !> size(x), x
+  !> \endcode
+  !----------------------------------
+  subroutine WriteSolutionXDRFormat(fname, x)
+  	implicit none
+  	 include 'fxdr.inc'
+  	
+  	character*(*),                intent(in) :: fname    !< file name   
+    float(kind=rk), dimension(:), intent(in) :: x        !< vector to write to file
+    integer :: k, fhandle, status
+
+    fhandle = initxdr(fname, 'w', .FALSE.)
+    status = ixdrint( fhandle, size(x) )
+   	status = ixdrdmat( fhandle, size(x), x )
+   	status = ixdrclose( fhandle )
+
+  end subroutine
+
 
   !-------------------------------------
   !> sort integer array using quicksort algorithm

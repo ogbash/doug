@@ -410,7 +410,7 @@ contains
     float :: val
 
     open(file_p,FILE=trim(filename),STATUS='OLD',FORM='FORMATTED', &
-             ERR=444)
+             ERR=444)  !XXX TODO
     !read(file_p, '(3i)') n,nnz,nsd
     read(file_p,FMT=*,END=500) n,nnz !,nsd
     nsd=2

@@ -347,7 +347,7 @@ contains
     integer :: nell, ngf, nsd, mfrelt, nnode
 
 
-    open(50, FILE=fnInfo, STATUS='OLD', FORM='UNFORMATTED')
+    open(50, FILE=fnInfo, STATUS='OLD', FORM='UNFORMATTED') !XXX TODO Infofile
     read (50) tmp
     nell=tmp(1); ngf=tmp(2); nsd=tmp(3); mfrelt=tmp(4); nnode = tmp(5)
     close(50)
@@ -493,7 +493,7 @@ contains
     ! Read in element nodes data
     write(stream, FMT='(a)', advance='no') 'Reading in element nodes'//&
          ' numbering ... '
-    open(50, FILE=fnFreelists, STATUS='OLD', FORM='UNFORMATTED')
+    open(50, FILE=fnFreelists, STATUS='OLD', FORM='UNFORMATTED') !XXX TODO freedom_list_file
     do i = 1,M%nell
        read (50) nfrelt, mhead(1:nfrelt)
        M%nfrelt(i) = nfrelt
@@ -531,7 +531,7 @@ contains
 
     ! Read in node coordinates
     write(stream, FMT='(a)', advance='no') 'Reading in nodes coordinates ... '
-    open(50, FILE=fnCoords, STATUS='OLD', FORM='UNFORMATTED')
+    open(50, FILE=fnCoords, STATUS='OLD', FORM='UNFORMATTED') !XXX TODO coords_file
     read (50) M%coords
     close(50)
     write(stream, *) 'done'
@@ -560,7 +560,7 @@ contains
     if (.not.associated(M%freemap)) allocate(M%freemap(M%ngf))
 
     write(stream, FMT='(a)', advance='no') 'Reading in freedoms'' map ... '
-    open(50, FILE=fnFreemap, STATUS='OLD', FORM='UNFORMATTED')
+    open(50, FILE=fnFreemap, STATUS='OLD', FORM='UNFORMATTED') !XXX TODO freemap_file
     read (50) freemap
     M%freemap = freemap
     close(50)
@@ -589,7 +589,7 @@ contains
     if (.not.associated(M%freemask)) allocate(M%freemask(M%ngf))
 
     write(stream, FMT='(a)', advance='no') 'Reading in freedoms'' mask ... '
-    open(50, FILE=fnFreemask, STATUS='OLD', FORM='UNFORMATTED')
+    open(50, FILE=fnFreemask, STATUS='OLD', FORM='UNFORMATTED') !XXX TODO freedom_mask_file
     read (50) M%freemask
     close(50)
     write(stream, *) 'done'

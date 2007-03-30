@@ -530,7 +530,7 @@ contains
     write(stream, FMT='(a)', advance='no') 'Reading in element matrices'//&
          ' and RHSs ... '
     call flush(stream)
-    open(elemMatrs, FILE=fnElemMatrs, STATUS='OLD', FORM='UNFORMATTED')
+    open(elemMatrs, FILE=fnElemMatrs, STATUS='OLD', FORM='UNFORMATTED') !XXX TODO element_rhs_file
 
     ! Build element matrix maps and masks
     E = ElemMtxsIntf_newInit(Msh)

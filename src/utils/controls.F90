@@ -21,7 +21,7 @@
 
 ! Definitions for control file parameters
 
-integer, parameter :: DCTL_NWORDS = 45
+integer, parameter :: DCTL_NWORDS = 46
 character*(50)     :: ctl_words(DCTL_NWORDS)
 
 integer, parameter ::  &
@@ -69,7 +69,8 @@ DCTL_interpolation_type   = 41, &
 DCTL_assembled_rhs_file   = 42, &
 DCTL_assembled_rhs_format = 43, &
 DCTL_dump_matrix_only     = 44, &
-DCTL_dump_matrix_file     = 45
+DCTL_dump_matrix_file     = 45, &
+DCTL_assembled_mtx_format = 46
 
 !!$DCTL_matrix_file           =
 !!$DCTL_rhs_file              =
@@ -94,6 +95,7 @@ DCTL_dump_matrix_file     = 45
 
 ! MASTER:
 ctl_words(DCTL_assembled_mtx_file)    = 'assembled_mtx_file' ! assembled case
+ctl_words(DCTL_assembled_mtx_format)  = 'assembled_mtx_format'
 ctl_words(DCTL_assembled_rhs_file)    = 'assembled_rhs_file' ! assembled case
 ctl_words(DCTL_assembled_rhs_format)  = 'assembled_rhs_format' 
 ctl_words(DCTL_info_file)             = 'info_file'         
