@@ -1,8 +1,8 @@
 !==========================================================
-!> Converts a formatted assembled DOUG input to 
+!> Converts a formatted, textual DOUG input to 
 !! XDR format
 !==========================================================
-program unf2xdr
+program txt2xdr
 
 use RealKind
 
@@ -31,8 +31,8 @@ fnameout = trim(fnameout)
 
 ixdrs = initxdr( fnameout, 'w', .FALSE. )
 
-if (form.EQ.'sparseassembled') then ! Sparse assembled matrix
-	open( 7, FILE=fnamein, STATUS='OLD', FORM='FORMATTED' )
+if (form.EQ.'sparseassembled') then             ! Sparse assembled matrix
+	open( 7, FILE=fnamein, STATUS='OLD', FORM='FORMATTED', ERR=444 )
 	read( 7, FMT=*, END=500 ) n,nnz
 
 	ierr  = ixdrint( ixdrs, n )
@@ -44,12 +44,24 @@ if (form.EQ.'sparseassembled') then ! Sparse assembled matrix
 		ierr = ixdrint( ixdrs, indj )
 		ierr = ixdrdouble( ixdrs, val )
 	enddo
+	
+elseif (form.EQ.'vector') then                  ! Vector
+	open( 7, FILE=fnamein, STATUS='OLD', FORM='FORMATTED', ERR=444)
+    read(7, '(i6)', END=500) n  
+    
+    ierr = ixdrint( ixdrs, n)
 
-	close( 7 )
-	ierr = ixdrclose( ixdrs )
+    do i=1,n
+    	read(7, '(e21.14)', END=500) val
+    	ierr = ixdrdouble( ixdrs, val)
+	enddo
+
 else
-	write(6,*) 'Format not recognized. Possible formats: sparseassembled'
+	write(6,*) 'Format not recognized. Possible formats: sparseassembled, vector'
 endif
+
+close( 7 )
+ierr = ixdrclose( ixdrs )
 
 stop 0
 
@@ -58,4 +70,4 @@ stop 0
 500 continue ! End of file reached too soon
     write(6,*) 'File '//fnamein//' too short! '
     stop 1
-end program unf2xdr
+end program txt2xdr

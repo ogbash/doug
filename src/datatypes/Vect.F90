@@ -74,6 +74,7 @@ module Vect_mod
   integer :: ninner
   integer, parameter :: D_RHS_TEXT   = 0
   integer, parameter :: D_RHS_BINARY = 1
+  integer, parameter :: D_RHS_XDR    = 2
 
   ! = = = = = = = = = =
   interface Vect_Print
@@ -832,48 +833,110 @@ contains
   !-----------------------------
   !> Read vector of floats from file
   !-----------------------------
-  subroutine Vect_ReadFromFile(x, fnVect, format)
+  subroutine Vect_ReadFromFile(x, filename, format)
     implicit none
     
     float(kind=rk), dimension(:), pointer :: x !< the vector; before calling, the vector must be dimensioned with correct size
-    character*(*), intent(in)             :: fnVect !< name of the file to read in
+    character*(*), intent(in)             :: filename !< name of the file to read in
     integer, intent(in), optional         :: format !< In which format is the input data (default: D_RHS_BINARY)
 
-    logical :: found
-    integer :: k, iounit, fmt, num
+    integer :: fmt
 
     ! Binary format is default
-        if (.not.present(format)) then
-          fmt = D_RHS_BINARY
-        else
-          fmt = format
-        endif
-
-    call FindFreeIOUnit(found, iounit) !XXX TODO rhs
-    if (found) then
-      if (fmt == D_RHS_TEXT) then
-            open(iounit,FILE=trim(fnVect),STATUS='OLD',FORM='FORMATTED', ERR=444)
-            read(iounit, '(i6)', END=500) num 
-            if (num /= size(x)) &
-              call DOUG_abort('[Vect_ReadFromFile] : Number of vector elements in file is not as expected.', -1)
-            do k=1,size(x)
-              read(iounit, '(e21.14)', END=500) x(k)
-            enddo
-          elseif (fmt == D_RHS_BINARY) then
-            open(iounit, FILE=trim(fnVect), STATUS='OLD', FORM='UNFORMATTED', ERR=444)
-            read (iounit, END=500) (x(k), k = 1,size(x))
-            close(iounit)
-          else
-            call DOUG_abort('[Vect_ReadFromFile] : Wrong format', -1)
-          endif
+    if (.not.present(format)) then
+      fmt = D_RHS_BINARY
     else
-      call DOUG_abort('[Vect_ReadFromFile] : No free IO-Unit', -1)
+      fmt = format
     endif
-    return
 
-444 call DOUG_abort('[Vect_ReadFromFile] : Unable to open vector file: '//trim(fnVect)//' ', -1)
-500 call DOUG_abort('[Vect_ReadFromFile] : End of file reached to early.', -1)
+    if (fmt == D_RHS_TEXT) then
+      call Vect_ReadFromFile_Text(filename, x)
+    elseif (fmt == D_RHS_BINARY) then
+      call Vect_ReadFromFile_Binary(filename, x)
+    elseif (fmt == D_RHS_XDR) then
+      call Vect_ReadFromFile_XDR(filename, x)
+    else
+      call DOUG_abort('[Vect_ReadFromFile] Data format not recognized. 0=text, 1=binary, 2=XDR', -1)
+    endif
 
   end subroutine Vect_ReadFromFile
+  
+  !-----------------------------
+  !> Read vector of floats from file (text version)
+  !-----------------------------
+  subroutine Vect_ReadFromFile_Text(filename, x)
+    implicit none
+    
+    float(kind=rk), dimension(:), pointer :: x !< the vector; before calling, the vector must be dimensioned with correct size
+    character*(*), intent(in)             :: filename !< name of the file to read in
+    logical :: found
+    integer :: iounit, n, i
+ 
+    call FindFreeIOUnit(found, iounit)
+    if (.NOT.found) &
+      call DOUG_abort('[Vect_ReadFromFile_Text] : No free IO-Unit', -1)
+ 
+    open(iounit,FILE=trim(filename),STATUS='OLD',FORM='FORMATTED', ERR=444)
+    read(iounit, '(i6)', END=500) n
+    if (n /= size(x)) &
+      call DOUG_abort('[Vect_ReadFromFile_Text] : Number of vector elements in file is not as expected.', -1)
+    
+    do i=1,size(x)
+      read(iounit, '(e21.14)', END=500) x(i)
+    enddo
+    return
+    
+444 call DOUG_abort('[Vect_ReadFromFile_Text] : Unable to open vector file: '//trim(filename)//' ', -1)
+500 call DOUG_abort('[Vect_ReadFromFile_Text] : End of file reached to early.', -1)
+  
+  end subroutine Vect_ReadFromFile_Text
+
+  !-----------------------------
+  !> Read vector of floats from file (binary version)
+  !-----------------------------
+  subroutine Vect_ReadFromFile_Binary(filename, x)
+    implicit none
+    
+    float(kind=rk), dimension(:), pointer :: x !< the vector; before calling, the vector must be dimensioned with correct size
+    character*(*), intent(in)             :: filename !< name of the file to read in
+    logical :: found
+    integer :: iounit, n, i
+ 
+    call FindFreeIOUnit(found, iounit)
+    if (.NOT.found) &
+      call DOUG_abort('[Vect_ReadFromFile_Binary] : No free IO-Unit', -1)
+ 
+    open(iounit, FILE=trim(filename), STATUS='OLD', FORM='UNFORMATTED', ERR=444)
+    read (iounit, END=500) (x(i), i = 1,size(x))
+    close(iounit)
+    return
+    
+444 call DOUG_abort('[Vect_ReadFromFile_Binary] : Unable to open vector file: '//trim(filename)//' ', -1)
+500 call DOUG_abort('[Vect_ReadFromFile_Binary] : End of file reached to early.', -1)
+  
+  end subroutine Vect_ReadFromFile_Binary
+  
+  !-----------------------------
+  !> Read vector of floats from file (XDR version)
+  !-----------------------------
+  subroutine Vect_ReadFromFile_XDR(filename, x)
+    implicit none
+    include 'fxdr.inc' 
+    
+    float(kind=rk), dimension(:), pointer :: x !< the vector; before calling, the vector must be dimensioned with correct size
+    character*(*), intent(in)             :: filename !< name of the file to read in
+    integer :: fHandle, ierr, n, i
+ 
+    fHandle = initxdr( trim(filename), 'r', .FALSE. )
+    ierr  = ixdrint( fHandle, n )
+
+    if (n /= size(x)) &
+      call DOUG_abort('[Vect_ReadFromFile_XDR] : Number of vector elements in file is not as expected.', -1)
+ 
+    do i=1,size(x)
+      ierr = ixdrdouble( fHandle, x(i) )
+    enddo
+  
+  end subroutine Vect_ReadFromFile_XDR
 
 end module Vect_mod
