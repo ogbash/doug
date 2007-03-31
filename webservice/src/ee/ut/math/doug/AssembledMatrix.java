@@ -256,6 +256,8 @@ public class AssembledMatrix {
 		for (int k=0; k<nnz; k++) {
 			s = buf.readLine();
 			s = s.trim();
+			if (s.equals(""))  //empty line 
+				continue;
 			toki = new StringTokenizer(s);
 			indi = Integer.parseInt(toki.nextToken());
 			indj = Integer.parseInt(toki.nextToken());
