@@ -27,13 +27,18 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 
 import javax.activation.DataHandler;
+import javax.activation.FileDataSource;
 
 import org.apache.commons.io.IOUtils;
 
 /**
- * Webservice, that starts DOUG synchronously and gives back stdout and stderr.
+ * Webservice, that starts DOUG synchronously and gives back the solution.
  * 
  * @author Christian Poecher
+ */
+/**
+ * @author Christian Pöcher
+ *
  */
 public class DougService implements I_DougService {
 
@@ -128,6 +133,28 @@ public class DougService implements I_DougService {
     	DoubleVector solution = parseSolution();
     	return solution;
     }
+    
+    /* (non-Javadoc)
+	 * @see ee.ut.math.doug.IDougService#runAssembled(javax.activation.DataHandler, javax.activation.DataHandler, javax.activation.DataHandler)
+	 */
+	public DataHandler runAssembled(DataHandler matrix, DataHandler rhs, DataHandler control_file) {
+		/* save files to working dir */
+		try {
+			writeFile(matrix, WORKING_DIR + Settings.ASSEMBLED_MTX_FILE);
+			writeFile(rhs, WORKING_DIR + Settings.RHS_FILE);
+			writeFile(control_file, WORKING_DIR + Settings.CONTROL_FILE);
+		} catch (IOException e) {
+    		//TODO: Fault
+    		System.out.println(e.getMessage());
+    		e.printStackTrace();
+		}
+    	/* run */ 
+    	runExecutable(DOUG_AGGR_EXECUTABLE , EXE_AGGR);
+    	/* return result */
+    	File solutionFile = new File(WORKING_DIR + Settings.SOLUTION_FILE);
+    	DataHandler solution = new DataHandler(new FileDataSource(solutionFile));
+    	return solution;
+	}
     
     /* (non-Javadoc)
 	 * @see ee.ut.math.doug.IDougService#elementalToAssembled(javax.activation.DataHandler, javax.activation.DataHandler, javax.activation.DataHandler, javax.activation.DataHandler, javax.activation.DataHandler, javax.activation.DataHandler, javax.activation.DataHandler)

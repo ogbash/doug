@@ -22,6 +22,7 @@ package ee.ut.math.doug;
 // mailto:info(at)dougdevel.org)
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.LinkedList;
 import java.util.List;
@@ -48,7 +49,7 @@ import org.apache.axis.encoding.ser.JAFDataHandlerSerializerFactory;
  */
 public class DougWSClient {
 
-	private String makeControlFileForAssembledSolving() {
+	private String makeControlFileForAssembledSolving(boolean useXDR) {
 		StringBuffer buf = new StringBuffer();
 		buf.append("solver 2\n");
 		buf.append("solve_maxiters 3000\n");
@@ -69,14 +70,21 @@ public class DougWSClient {
 		buf.append("number_of_blocks 1\n");
 		buf.append("initial_guess 2\n");
 		buf.append("solve_tolerance 1.0e-6\n");
-		buf.append("solution_format 0\n");
 		buf.append("solution_file " + Settings.SOLUTION_FILE +"\n");
 		buf.append("debug 0\n");
 		buf.append("verbose 1\n");
 		buf.append("plotting 3\n");
 		buf.append("assembled_mtx_file " + Settings.ASSEMBLED_MTX_FILE + "\n");
 		buf.append("assembled_rhs_file " + Settings.RHS_FILE + "\n");
-        buf.append("assembled_rhs_format 0");
+        if (useXDR) {
+    		buf.append("solution_format 2\n");
+            buf.append("assembled_rhs_format 2\n");
+            buf.append("assembled_mtx_format 2\n");	
+        } else {
+    		buf.append("solution_format 0\n");
+            buf.append("assembled_rhs_format 0\n");
+            buf.append("assembled_mtx_format 0\n");
+        }
 		return buf.toString();
 	}
 
@@ -166,7 +174,7 @@ public class DougWSClient {
 		throws IOException, DougServiceException  {
 		
 		/* prepare attachments */
-		String controlFile = makeControlFileForAssembledSolving();
+		String controlFile = makeControlFileForAssembledSolving(false);
 		DataHandler controlHandler =
 			new DataHandler(new PlainTextDataSource(null, controlFile));
 		
@@ -228,6 +236,75 @@ public class DougWSClient {
 		/* process return data */
 		DoubleVector x = (DoubleVector) ret;
 		return x;
+	}
+	
+	/**
+	 * Runs the assembled version of DOUG to solve the linear equation a x = b.
+	 * 
+	 * @param a XDR file of assembled matrix
+	 * @param b XDR file of right hand side vector
+	 * @param XDR file where x = a^-1 b will be saved
+	 * @throws IOException
+	 * @throws DougServiceException
+	 */
+	public void runAssebled(File a, File b, File x)
+		throws IOException, DougServiceException  {
+		
+		/* prepare attachments */
+		String controlFile = makeControlFileForAssembledSolving(true);
+		DataHandler aHandler = new DataHandler(new FileDataSource(a));
+		DataHandler bHandler = new DataHandler(new FileDataSource(b));
+		DataHandler controlHandler =
+			new DataHandler(new PlainTextDataSource(null, controlFile));
+		
+		/* prepare call */
+		Service service = new Service();
+		Call call;
+		try {
+			call = (Call) service.createCall();
+		} catch (ServiceException e) {
+			throw new DougServiceException(e.getMessage(), e);
+		}
+		// TODO: Hardwired for now, change, use Option
+		call.setTargetEndpointAddress(Settings.ENDPOINT_ADRESS_DOUG); 
+		call.setOperationName(new QName(Settings.NAMESPACE_ID,
+				"runAssembled")); // This is the target service's method to invoke.
+		
+		// Add serializer for attachment.
+		QName qnameAttachment = new QName(Settings.NAMESPACE_ID, "DataHandler");
+		call.registerTypeMapping(
+				controlHandler.getClass(), qnameAttachment, 
+				JAFDataHandlerSerializerFactory.class,
+				JAFDataHandlerDeserializerFactory.class);
+		
+		call.addParameter("a", qnameAttachment, ParameterMode.IN);
+		call.addParameter("b", qnameAttachment, ParameterMode.IN);
+		call.addParameter("control_file", qnameAttachment, ParameterMode.IN);
+		call.setReturnType(qnameAttachment);
+		
+		/* invoke call */
+		Object ret = call.invoke( new Object[] {aHandler, bHandler, controlHandler} );
+		
+		/* sanity check return data */
+		if (null == ret) {
+			System.out.println("Received null ");
+			throw new AxisFault("", "Received null", null, null);
+		}
+		if (ret instanceof String) {
+			System.out.println("Received problem response from server: " + ret);
+			throw new AxisFault("", (String) ret, null, null);
+		}
+		if (!(ret instanceof DataHandler)) {
+			// The wrong type of object that what was expected.
+			System.out.println("Received problem response from server:"
+					+ ret.getClass().getName());
+			throw new AxisFault("", "Received problem response from server:"
+					+ ret.getClass().getName(), null, null);
+		}
+		
+		/* process result */
+		DataHandler xHandler = (DataHandler) ret;
+		xHandler.writeTo(new FileOutputStream(x));
 	}
 	
 	/**
