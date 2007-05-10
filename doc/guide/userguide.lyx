@@ -1,4 +1,4 @@
-#LyX 1.4.3 created this file. For more info see http://www.lyx.org/
+#LyX 1.4.2 created this file. For more info see http://www.lyx.org/
 \lyxformat 245
 \begin_document
 \begin_header
@@ -8,7 +8,8 @@
 \fontscheme default
 \graphics default
 \paperfontsize default
-\papersize default
+\spacing single
+\papersize a4paper
 \use_geometry false
 \use_amsmath 1
 \cite_engine basic
@@ -134,7 +135,7 @@ The following table contains all parameters referring to external files
 <lyxtabular version="3" rows="16" columns="2">
 <features>
 <column alignment="center" valignment="top" leftline="true" width="0">
-<column alignment="left" valignment="top" leftline="true" rightline="true" width="0">
+<column alignment="left" valignment="top" leftline="true" rightline="true" width="85text%">
 <row topline="true" bottomline="true">
 <cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
 \begin_inset Text
@@ -489,7 +490,7 @@ The following parameters are used in the solver phase and can be used to
 <lyxtabular version="3" rows="6" columns="2">
 <features>
 <column alignment="center" valignment="top" leftline="true" width="0">
-<column alignment="left" valignment="top" leftline="true" rightline="true" width="0">
+<column alignment="left" valignment="top" leftline="true" rightline="true" width="85text%">
 <row topline="true" bottomline="true">
 <cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
 \begin_inset Text
@@ -634,7 +635,7 @@ The following table lists parameters relevant only to legacy method
 <lyxtabular version="3" rows="2" columns="2">
 <features>
 <column alignment="center" valignment="top" leftline="true" width="0">
-<column alignment="center" valignment="top" leftline="true" rightline="true" width="0">
+<column alignment="center" valignment="top" leftline="true" rightline="true" width="85text%">
 <row topline="true" bottomline="true">
 <cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
 \begin_inset Text
@@ -814,7 +815,7 @@ DOUG supports various parameters for development purposes or tracking the
 <lyxtabular version="3" rows="4" columns="2">
 <features>
 <column alignment="center" valignment="top" leftline="true" width="0">
-<column alignment="left" valignment="top" leftline="true" rightline="true" width="0">
+<column alignment="left" valignment="top" leftline="true" rightline="true" width="85text%">
 <row topline="true" bottomline="true">
 <cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
 \begin_inset Text
