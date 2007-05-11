@@ -1092,26 +1092,29 @@ call MPI_Barrier(MPI_COMM_WORLD,ierr)!todo: remove
 
     integer :: i
 
-    if (associated(fexchindx)) deallocate(fexchindx)
-    if (associated(pid2indx))  deallocate(pid2indx)
+    if (D_PMVM_AUXARRS_INITED) then
 
-    ! Destroy incoming buffers
-    if (associated(inbufs)) then
-       do i = 1,size(inbufs)
-          if (associated(inbufs(i)%arr)) deallocate(inbufs(i)%arr)
-       end do
-       deallocate(inbufs)
+      if (associated(fexchindx)) deallocate(fexchindx)
+      if (associated(pid2indx))  deallocate(pid2indx)
+
+      ! Destroy incoming buffers
+      if (associated(inbufs)) then
+         do i = 1,size(inbufs)
+            if (associated(inbufs(i)%arr)) deallocate(inbufs(i)%arr)
+         end do
+         deallocate(inbufs)
+      end if
+
+      ! Destroy outgoing buffers
+      if (associated(outbufs)) then
+         do i = 1,size(outbufs)
+            if (associated(outbufs(i)%arr)) deallocate(outbufs(i)%arr)
+         end do
+         deallocate(outbufs)
+      end if
+
+      D_PMVM_AUXARRS_INITED = .false.
     end if
-
-    ! Destroy outgoing buffers
-    if (associated(outbufs)) then
-       do i = 1,size(outbufs)
-          if (associated(outbufs(i)%arr)) deallocate(outbufs(i)%arr)
-       end do
-       deallocate(outbufs)
-    end if
-
-    D_PMVM_AUXARRS_INITED = .false.
 
   end subroutine pmvmCommStructs_destroy
 
