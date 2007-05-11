@@ -60,6 +60,11 @@ module SpMtx_class
   integer, parameter :: D_SpMtx_SCALE_DIAG          =  1
   integer, parameter :: D_SpMtx_SCALE_DIAG_FILTERED =  2
 
+  ! Matrix file format
+  integer, parameter :: D_SpMtx_FORMAT_TEXT   = 0
+  integer, parameter :: D_SpMtx_FORMAT_BINARY = 1
+  integer, parameter :: D_SpMtx_FORMAT_XDR    = 2
+
 
 !> the central structire -- spase matrix:
   type SpMtx
@@ -457,9 +462,11 @@ contains
     integer      ,intent(out) :: n
     integer      ,intent(out) :: nnz
     
-    if (mctls%assembled_mtx_format == 0) then
-      call ReadInSparseAssembledHeader_Text(filename, fHandler, n, nnz)
-    elseif (mctls%assembled_mtx_format == 2) then
+    if (mctls%assembled_mtx_format == D_SpMtx_FORMAT_TEXT) then
+      call ReadInSparseAssembledHeader_TextBinary(filename, fHandler, n, nnz, .false.)
+    elseif (mctls%assembled_mtx_format == D_SpMtx_FORMAT_BINARY) then
+      call ReadInSparseAssembledHeader_TextBinary(filename, fHandler, n, nnz, .true.)
+    elseif (mctls%assembled_mtx_format == D_SpMtx_FORMAT_XDR) then
       call ReadInSparseAssembledHeader_XDR(filename, fHandler, n, nnz)
     else
       call DOUG_abort('[ReadInSparseAssembledHeader] Data format not recognized. 0=text, 2=XDR', -1)
@@ -468,31 +475,38 @@ contains
   end subroutine ReadInSparseAssembledHeader
   
   !----------------------------------------------------------
-  !> Opens a file and reads first line of matrix in sparse form (text version)
+  !> Opens a file and reads first line of matrix in sparse form
   !----------------------------------------------------------
-  subroutine ReadInSparseAssembledHeader_Text(filename, fHandler, n, nnz)
+  subroutine ReadInSparseAssembledHeader_TextBinary(filename, fHandler, n, nnz, binary)
     implicit none
     
     character*(*),intent(in)  :: filename
     integer      ,intent(out) :: fHandler
     integer      ,intent(out) :: n
     integer      ,intent(out) :: nnz
+    logical      ,intent(in)  :: binary
     
     logical :: found
 
     call FindFreeIOUnit(found, fHandler)
     if (.NOT. found) &
-      call DOUG_abort('[ReadInSparseAssembledHeader_Text] No free IO unit.', -1)
+      call DOUG_abort('[ReadInSparseAssembledHeader_TextBinary] No free IO unit.', -1)
       
-    open(fHandler,FILE=trim(filename),STATUS='OLD',FORM='FORMATTED', &
+    if (binary) then
+      open(fHandler,FILE=trim(filename),STATUS='OLD',FORM='UNFORMATTED', &
              ERR=444)
-    read(fHandler,FMT=*,END=500) n,nnz
-	return
+      read(fHandler,END=500) n,nnz
+    else
+      open(fHandler,FILE=trim(filename),STATUS='OLD',FORM='FORMATTED', &
+             ERR=444)
+      read(fHandler,FMT=*,END=500) n,nnz
+    endif
+    return
 	
 444 call DOUG_abort('Unable to open assembled file: '//trim(filename)//' ', -1)
 500 continue ! End of file reached too soon
     call DOUG_abort('File '//trim(filename)//' too short! ', -1)
-  end subroutine ReadInSparseAssembledHeader_Text
+  end subroutine ReadInSparseAssembledHeader_TextBinary
   
   !----------------------------------------------------------
   !> Opens a file and reads first line of matrix in sparse form (XDR version)
@@ -523,9 +537,11 @@ contains
     integer        ,intent(in) :: fHandler
     type(SpMtx), intent(inout) :: A
     
-    if (mctls%assembled_mtx_format == 0) then
-      call ReadInSparseAssembledBulk_Text(fHandler, A)
-    elseif (mctls%assembled_mtx_format == 2) then
+    if (mctls%assembled_mtx_format == D_SpMtx_FORMAT_TEXT) then
+      call ReadInSparseAssembledBulk_TextBinary(fHandler, A, .false.)
+    elseif (mctls%assembled_mtx_format == D_SpMtx_FORMAT_BINARY) then
+      call ReadInSparseAssembledBulk_TextBinary(fHandler, A, .true.)
+    elseif (mctls%assembled_mtx_format == D_SpMtx_FORMAT_XDR) then
       call ReadInSparseAssembledBulk_XDR(fHandler, A)
     else
       call DOUG_abort('[ReadInSparseAssembledBulk] Data format not recognized. 0=text, 2=XDR', -1)
@@ -534,24 +550,43 @@ contains
   end subroutine ReadInSparseAssembledBulk
 
   !----------------------------------------------------------
-  !> Reads bulk of matrix in sparse form (Text version) of already open file
+  !> Reads bulk of matrix in sparse form of already open file
   !----------------------------------------------------------
-  subroutine ReadInSparseAssembledBulk_Text(fHandler, A)
+  subroutine ReadInSparseAssembledBulk_TextBinary(fHandler, A, binary)
     implicit none
-    
+
+    type SpMtx_Triple
+      integer :: i, j
+      float(kind=rk) :: val
+    end type SpMtx_Triple    
+
     integer        ,intent(in) :: fHandler
     type(SpMtx), intent(inout) :: A
+    logical        ,intent(in) :: binary
+
+    type(SpMtx_Triple), dimension(:), pointer :: triples
     integer :: i
     
-    do i=1,A%nnz
-      read(fHandler, FMT=*,END=500 ) A%indi(i),A%indj(i),A%val(i)
-    enddo
+    if (binary) then
+      allocate(triples(A%nnz))
+      read(fHandler, END=500) (triples(i), i=1,A%nnz)
+      do i=1,A%nnz
+        A%indi(i)=triples(i)%i
+        A%indj(i)=triples(i)%j
+        A%val(i)=triples(i)%val
+      enddo
+      deallocate(triples)
+    else
+      do i=1,A%nnz
+        read(fHandler, FMT=*,END=500 ) A%indi(i),A%indj(i),A%val(i)
+      enddo
+    endif
     return
     
 500 continue ! End of file reached too soon
-    call DOUG_abort('[ReadInSparseAssembledBulk_Text] File too short! ', -1)
+    call DOUG_abort('[ReadInSparseAssembledBulk_TextBinary] File too short! ', -1)
   
-  end subroutine ReadInSparseAssembledBulk_Text
+  end subroutine ReadInSparseAssembledBulk_TextBinary
 
   !----------------------------------------------------------
   !> Reads bulk of matrix in sparse form (XDR version) of already open file
@@ -582,9 +617,11 @@ contains
     integer        ,intent(in) :: fHandler
     integer :: ierr
     
-    if (mctls%assembled_mtx_format == 0) then ! text
-	  close(fHandler)
-    elseif (mctls%assembled_mtx_format == 2) then ! XDR
+    if (mctls%assembled_mtx_format == D_SpMtx_FORMAT_TEXT) then
+      close(fHandler)
+    elseif (mctls%assembled_mtx_format == D_SpMtx_FORMAT_BINARY) then
+      close(fHandler)
+    elseif (mctls%assembled_mtx_format == D_SpMtx_FORMAT_XDR) then
       ierr = ixdrclose(fHandler)
     else
       call DOUG_abort('[CloseSparseAssembledFile] Data format not recognized. 0=text, 2=XDR', -1)
