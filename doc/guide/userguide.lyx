@@ -1,4 +1,4 @@
-#LyX 1.4.2 created this file. For more info see http://www.lyx.org/
+#LyX 1.4.3 created this file. For more info see http://www.lyx.org/
 \lyxformat 245
 \begin_document
 \begin_header
@@ -132,7 +132,7 @@ The following table contains all parameters referring to external files
 
 \begin_layout Standard
 \begin_inset Tabular
-<lyxtabular version="3" rows="16" columns="2">
+<lyxtabular version="3" rows="17" columns="2">
 <features>
 <column alignment="center" valignment="top" leftline="true" width="0">
 <column alignment="left" valignment="top" leftline="true" rightline="true" width="85text%">
@@ -243,6 +243,27 @@ File containing system matrix in triple format (input_type=2)
 \begin_inset Text
 
 \begin_layout Standard
+assembled_mtx_format
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Standard
+Format of the assembled matrix file: 0 (default) for text file, 1 for binary
+ file, 2 for XDR file (input_type=2)
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row topline="true">
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Standard
 assembled_rhs_file
 \end_layout
 
@@ -272,8 +293,8 @@ assembled_rhs_format
 \begin_inset Text
 
 \begin_layout Standard
-Format of the right-hand-side vector file: 0 for text-based format, 1 for
- binary format (input_type=2)
+Format of the right-hand-side vector file: 0 (default) for text-based format,
+ 1 for binary format, 2 for XDR file (input_type=2)
 \end_layout
 
 \end_inset
@@ -945,10 +966,12 @@ Assembled format
 \begin_layout Standard
 Assembled format is specified by setting parameter 'input_type' to 2 in
  DOUG control file.
- Matrix file in sparse text format is specified using 'assembled_mtx_file'
- parameter.
- The first row in the file should contain 2 integers - the number of freedoms
- in the system and the number of following non-zero matrix elements.
+ Its format is defined using 'assembled_mtx_format' parameter, while the
+ name of the matrix file is specified using 'assembled_mtx_file' parameter.
+ In case when 'assembled_mtx_format' is 0, the file is assumed to be in
+ text format and the first row in the file should contain 2 integers - the
+ number of freedoms in the system and the number of following non-zero matrix
+ elements.
  Each of the following lines should contain the row and column number and
  value for the non-zero elements (row and column numbers are indexed starting
  from 1).
@@ -968,6 +991,28 @@ For example, 2x2 identity matrix is described as:
 
 \begin_layout LyX-Code
 2 2 1.0
+\end_layout
+
+\begin_layout Standard
+If the value of 'assembled_mtx_format' is 1, then the matrix file is assumed
+ to be in unformatted binary format.
+ First 2 integers describe the number of freedoms in the system and the
+ number of following non-zero elements.
+ Each element is encoded as a triple consisting of a row and column indexes
+ and the value of the element.
+ All elements must be read from the file as a single block.
+\end_layout
+
+\begin_layout Standard
+If 'assembled_mtx_format' is set to 2, then the matrix file is read using
+ XDR library (http://meteora.ucsd.edu/~pierce/fxdr_home_page.html).
+ The first 2 fields in the file are integers, describing the number of freedoms
+ and the number of non-zero elements.
+ After this come matrix elements - each element is encoded as a triple -
+ consisting of row and column index (integers) and the element value (double-pre
+cision floating point value).
+ Note that files in XDR format are platform-independent and have approximately
+ the same size as platform-specific binary files.
 \end_layout
 
 \begin_layout Standard
@@ -998,7 +1043,17 @@ For example, 2d vector (5, 1) is described as:
 \begin_layout Standard
 If the value of 'assembled_rhs_format' is 1, then the RHS vector is assumed
  to be in unformatted binary format.
- 
+ The first element of the binary format is the size of the vector.
+ After that come values of the RHS vector (must be read as a single continuous
+ block).
+\end_layout
+
+\begin_layout Standard
+If the value of 'assembled_rhs_format' is 2, then RHS vector is assumed
+ to be in XDR format.
+ Like in platform-specific binary format, the first element of the file
+ is the size of the RHS vector (integer) and the following elements are
+ actual values of the RHS vector (double-precision floating point numbers).
 \end_layout
 
 \begin_layout Subsubsection
