@@ -1539,7 +1539,7 @@ contains
 	enddo
 	
   end subroutine FindFreeIOUnit
-  
+
   !-------------------------------------
   !> Writes vector x to the solution file.
   !-------------------------------------
@@ -1567,9 +1567,11 @@ contains
 	    if (opened.eq.0) &
           call WriteSolutionBinaryFormat(iounit, x)
 
+#ifdef HAVE_LIBFXDR
       ! XDR format 
       elseif (mctls%solution_format == 2) then
         call WriteSolutionXDRFormat(mctls%solution_file, x)
+#endif
         
       ! Default case.
       else
@@ -1621,6 +1623,7 @@ contains
 
   end subroutine
 
+#ifdef HAVE_LIBFXDR
   !----------------------------------
   !> Writes the solution to a file in binary format using the FXDR library.
   !> The values are written as double precision (64 bit).
@@ -1644,6 +1647,7 @@ contains
 
   end subroutine
 
+#endif
 
   !-------------------------------------
   !> sort integer array using quicksort algorithm

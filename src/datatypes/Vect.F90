@@ -853,10 +853,12 @@ contains
       call Vect_ReadFromFile_Text(filename, x)
     elseif (fmt == D_RHS_BINARY) then
       call Vect_ReadFromFile_Binary(filename, x)
+#ifdef HAVE_LIBFXDR
     elseif (fmt == D_RHS_XDR) then
       call Vect_ReadFromFile_XDR(filename, x)
+#endif
     else
-      call DOUG_abort('[Vect_ReadFromFile] Data format not recognized. 0=text, 1=binary, 2=XDR', -1)
+      call DOUG_abort('[Vect_ReadFromFile] Data format not recognized. 0=text, 1=binary, 2=XDR (if compiled in)', -1)
     endif
 
   end subroutine Vect_ReadFromFile
@@ -915,7 +917,8 @@ contains
 500 call DOUG_abort('[Vect_ReadFromFile_Binary] : End of file reached to early.', -1)
   
   end subroutine Vect_ReadFromFile_Binary
-  
+
+#ifdef HAVE_LIBFXDR  
   !-----------------------------
   !> Read vector of floats from file (XDR version)
   !-----------------------------
@@ -938,5 +941,7 @@ contains
     enddo
   
   end subroutine Vect_ReadFromFile_XDR
+
+#endif
 
 end module Vect_mod

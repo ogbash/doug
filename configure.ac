@@ -81,8 +81,12 @@ AC_CHECK_LIB(plplotf77d, plsdev,
                          [plplot_found=no
                           AC_DEFINE(D_WANT_PLPLOT_NO, [], [Do not use plplot])],
                          [-lplplotf77cd])
+
 AC_CHECK_LIB(metis, metis_partgraphkway,,
                     [AC_MSG_ERROR([metis not found])])
+
+AC_CHECK_LIB(fxdr, initxdr)
+
 AC_LANG_POP(Fortran)
 
 # BLAS
