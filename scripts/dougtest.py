@@ -98,7 +98,12 @@ class ControlFile:
 		finally:
 			f.close()
 
+class TestFailure (ScriptException):
+	pass
+
 class TestCase (unittest.TestCase):
+	failureException=TestFailure
+	
 	def __init__(self, testname, datadir, ctrlfname, csolutionfname, conf, solver, method, levels,
 		     nproc, executable):
 		unittest.TestCase.__init__(self)
@@ -189,7 +194,7 @@ class TestCase (unittest.TestCase):
 				LOG.debug("Shutting down mpi")
 				mpihalt = popen2.Popen3("%s > %s 2> %s" % (mpihaltname, outfilename, errfilename))
 				import time
-				time.sleep(1)
+				time.sleep(4) # lamhalt <=7.1.1 does not wait until whole universe is shut down
 				res = mpihalt.wait()
 				if res:
 					LOG.warn("Error running %s (%d)"
@@ -227,7 +232,7 @@ class TestCase (unittest.TestCase):
 						     outfname, errfname)
 						    )
 				import time
-				time.sleep(1) # without this mpirun somehow gets HUP signal
+				#time.sleep(1) # without this mpirun somehow gets HUP signal
 
 				value = doug.wait()
 				LOG.debug("Finished %s with code %d" % (mpirun, value))

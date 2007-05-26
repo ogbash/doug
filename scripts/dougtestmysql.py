@@ -90,6 +90,11 @@ class DougMySQLTestResult(unittest.TestResult):
                 self.cursor.execute("update testresults set status=%s where id=%s",
                                     (TestStatus.SUCCESS, test.ID))
 
+		if hasattr(test, "files"):
+			for fname, descr in test.files:
+				self._addFile(fname, test)
+
+
 	def stop(self):
 		unittest.TestResult.stop(self)
 
@@ -125,8 +130,8 @@ class DougMySQLTestResult(unittest.TestResult):
                 self.cursor.execute("update testresults set errortext=%s where id=%s",
                                     (str(errval), test.ID))
                 
-		if issubclass(errtp, ScriptException):
-			for fname, descr in errval.files:
+		if hasattr(test, "files"):
+			for fname, descr in test.files:
 				self._addFile(fname, test)
 
         def _addFile(self, name, test):
