@@ -82,12 +82,93 @@ Installation
 Prerequisites
 \end_layout
 
+\begin_layout Standard
+DOUG is built on top of several libraries that must be installed before
+ DOUG is compiled.
+\end_layout
+
 \begin_layout Subsection
 Configuration
 \end_layout
 
+\begin_layout Standard
+DOUG uses 
+\emph on
+GNU Autotools
+\emph default
+ suite for configuration.
+ In the simplest case, when all libraries are accessible to the compiler
+ by default, DOUG can be configured by running configuration script in source
+ directory:
+\end_layout
+
+\begin_layout LyX-Code
+./configure
+\end_layout
+
+\begin_layout Standard
+In case this succeeds, the next step is compilation.
+ Otherwise some required libraries may be missing or not accessible.
+ To explictly specify locations of libraries, parameters must given to 
+\emph on
+configure
+\emph default
+ script .
+ To see all available options, run the following command:
+\end_layout
+
+\begin_layout LyX-Code
+./configure --help
+\end_layout
+
 \begin_layout Subsection
 Compilation
+\end_layout
+
+\begin_layout Standard
+If configure script succeeded, DOUG can be compiled using make command
+\end_layout
+
+\begin_layout LyX-Code
+make
+\end_layout
+
+\begin_layout Standard
+Compilation may take few minutes, depending on platform.
+ If compilation succeeds, then there are two options: DOUG can be used 
+\begin_inset Quotes eld
+\end_inset
+
+in place
+\begin_inset Quotes erd
+\end_inset
+
+ or DOUG can be installed into another directory by running the following
+ command:
+\end_layout
+
+\begin_layout LyX-Code
+make install
+\end_layout
+
+\begin_layout Standard
+This step usually fails only if there is limited access to the installation
+ directory (by default 
+\begin_inset Quotes eld
+\end_inset
+
+/usr/local
+\begin_inset Quotes erd
+\end_inset
+
+).
+ In that case installation may require root access.
+ If this is not available (or local installation is sufficient) then another
+ option is to specify different installation directory during configuration:
+\end_layout
+
+\begin_layout LyX-Code
+./configure --prefix=/home/myusername
 \end_layout
 
 \begin_layout Section
