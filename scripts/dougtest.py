@@ -342,6 +342,51 @@ class TestCase (unittest.TestCase):
 			raise self.failureException("Solution is wrong with difference: %f"
 						    % (tolerance) )
 
+class MPITestCase(TestCase):
+	"Test case to run DOUG directly with mpirun."
+
+	def runTest(self):
+		LOG.debug("Running test with mpirun")
+		LOG.info("solver=%d, method=%d, levels=%d, nproc=%d" % (self.solver, self.method, self.levels, self.nproc))
+		mpirun = self.conf.get("dougtest", "mpirun")
+		dougbindir = os.path.abspath(self.conf.get("dougtest", "dougbindir"))
+		main = os.path.join(dougbindir, self.executable)
+		errfname = os.path.join(self.tmpdir, self.conf.get("dougtest", "doug-errfilename"))
+		outfname = os.path.join(self.tmpdir, self.conf.get("dougtest", "doug-outfilename"))
+		
+		curdir = os.getcwd()
+
+		try:
+			LOG.debug("Changing directory to %s" % self.tmpdir)
+			os.chdir(self.tmpdir)
+			try:
+				LOG.debug("Running %s -np 1 %s -f %s" % (mpirun, main, self.testctrlfname))
+				doug = popen2.Popen3('%s -np %d %s -f %s > %s 2> %s'%
+						    (mpirun, self.nproc, main, self.testctrlfname,
+						     outfname, errfname)
+						    )
+				value = doug.wait()
+				LOG.debug("Finished %s with code %d" % (mpirun, value))
+				self.files.append((outfname, "%s standard output" % mpirun))
+				self.files.append((errfname, "%s standard error" % mpirun))
+
+				if value != 0:
+					se = ScriptException("Error occured while running doug (value=%d), "
+							     "inspect output files (%s, %s) for error description." %
+							     (value, outfname, errfname))
+					raise se
+
+				# compare answers
+				self._assertSolution()
+			finally:
+				LOG.debug("Changing directory to %s" % curdir)
+				os.chdir(curdir)
+		except ScriptException, e:
+			for fn in self.files:
+				e.addFile(*fn)
+			raise e
+
+
 class CombinedTestResult(unittest.TestResult):
 	"""Holder for multiple test result objects.
 

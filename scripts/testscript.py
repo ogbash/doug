@@ -165,7 +165,7 @@ def main(testResults):
             testtuples = generateTuples(solvers, methods, levels, processors, executables)
 
             for testtuple in testtuples:
-                test = dougtest.TestCase(name+"_"+testconf, datadir, ctrlfname, solutionfname, conf, *testtuple)
+                test = dougtest.MPITestCase(name+"_"+testconf, datadir, ctrlfname, solutionfname, conf, *testtuple)
                 testSuite.addTest(test)
 
     # run tests
