@@ -1734,7 +1734,7 @@ contains
        call plenv (xmin, xmax, ymin, ymax, 0, 0);
 
        call plcol0(1) ! red
-       write(buf5, '(i5)'), M%nnode
+       write(buf5, '(i5)') M%nnode
        call pllab( '(x)', '(y)', 'Mesh : cloud of points ['//buf5//']' )
     end if
 

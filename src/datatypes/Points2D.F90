@@ -224,7 +224,7 @@ contains
        call plenv (xmin, xmax, ymin, ymax, 0, 0);
 
        call plcol0(1) ! red
-       write(buf5, '(i3)'), n ! Because we plot closed polygons
+       write(buf5, '(i3)') n ! Because we plot closed polygons
        call pllab( '(x)', '(y)', 'Points : '//buf5//' points' )
     end if
 

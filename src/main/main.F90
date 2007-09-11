@@ -204,7 +204,7 @@ program main
      endif
 
      write(stream,*) 'time spent in pcg():',MPI_WTIME()-t1
-     if(pstream/=0) write(pstream, "(I0,':pcg time:',F0.3)") , myrank, MPI_WTIME()-t1
+     if(pstream/=0) write(pstream, "(I0,':pcg time:',F0.3)") myrank, MPI_WTIME()-t1
 
 !call Vect_Print(xl,'xl: local solution')
 

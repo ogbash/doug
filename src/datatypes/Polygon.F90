@@ -252,7 +252,7 @@ contains
        end do
 !       write(stream, *) 'its index is ', p1_ind
     else
-       write(buf10, '(i10)'), count
+       write(buf10, '(i10)') count
        call DOUG_abort('[Polygon_sortVerts] : some weird value of count = '//buf10//'.')
     end if
 
@@ -538,7 +538,7 @@ contains
        call plenv (xmin, xmax, ymin, ymax, 0, 0);
 
        call plcol0(1) ! red
-       write(buf3, '(i3)'), n-1 ! Because we plot closed polygons
+       write(buf3, '(i3)') n-1 ! Because we plot closed polygons
        call pllab( '(x)', '(y)', 'Polygon : '//buf3//' vertices' )
     end if
 
