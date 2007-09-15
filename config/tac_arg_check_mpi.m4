@@ -31,6 +31,7 @@ AC_DEFUN([TAC_ARG_CHECK_MPI],
       echo "Cannot preprocess simple MPI C program."
       echo "Try --with-mpi or --with-mpi-incdir"
       echo "to specify all the specific MPI compile options."
+      echo "DOUG_STRING_INSPECT_LOG"
       echo "-----"
       AC_MSG_ERROR(MPI cannot preprocess)
     ])
@@ -80,6 +81,7 @@ if test $_status != 0; then
   echo "Cannot compile simple MPI Fortran program."
   echo "Try FC, --with-mpi, --with-mpi-fc, --with-mpi-libdir, --with-mpi-libs"
   echo "to specify all the specific MPI compile options."
+  echo "DOUG_STRING_INSPECT_LOG"
   echo "-----"
   AC_MSG_ERROR(MPI cannot link)
 else

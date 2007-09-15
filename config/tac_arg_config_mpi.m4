@@ -81,23 +81,44 @@ dnl --------------------------------------------------------------------
     MPI_BIN="${MPI_DIR}/bin"
   fi
 
+  MPI_FC_EXISTS=no
   if test -n "$FC"; then
     # override any MPI_FC if FC is specified
     MPI_FC=$FC
-  else
-    # otherwise set default MPI_FC and apply MPI_BIN to MPI_FC
-    if test -z "$MPI_FC"; then
-      MPI_FC=mpif77
-    fi
-    if test -n "$MPI_BIN" && test -n "$MPI_FC"; then
-      MPI_FC="${MPI_BIN}/${MPI_FC}"
-    fi
-  fi
-
-  if test -f ${MPI_FC}; then
     MPI_FC_EXISTS=yes
+    AC_MSG_NOTICE(Using provided FC=$FC)
   else
-    AC_CHECK_PROG(MPI_FC_EXISTS, ${MPI_FC}, yes, no)
+    # otherwise test for $MPI_FC, mpif90 and mpif77
+    
+    if test -z "$MPI_BIN"; then
+      for _mpi_program in $MPI_FC mpif90 mpif77; do
+        _mpi_program=$(which $_mpi_program)
+        AC_MSG_CHECKING(file $_mpi_program)
+        if test -f $_mpi_program; then # test file, running mpifXX without args may show errors
+          MPI_FC_EXISTS=yes
+	  MPI_FC=$_mpi_program
+          AC_MSG_RESULT($MPI_FC_EXISTS)
+	  break
+        else
+	  AC_MSG_RESULT($MPI_FC_EXISTS)
+        fi
+      done
+
+    else # MPI_BIN is specified
+      for _mpi_program in $MPI_FC mpif90 mpif77; do
+        _mpi_program="$MPI_BIN/$_mpi_program"
+        AC_MSG_CHECKING(file $_mpi_program)
+        if test -f $_mpi_program; then # test file, running mpifXX without args may show errors
+          MPI_FC_EXISTS=yes
+	  MPI_FC=$_mpi_program
+          AC_MSG_RESULT($MPI_FC_EXISTS)
+	  break
+        else
+	  AC_MSG_RESULT($MPI_FC_EXISTS)
+        fi
+      done
+
+    fi
   fi
 
   if test "X${MPI_FC_EXISTS}" = "Xyes"; then

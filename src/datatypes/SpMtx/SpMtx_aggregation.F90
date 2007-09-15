@@ -1145,6 +1145,7 @@ endif
 !endif
           if (maxconnweightsum>=alpha.or.(present(Afine).and.maxconnweightsum>=beta)) then ! let the eater get the nodes
             do j=1,aggrsize(i)
+              ! print *, j, eater, lbound(aggrsize), ubound(aggrsize)
               aggrsize(eater)=aggrsize(eater)+1
               structnodes(aggrsize(eater),eater)=structnodes(j,i)
               aggrnum(structnodes(j,i))=eater

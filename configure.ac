@@ -28,6 +28,8 @@ TAC_ARG_CONFIG_MPI
 AC_PROG_CC()
 AC_PROG_FC([ifort g95 gfortran], [Fortran 95]) #fortran 95 compiler and dialect
 
+DOUG_CHECK_FC()
+
 # Fortran naming convention
 
 lam_fortran_double_underscore=0
@@ -73,6 +75,10 @@ AC_DEFINE_UNQUOTED([MPI_ABORT_ERROR_CODE_SHIFT],
 # Check libraries
 
 AC_LANG_PUSH(Fortran)
+AC_ARG_ENABLE(plplot,[AC_HELP_STRING([--disable-plplot],[do not use plplot])],
+  [if test "X$enableval" != "Xno"; then _search_plplot=yes; fi],[_search_plplot=yes])
+
+if test "X$_search_plplot" = Xyes; then
 AC_CHECK_LIB(plplotf77d, plsdev,
                          [plplot_found=yes 
                           AC_DEFINE(D_WANT_PLPLOT_YES, [], [Use plplot])
@@ -81,6 +87,9 @@ AC_CHECK_LIB(plplotf77d, plsdev,
                          [plplot_found=no
                           AC_DEFINE(D_WANT_PLPLOT_NO, [], [Do not use plplot])],
                          [-lplplotf77cd])
+else
+AC_DEFINE(D_WANT_PLPLOT_NO, [], [Do not use plplot])
+fi
 
 AC_CHECK_LIB(metis, metis_partgraphkway,,
                     [AC_MSG_ERROR([metis not found])])
