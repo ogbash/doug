@@ -28,6 +28,7 @@
 !> solver 2
 !> solve_maxiters 300
 !> method 1
+!> coarse_method 1
 !> levels  2
 !> overlap -1
 !> smoothers 0
