@@ -72,6 +72,8 @@ program aggr
   use Aggregate_mod
   use CoarseMtx_mod
   use CoarseAllgathers
+  use RobustCoarseMtx_mod
+  use pcgRobust_mod
 
   implicit none
 
@@ -88,12 +90,14 @@ program aggr
   type(SpMtx)    :: A,A_interf,A_ghost  !< System matrix (parallel sparse matrix)
   type(SpMtx)    :: AC  !< coarse matrix
   type(SpMtx)    :: Restrict !< Restriction matrix (for operation)
+  type(SumOfInversedSubMtx) :: B_RCS !< B matrix for the Robust Coarse Spaces
   !type(SpMtx)    :: Rest_cmb !< Restriction matrix (for coarse matrix build)
 
   float(kind=rk), dimension(:), pointer :: b  !< local RHS
   float(kind=rk), dimension(:), pointer :: xl !< local solution vector
   float(kind=rk), dimension(:), pointer :: x  !< global solution on master
   float(kind=rk), dimension(:), pointer :: sol, rhs  !< for testing solver
+  real(kind=rk), pointer :: rhs_1(:), g(:)
 
   ! Partitioning
   integer               :: nparts !< number of partitons to partition a mesh
@@ -114,6 +118,8 @@ program aggr
   integer :: aver_subdsize,min_subdsize,max_subdsize
   integer :: start_radius1,start_radius2
   integer :: plotting
+
+  type(RobustPreconditionMtx) :: C
   ! Parallel coarse level
   !type(CoarseData) :: cdat -- moved into the module itself...
 
@@ -197,8 +203,47 @@ program aggr
       !call DOUG_abort('testing parallel AC',0)
     else 
       call IntRestBuild(A,A%aggr,Restrict)
-      call CoarseMtxBuild(A,AC,Restrict)
-     
+!write(stream,*)'Smoothed matrix is:------------'
+!call SpMtx_printRaw(Restrict)
+
+      if (sctls%coarse_method<=1) then ! if not specified or ==1
+         call CoarseMtxBuild(A,AC,Restrict)
+
+      else if (sctls%coarse_method==2) then
+         ! use the Robust Coarse Spaces algorithm
+         B_RCS = CoarseProjectionMtxsBuild(A,Restrict)
+         allocate(rhs_1(A%nrows))
+         allocate(g(A%ncols))
+
+!test preconditioner
+!C = RobustPreconditionMtx_new()
+!do i=1,size(rhs_1)
+!   rhs_1 = 0._rk
+!   rhs_1(i) = 1._rk
+!   call precondition_forRCS(g, B_RCS, C, rhs_1)
+!   do j=1,size(g)
+!      if (g(j)/=0._rk) then
+!         print *, i, j, g(j)
+!      endif
+!   end do
+!end do
+
+         rhs_1 = 1.0
+         call pcg_forRCS(B_RCS,rhs_1,g)
+
+         if(sctls%verbose>5) then
+            write (stream, *) "Solution g = ", g
+         end if
+
+         call RobustRestrictMtxBuild(B_RCS,g,Restrict)
+
+         ! @todo: find restrict and continue
+         call DOUG_abort('Finish here for the Robust Coarse Spaces')
+      else
+         write(stream,'(A," ",I2)') 'Wrong coarse method', sctls%coarse_method
+         call DOUG_abort('Error in aggr', -1)
+      endif
+           
       if (sctls%verbose>3.and.AC%nnz<400) then
         write(stream,*)'A coarse is:=================='
         call SpMtx_printRaw(A=AC)

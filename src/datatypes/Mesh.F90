@@ -105,33 +105,34 @@ module Mesh_class
      integer, dimension(:), pointer :: inner_interf_fmask
 
 ! MOVE IT FROM HERE => MAKE GLOBAL
-     !! Number of my neighbours
+     !> Number of my neighbours
      integer                        :: nnghbrs
-     !! My neighbours' ranks : nghbrs[nnghbrs]
+     !> My neighbours' ranks : nghbrs[nnghbrs]
      integer, dimension(:), pointer :: nghbrs
 ! <=
 
-     !! Amounts of freedoms to send to particular neighbour :
+     !> Amounts of freedoms to send to particular neighbour :
      !! nfreesend_map[nparts] - zero indicates no freedoms to send
      integer, dimension(:), pointer :: nfreesend_map
      integer, dimension(:), pointer :: nghostsend_map
-     !! Mappings
-     !! maps global freedom numbers to local: gl_fmap[ngf]
+     ! Mappings
+     !> maps global freedom numbers to local: gl_fmap[ngf]
      integer, dimension(:), pointer :: gl_fmap
-     !! inverse of prev. map - local freedoms to global: lg_fmap[ngf]
+     !> maps local freedoms to global: lg_fmap[ngf]
      integer, dimension(:), pointer :: lg_fmap
      ! Data structures for assembled matrices case with its particluar
      !   overlap size:
-     integer :: ntobsent ! #inner freedoms to be sent to neighbours
-     integer :: ninonol  ! #inner freedoms that are on overlap
-     integer :: ninner   ! #inner freedoms total (totally inner:nino)
-     integer :: indepoutol ! points to the end of freedoms on outer
-                           !   overlap that does not get comm during Ax-op.
-                           ! ie. freedoms indepoutol+1:nlf get value
-                           !   through comm in Ax-op.
+     integer :: ntobsent !< #inner freedoms to be sent to neighbours
+     integer :: ninonol  !< #inner freedoms that are on overlap
+     integer :: ninner   !< #inner freedoms total (totally inner:nino)
+     integer :: indepoutol !< points to the end of freedoms on outer
+                           !!   overlap that does not get comm during Ax-op.
+                           !! ie. freedoms indepoutol+1:nlf get value
+                           !!   through comm in Ax-op.
 
     ! we are organising local freedoms as follows:
 
+    ! ('ol' - overlap)
     !1,2,...,M%ntobsent,...,M%ninonol,...,M%ninner,...,M%indepoutol,...,M%nlf|
     !<-feedoms4send -> |<-rest inol->|<-independ.>|<-indep.onoutol>|<receivd>|
     !<-     inner overlap         -> |<-freedoms->|<-   outer overlap      ->|

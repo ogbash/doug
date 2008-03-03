@@ -1118,6 +1118,47 @@ call MPI_Barrier(MPI_COMM_WORLD,ierr)!todo: remove
 
   end subroutine pmvmCommStructs_destroy
 
+  !> Add all A matrices, they may have different sizes - largest is taken
+  function SpMtx_addAll(As, koefs) result(C)
+    type(SpMtx), intent(in) :: As(:)
+    real(kind=rk), intent(in) :: koefs(:)
+    type(SpMtx) :: C
+
+    integer :: i, nnz, from, to
+    integer, dimension(:), pointer :: indi, indj, val
+
+    nnz = sum(As%nnz)
+
+    C = SpMtx_newInit(nnz)
+    from = 1
+    do i=1,size(As)
+       to = from + As(i)%nnz - 1
+       C%indi(from:to) = As(i)%indi
+       C%indj(from:to) = As(i)%indj
+       C%val(from:to) = koefs(i)*As(i)%val
+       from = to+1
+    end do
+
+    C%nrows = maxval(As%nrows)
+    C%ncols = maxval(As%ncols)
+    
+    ! add up duplicates
+    call SpMtx_consolidate(C, .TRUE.)
+
+    ! debug
+    !call SpMtx_printRaw(C)
+
+  end function SpMtx_addAll
+
+  !> Add two matrices together
+  function SpMtx_add(A,B,ka,kb) result(C)
+    type(SpMtx), intent(in) :: A,B
+    real(kind=rk), intent(in) :: ka, kb
+    type(SpMtx) :: C
+    
+    C = SpMtx_addAll((/A,B/),(/ka,kb/))
+  end function SpMtx_add
+
 End Module SpMtx_operation
 !----------------------------------------------------------
 !$Log: SpMtx_operation.f90,v $

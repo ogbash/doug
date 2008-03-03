@@ -307,6 +307,7 @@ contains
         Msh%nlf=A%nrows
         Msh%ninner=Msh%ngf
       else
+        write (stream,*) 'Cartesian Mesh!!!'
         call Mesh_BuildSquare(Msh,n)
         Msh%ninner=Msh%ngf
       endif

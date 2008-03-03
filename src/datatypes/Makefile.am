@@ -17,11 +17,13 @@ libdoug_la_SOURCES += \
 	datatypes/SpMtx/SpMtx_arrangement.F90 \
 	datatypes/SpMtx/SpMtx_op_Ax.f90 \
 	datatypes/SpMtx/SpMtx_op_AB.f90 \
+	datatypes/SpMtx/SpMtx_op_block.f90 \
 	datatypes/SpMtx/SpMtx_permutation.f90 \
 	datatypes/SpMtx/SpMtx_operation.F90 \
 	datatypes/SpMtx/SpMtx_generator.f90 \
 	datatypes/SpMtx/SpMtx.f90 \
 	datatypes/SpMtx/CoarseMtx.F90 \
+	datatypes/SpMtx/RobustCoarseMtx.f90 \
 	datatypes/SpMtx/CoarseGrid.F90 \
 	datatypes/SpMtx/CoarseAllgathers.F90 \
 	datatypes/SpMtx/GeomInterp.f90 \

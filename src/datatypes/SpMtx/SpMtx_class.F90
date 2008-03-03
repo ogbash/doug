@@ -386,8 +386,9 @@ contains
     M%indj(1:minn) = A%indj(1:minn)
     M%val(1:minn) = A%val(1:minn)
 
-    deallocate(A%indi,A%indj)
-    deallocate(A%val)
+    if(associated(A%indi)) deallocate(A%indi)
+    if(associated(A%indj)) deallocate(A%indj)
+    if(associated(A%val)) deallocate(A%val)
 
     A%indi => M%indi
     A%indj => M%indj

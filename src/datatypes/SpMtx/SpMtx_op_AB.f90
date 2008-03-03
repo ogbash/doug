@@ -469,9 +469,10 @@ outer:do i=1,Anrows
     nnz = 0
     do i=1,Anrows
       as=A%M_bound(i);ae=A%M_bound(i+1)-1
+      if(ae<as) cycle
       do j=1,Bncols
         bs=B%M_bound(j);be=B%M_bound(j+1)-1
-        cont=.true.
+        cont=be>=bs
         nnz_not_added=.true.
         ac=as;bc=bs
         aj=Aindj(ac);bi=Bindi(bc)
@@ -520,9 +521,10 @@ outer:do i=1,Anrows
     nnz = 0
     do i=1,Anrows
       as=A%M_bound(i);ae=A%M_bound(i+1)-1
+      if(ae<as) cycle
       do j=1,Bncols
         bs=B%M_bound(j);be=B%M_bound(j+1)-1
-        cont=.true.
+        cont=be>=bs
         nnz_not_added=.true.
         ac=as;bc=bs
         aj=Aindj(ac);bi=Bindi(bc)
