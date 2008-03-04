@@ -91,8 +91,10 @@ dnl --------------------------------------------------------------------
     # otherwise test for $MPI_FC, mpif90 and mpif77
     
     if test -z "$MPI_BIN"; then
-      for _mpi_program in $MPI_FC mpif90 mpif77; do
+      for _mpi_program in $MPI_FC mpif95 mpif90 mpif77; do
         _mpi_program=$(which $_mpi_program)
+	if test -z "$_mpi_program"; then continue; fi # not found on the PATH or as absolute name
+
         AC_MSG_CHECKING(file $_mpi_program)
         if test -f $_mpi_program; then # test file, running mpifXX without args may show errors
           MPI_FC_EXISTS=yes
@@ -134,4 +136,12 @@ dnl --------------------------------------------------------------------
     AC_MSG_ERROR([MPI Fortran 9x compiler (${MPI_FC}) not found.])
   fi
 
+  # if C compiler not specified expicitly, grab from the same directory as FC
+  if test -z "$CC"; then
+    _bindir=$(dirname $FC)
+    if test -f "$_bindir/mpicc"; then
+      CC="$_bindir/mpicc"
+      AC_MSG_NOTICE([Setting $CC as C compiler])
+    fi
+  fi
 ])
