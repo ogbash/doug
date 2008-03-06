@@ -192,6 +192,10 @@ contains
       integer :: iAgr, nAgr, iOtherAgr
       type(SpMtx) :: Itemp, Htemp, Akl
 
+      if (sctls%verbose>0) then
+         write (stream, *) "Initializing C preconditioner"
+      end if
+
       nAgr = size(A%Ai)
 
       allocate(C%subsolve_ids(nAgr))
@@ -213,7 +217,7 @@ contains
             call SpMtx_printRaw(C%I(iAgr))
          end if
       end do
-
+      
       ! find Hs
       do iAgr=1,nAgr
          ! find A_{kl}
@@ -256,6 +260,9 @@ contains
          !call SpMtx_printRaw(C%H(iAgr))
       end do
 
+      if (sctls%verbose>0) then
+         write (stream, *) "Finished initializing C preconditioner"
+      end if
     end subroutine initialize
   end subroutine precondition_forRCS
 

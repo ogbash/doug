@@ -216,19 +216,6 @@ program aggr
          allocate(rhs_1(A%nrows))
          allocate(g(A%ncols))
 
-!test preconditioner
-!C = RobustPreconditionMtx_new()
-!do i=1,size(rhs_1)
-!   rhs_1 = 0._rk
-!   rhs_1(i) = 1._rk
-!   call precondition_forRCS(g, B_RCS, C, rhs_1)
-!   do j=1,size(g)
-!      if (g(j)/=0._rk) then
-!         print *, i, j, g(j)
-!      endif
-!   end do
-!end do
-
          rhs_1 = 1.0
          call pcg_forRCS(B_RCS,rhs_1,g)
 
@@ -237,9 +224,8 @@ program aggr
          end if
 
          call RobustRestrictMtxBuild(B_RCS,g,Restrict)
+         call CoarseMtxBuild(A,AC,Restrict)
 
-         ! @todo: find restrict and continue
-         call DOUG_abort('Finish here for the Robust Coarse Spaces')
       else
          write(stream,'(A," ",I2)') 'Wrong coarse method', sctls%coarse_method
          call DOUG_abort('Error in aggr', -1)

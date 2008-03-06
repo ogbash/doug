@@ -472,10 +472,11 @@ outer:do i=1,Anrows
       if(ae<as) cycle
       do j=1,Bncols
         bs=B%M_bound(j);be=B%M_bound(j+1)-1
-        cont=be>=bs
+        if (be<bs) cycle
         nnz_not_added=.true.
         ac=as;bc=bs
         aj=Aindj(ac);bi=Bindi(bc)
+        cont=.TRUE.
         do while(cont)
           if (aj==bi) then
             if (nnz_not_added) then
@@ -524,10 +525,11 @@ outer:do i=1,Anrows
       if(ae<as) cycle
       do j=1,Bncols
         bs=B%M_bound(j);be=B%M_bound(j+1)-1
-        cont=be>=bs
+        if (be<bs) cycle
         nnz_not_added=.true.
         ac=as;bc=bs
         aj=Aindj(ac);bi=Bindi(bc)
+        cont=.TRUE.
         do while(cont)
           if (aj==bi) then
             if (nnz_not_added) then
