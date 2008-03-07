@@ -80,12 +80,12 @@ if __name__=='__main__':
 
 LOG = logging.getLogger('autotools')
 
-def run(configFileNames):
+def run(configFileNames, defaultDict={}):
     "Configure, compile project and build executables."
     LOG.info('Running autotools scripts')
 
     from ConfigParser import SafeConfigParser
-    conf = SafeConfigParser()
+    conf = SafeConfigParser(defaultDict)
     conf.readfp(defaultConfigFile)
     conf.read(configFileNames)
     
@@ -112,9 +112,10 @@ class Autogen:
         
         curdir = os.getcwd()
         waittime = self.conf.getint('autotools', 'autogen-waittime')
-        outfname = self.conf.get('autotools', 'autogen-outfilename')
-        errfname = self.conf.get('autotools', 'autogen-errfilename')
-        srcdir = self.conf.get('autotools', 'srcdir')
+        CWD = self.conf.get('autotools', 'cwd')
+        outfname = os.path.join(CWD, self.conf.get('autotools', 'autogen-outfilename'))
+        errfname = os.path.join(CWD, self.conf.get('autotools', 'autogen-errfilename'))
+        srcdir = os.path.join(CWD, self.conf.get('autotools', 'srcdir'))
 
         os.chdir(srcdir)        
         LOG.debug('Changed directory to %s', srcdir)
@@ -144,11 +145,12 @@ class Configure:
         LOG.info("Running configure")
 
         curdir = os.getcwd()
+        CWD = self.conf.get('autotools', 'cwd')
         waittime = self.conf.getint('autotools', 'configure-waittime')
-        outfname = self.conf.get('autotools', 'configure-outfilename')
-        errfname = self.conf.get('autotools', 'configure-errfilename')
-        srcdir = os.path.abspath(self.conf.get('autotools', 'srcdir'))
-        builddir = self.conf.get('autotools', 'builddir')
+        outfname = os.path.join(CWD, self.conf.get('autotools', 'configure-outfilename'))
+        errfname = os.path.join(CWD, self.conf.get('autotools', 'configure-errfilename'))
+        srcdir = os.path.join(CWD, self.conf.get('autotools', 'srcdir'))
+        builddir = os.path.join(CWD, self.conf.get('autotools', 'builddir'))
         argstr = self.conf.get('autotools', 'configure-arguments')
 
         if not os.path.exists(builddir):
@@ -187,10 +189,11 @@ class Make:
         LOG.info("Running make")
 
         curdir = os.getcwd()
+        CWD = self.conf.get('autotools', 'cwd')
         waittime = self.conf.getint('autotools', 'make-waittime')
-        outfname = self.conf.get('autotools', 'make-outfilename')
-        errfname = self.conf.get('autotools', 'make-errfilename')
-        builddir = self.conf.get('autotools', 'builddir')
+        outfname = os.path.join(CWD, self.conf.get('autotools', 'make-outfilename'))
+        errfname = os.path.join(CWD, self.conf.get('autotools', 'make-errfilename'))
+        builddir = os.path.join(CWD, self.conf.get('autotools', 'builddir'))
 
         os.chdir(builddir)
         try:

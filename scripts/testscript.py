@@ -37,6 +37,7 @@ defaultConfig = """
 [testscript]
 run-svn: yes
 run-autotools: yes
+run-tests: yes
 save-tar: no
 save-mysql: no
 
@@ -113,6 +114,7 @@ conf = SafeConfigParser()
 conf.readfp(StringIO(config))
 conf.read(confFileNames)
 
+conf.set("DEFAULT", "cwd", os.getcwd())
 
 def generateTuples(*iters):
     elems = [[]]
@@ -123,54 +125,53 @@ def generateTuples(*iters):
     
     return map(tuple, elems)
 
-def main(testResults):
-    conf.set("DEFAULT", "CWD", os.getcwd())
-    
+def main(testResults):    
     # svn
     if conf.getboolean('testscript', 'run-svn'):
-        svndoug = svnscripts.run(confFileNames)
+        svndoug = svnscripts.run(confFileNames, conf.defaults())
 
     # autotools
     if conf.getboolean('testscript', 'run-autotools'):
-        autotools.run(confFileNames)
+        autotools.run(confFileNames, conf.defaults())
 
     
     # construct tests
-    testSuite = unittest.TestSuite()
-    
-    items = conf.items("tests")
-    for name, value in items:
-        if not name.startswith("test"): continue
-        name = name[4:]
 
-        # read test data
-        ctrlfname, solutionfname, testconfs = tuple(value.strip().split(" ", 2))
-        ctrlfname = os.path.abspath(ctrlfname)
-        solutionfname = os.path.abspath(solutionfname)
-        datadir = os.path.dirname(ctrlfname)
-        LOG.debug("Constructing test '%s'" % (name, ))
-        LOG.debug("Control file: %s" % ctrlfname)
-        LOG.debug("Correct solution file: %s" % (solutionfname,))
+    if conf.getboolean('testscript', 'run-tests'):
+        testSuite = unittest.TestSuite()
+        items = conf.items("tests")
+        for name, value in items:
+            if not name.startswith("test"): continue
+            name = name[4:]
 
-        # read test configurations
-        testconfs = testconfs.split(",")
-        for testconf in testconfs:
-            testconfname = "testconf_%s" % testconf
-            solvers = map(int, conf.get(testconfname, "solver").split(","))
-            methods = map(int, conf.get(testconfname, "method").split(","))
-            levels = map(int, conf.get(testconfname, "levels").split(","))
-            processors = map(int, conf.get(testconfname, "processors").split(","))
-            executables = conf.get(testconfname, "executables").split(",")
+            # read test data
+            ctrlfname, solutionfname, testconfs = tuple(value.strip().split(" ", 2))
+            ctrlfname = os.path.abspath(ctrlfname)
+            solutionfname = os.path.abspath(solutionfname)
+            datadir = os.path.dirname(ctrlfname)
+            LOG.debug("Constructing test '%s'" % (name, ))
+            LOG.debug("Control file: %s" % ctrlfname)
+            LOG.debug("Correct solution file: %s" % (solutionfname,))
 
-            testtuples = generateTuples(solvers, methods, levels, processors, executables)
+            # read test configurations
+            testconfs = testconfs.split(",")
+            for testconf in testconfs:
+                testconfname = "testconf_%s" % testconf
+                solvers = map(int, conf.get(testconfname, "solver").split(","))
+                methods = map(int, conf.get(testconfname, "method").split(","))
+                levels = map(int, conf.get(testconfname, "levels").split(","))
+                processors = map(int, conf.get(testconfname, "processors").split(","))
+                executables = conf.get(testconfname, "executables").split(",")
 
-            for testtuple in testtuples:
-                test = dougtest.MPITestCase(name+"_"+testconf, datadir, ctrlfname, solutionfname, conf, *testtuple)
-                testSuite.addTest(test)
+                testtuples = generateTuples(solvers, methods, levels, processors, executables)
 
-    # run tests
-    testRunner = dougtest.TestRunner(testResults)
-    testRunner.run(testSuite)
+                for testtuple in testtuples:
+                    test = dougtest.MPITestCase(name+"_"+testconf, datadir, ctrlfname, solutionfname, conf, *testtuple)
+                    testSuite.addTest(test)
+
+        # run tests
+        testRunner = dougtest.TestRunner(testResults)
+        testRunner.run(testSuite)
 
 # ----------------------------------------
 

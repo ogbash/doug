@@ -64,11 +64,11 @@ def getRevision(dir):
     revision = int(s)
     return revision
 
-def run(configFileNames):
+def run(configFileNames, defaultDict={}):
     LOG.info("Running SVN scripts")
 
     from ConfigParser import SafeConfigParser
-    conf = SafeConfigParser()
+    conf = SafeConfigParser(defaultDict)
     conf.readfp(defaultConfigFile)
     conf.read(configFileNames)
 
@@ -106,8 +106,9 @@ class WorkingDirectory:
         curdir = os.getcwd()
         waittime = self.conf.getint('svnscripts', 'svn-waittime')
         workingRootDir = self.conf.get('svnscripts', 'workingrootdir')
-        outfname = self.conf.get('svnscripts', 'svn-outfilename')
-        errfname = self.conf.get('svnscripts', 'svn-errfilename')
+        CWD = self.conf.get('svnscripts', 'cwd')
+        outfname = os.path.join(CWD, self.conf.get('svnscripts', 'svn-outfilename'))
+        errfname = os.path.join(CWD, self.conf.get('svnscripts', 'svn-errfilename'))
         repoloc = self.conf.get('svnscripts', 'repository')+'/'+self.moduleName
         
         os.chdir(workingRootDir)
@@ -135,10 +136,11 @@ class WorkingDirectory:
         LOG.info('Running update')
         
         curdir = os.getcwd()
+        CWD = self.conf.get('svnscripts', 'cwd')
         waittime = self.conf.getint('svnscripts', 'svn-waittime')
-        workingRootDir = self.conf.get('svnscripts', 'workingrootdir')
-        outfname = self.conf.get('svnscripts', 'svn-outfilename')
-        errfname = self.conf.get('svnscripts', 'svn-errfilename')
+        workingRootDir = os.path.join(CWD, self.conf.get('svnscripts', 'workingrootdir'))
+        outfname = os.path.join(CWD,self.conf.get('svnscripts', 'svn-outfilename'))
+        errfname = os.path.join(CWD,self.conf.get('svnscripts', 'svn-errfilename'))
         
         os.chdir(workingRootDir)
         LOG.debug('Changed directory to %s', workingRootDir)
