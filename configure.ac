@@ -13,6 +13,16 @@ AC_CONFIG_AUX_DIR(config)
 
 AM_INIT_AUTOMAKE
 
+mode=normal
+AC_ARG_ENABLE([mode],
+  [AC_HELP_STRING([--enable-mode=<mode>], [normal or no-compile (normal is default)])],
+  [if test "x$enableval" = "xno-compile"; then mode=no-compile; fi])
+
+AM_CONDITIONAL([NO_COMPILE],[test "x$mode" = "xno-compile"])
+
+# ***** MODE=NORMAL
+if test "x$mode" = xnormal; then
+
 AC_DEFINE([D_REAL],,[Use real/complex])
 MAKE_INCLUDE=include
 AC_SUBST([MAKE_INCLUDE])
@@ -25,7 +35,12 @@ TAC_ARG_CONFIG_MPI
 
 # --- Programs ---
 
+fi # ***** MODE=NORMAL cannot omit AC_PROG_CC, automake will break otherwise
 AC_PROG_CC()
+AC_PROG_LIBTOOL
+# ***** MODE=NORMAL
+if test "$mode" == normal; then
+
 AC_PROG_FC([ifort g95 gfortran], [Fortran 95]) #fortran 95 compiler and dialect
 
 DOUG_CHECK_FC()
@@ -60,8 +75,6 @@ AC_DEFINE_UNQUOTED([SIZEOF_FORTRAN_COMPLEX], $SIZEOF_FORTRAN_COMPLEX, [Size of f
 AC_DEFINE_UNQUOTED([SIZEOF_FORTRAN_DBLCOMPLEX], $SIZEOF_FORTRAN_DBLCOMPLEX, [Size of fortran DOUBLE COMPLEX])
 
 AC_SUBST(FCFLAGS_F95)
-
-AC_PROG_LIBTOOL
 
 # ------------------------------------------------------------------------
 # MPI link check
@@ -127,6 +140,8 @@ fi
 AC_DEFINE_UNQUOTED([HAS_ISNAN],[$_has_isnan], [has isnan intrinsic])
 AC_DEFINE_UNQUOTED([HAS_ISINF],[$_has_isinf], [has isinf intrinsic])
 
+fi # this is the end for mode!=normal
+
 # --- Output ---
 
 AC_CONFIG_HEADERS([src/doug_config.h])
@@ -142,6 +157,7 @@ AC_OUTPUT
 # Summary
 cat <<EOF
 Summary:
+  mode = $mode
   FC = $FC
   blas: $blas_found, BLAS_LIBS = $BLAS_LIBS
   amd: $amd_found, AMD_LIBS = $AMD_LIBS
