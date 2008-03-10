@@ -71,6 +71,12 @@
  *	* IBM AIX xlc and xlf compilers.
  *	    (32-bit and 64-bit modes)
  */
+
+/*! \file
+ * UMFPACK wrapper routines for Fortran.
+ * \ingroup UMFPACK
+ */
+
 #include<doug_config.h>
 
 #include <umfpack.h>

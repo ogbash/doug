@@ -9,3 +9,4 @@
 !! \section doc Documentation
 !!
 !! - \subpage p_inputformat description of DOUG input file formats
+!! - \subpage p_rcs description of Robust Coarse Spaces

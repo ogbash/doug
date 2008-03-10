@@ -83,7 +83,11 @@ module SpMtx_class
     
     logical,        dimension(:), pointer :: strong !< connections
     integer, dimension(:), pointer :: strong_rowstart,strong_colnrs !< !For strong connection reference:
-    !> Used for Arranged Matrix
+    
+    !> \name For Arranged Matrix
+    !! @{
+
+    !> Lower bounds for rows/columns which also serve as upper bound for previous value.
     integer,        dimension(:), pointer :: M_bound
     !> \code
     !> 0: D_SpMtx_ARRNG_NO   - NO Arrange (default)
@@ -91,6 +95,7 @@ module SpMtx_class
     !> 2: D_SpMtx_ARRNG_COLS - Arranged for columns
     !> \endcode
     integer                               :: arrange_type = -1
+    !> @}
 
     !> Undefined, square, rows > columns, columns > rows
     integer :: shape = D_SpMtx_SHAPE_UNDEF
@@ -106,7 +111,9 @@ module SpMtx_class
     !> scaling of the matrix
     integer :: scaling = D_SpMtx_SCALE_UNDEF
 
-    !> Block structure:
+    !> \name Block structure 
+    !! @{
+
     !> number of blocks
     integer                          :: nblocks = -1
     !> Bound to separate inner nodes
@@ -119,6 +126,8 @@ module SpMtx_class
     !> For the block (i,j) be=mtx_bbe(i,j) gives the ending block
     !> index 'be' for 'indi(be)', 'indj(be)' and 'val(be)'
     integer, dimension(:,:), pointer :: mtx_bbe
+    !> @}
+
     !> \code
     !>this is needed in parallel aggregation case with zero overlap.
     !>  then A%mtx_bbe(2,2)+1,...,A%nnz holds the "incoming" nonzeroes,
@@ -130,15 +139,22 @@ module SpMtx_class
     !> Permutation map for freedoms : perm_map[M%nlf]
     integer,   dimension(:), pointer :: perm_map
 
+    !> \name Aggregates info
+    !! @{
+
     type(Aggrs) :: aggr !< aggregates (on all inner freedoms)
     type(Aggrs) :: fullaggr !< aggr with holes painted over
     type(Aggrs) :: expandedaggr !< aggr + neighbours' on overlap
+    !> @}
 
-    !> data associated with subsolves:
+    !> \name Data associated with subsolves
+    !! @{
+
     integer                          :: nsubsolves
+    !> \ingroup subsolve_ids
     integer, dimension(:), pointer   :: subsolve_ids !< numeric object handles
-    type(indlist),dimension(:),pointer :: subd !< gives subdomain indeces for
-                                               !<   each subdomain
+    type(indlist),dimension(:),pointer :: subd !< gives subdomain indeces for each subdomain
+    !> @}
  end type SpMtx
 
 contains

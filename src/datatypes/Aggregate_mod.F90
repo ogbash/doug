@@ -34,17 +34,19 @@ Module Aggregate_mod
 #else
 #define float real
 #endif
-  Type Aggrs !< Aggregates type
+  !> Aggregates type
+  Type Aggrs
     integer                       :: nagr !< #aggregates
     integer                       :: radius !< radius of aggregation
     integer                       :: nisolated !< # of isolated nodes
     integer, dimension(:),pointer :: num  !< aggregate # for each node
     integer, dimension(:),pointer :: starts,nodes !< compressed storage
-  end Type Aggrs
+  end Type Aggrs !Aggrs
 
   logical :: debu = .false.
 CONTAINS
 
+  !> Create empty Aggrs structure
   function Aggrs_New() result (aggr)
     type(Aggrs) :: aggr
 

@@ -21,6 +21,7 @@
 
 !-------------------------------------------------------
 !> Module for factorization of sparse matrices
+!! \ingroup subsolves
 !-------------------------------------------------------
 module Fact_class
   use globals
@@ -42,6 +43,7 @@ module Fact_class
   !--------------------------------------------------------------------
   !> Fact type
   !> General wrapper for sparse different solvers.
+  !> \ingroup subsolves
   !--------------------------------------------------------------------
   type Fact
     integer :: solver_type !< solver type (D_MUMPS, D_UMFPACK4, etc)

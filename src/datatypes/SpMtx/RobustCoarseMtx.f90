@@ -19,7 +19,11 @@
 ! of Distributed Systems, Liivi 2, 50409 Tartu, Estonia, http://dougdevel.org,
 ! mailto:info(at)dougdevel.org)
 
-!> Method for creating robust coarse spaces (algorithm by Jan van lent)
+!> \file
+!! \ingroup RCS
+
+!> Method for creating robust coarse spaces
+!! \ingroup RCS
 module RobustCoarseMtx_mod
   use SpMtx_class
   use SpMtx_util
@@ -29,17 +33,25 @@ module RobustCoarseMtx_mod
 
   implicit none
 
+  !> This represents matrix consisting of the sum of smaller inversed matrices.
+  !! The direct representation in memory is not possible but using in matrix-vector
+  !! multiplication and some other operations is.
+  !! The formula is \f$ \sum^n{A_i^{-1}} \f$ where \f$ A_i = R_i A \f$ and \e n is the 
+  !! number of aggregates.
+  !! \ingroup RCS
+  !!
   type SumOfInversedSubMtx
      type(SpMtx), pointer :: A !< Original matrix
-     type(SpMtx), dimension(:), pointer :: Ai !< Submatrices
-     type(SpMtx), dimension(:), pointer :: R !< Restriction matrices for submatrices
-     integer, dimension(:), pointer :: subsolve_ids !< factorisation IDs (UMFPACK) for Ai submatrices
+     type(SpMtx), dimension(:), pointer :: Ai !< Submatrices \f$A_i\f$
+     type(SpMtx), dimension(:), pointer :: R !< Restriction matrices for the submatrices
+     !> \ingroup subsolve_ids
+     integer, dimension(:), pointer :: subsolve_ids !< factorisation IDs (UMFPACK) for \e Ai submatrices
   end type SumOfInversedSubMtx
 
 contains
-  !> Creates _coarse_ restrict matrices for the Robust Coarse Spaces algorithm
-  !! from the restrict matrix of the usual aggregation
-  !! method restrict matrix
+  !> Creates restrict matrices for the Robust Coarse Space algorithm
+  !! from the restrict matrix of the aggregation and smoothing result.
+  !! \ingroup RCS
   function CoarseProjectionMtxsBuild(A,R) result (B)
     type(SpMtx), intent(inout) :: A
     type(SpMtx), intent(in) :: R !< restrict matrix from usual aggregate with smoothing
@@ -137,6 +149,7 @@ contains
 
   end function CoarseProjectionMtxsBuild
 
+  !> \ingroup RCS  
   subroutine SOISMtx_pmvm(y,A,x)
     type(SumOfInversedSubMtx), intent(inout) :: A !< System matrix
     real(kind=rk),dimension(:), pointer :: x !< Vector
@@ -172,6 +185,7 @@ contains
   end subroutine SOISMtx_pmvm
 
   !> Get robust restrict matrix
+  !! \ingroup RCS
   subroutine RobustRestrictMtxBuild(A,g,R)
     type(SumOfInversedSubMtx), intent(inout) :: A
     real(kind=rk), pointer :: g(:)

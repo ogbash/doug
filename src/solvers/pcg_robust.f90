@@ -1,4 +1,8 @@
-!> PCG method for the Robust Coarse Spaces
+!> \file
+!! \ingroup RCS
+
+!> PCG solver for the Robust Coarse Spaces
+!! \ingroup RCS
 module pcgRobust_mod
   use RealKind
   use RobustCoarseMtx_mod
@@ -11,10 +15,12 @@ module pcgRobust_mod
 
   !> Matrices for the robust preconditioner.
   !! This includes H and I matrix for every coarse node (fine aggregate).
+  !! \ingroup RCS
   type RobustPreconditionMtx
      type(SpMtx), pointer :: I(:)
      type(SpMtx), pointer :: H(:)
      type(SpMtx), pointer :: AI(:)
+     !> \ingroup subsolve_ids
      integer, pointer :: subsolve_ids(:)
   end type RobustPreconditionMtx
 
@@ -30,6 +36,7 @@ contains
   end function RobustPreconditionMtx_new
 
   !> pcg method where system matrix is the sum of inversed submatrices
+  !! \ingroup RCS
   subroutine pcg_forRCS (A, b, x)
     implicit none
 
@@ -116,6 +123,8 @@ contains
     
   end subroutine pcg_forRCS
 
+  !> Preconditioner C
+  !! \ingroup RCS
   subroutine precondition_forRCS(y, A, C, x)
     real(kind=rk), intent(out) :: y(:)
     real(kind=rk), pointer :: x(:)
