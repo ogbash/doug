@@ -18,7 +18,7 @@ try:
     log.write("svn up returned %d\n" % ret)
 
     os.chdir('doc')
-    ret = os.spawnlp(os.P_WAIT, 'doxygen', 'doxygen')
+    ret = os.spawnl(os.P_WAIT, '/usr/local/bin/doxygen', 'doxygen')
     log.write("doxygen returned %d\n" % ret)
 
     ret = os.system('cp html/* /srv/www/dougdevel.org/doug/docs')
