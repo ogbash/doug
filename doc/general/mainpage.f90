@@ -8,5 +8,20 @@
 !!
 !! \section doc Documentation
 !!
-!! - \subpage p_inputformat description of DOUG input file formats
-!! - \subpage p_rcs description of Robust Coarse Spaces
+!! \subsection inout Input/Output
+!! - \subpage p_inputformat DOUG input file formats
+!! - DOUG output
+!!
+!! \subsection alg Algorithm
+!! - overview
+!! - solvers
+!!   - PCG
+!!   - UMFPACK
+!! - aggregates
+!! - preconditioners
+!!   - fine level preconditioner
+!!   - coarse level preconditioner
+!! - coarse space
+!!   - smoothed
+!!   - \subpage p_rcs
+!!   - geometric

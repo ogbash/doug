@@ -38,7 +38,6 @@ module RobustCoarseMtx_mod
   !! multiplication and some other operations is.
   !! The formula is \f$ \sum^n{A_i^{-1}} \f$ where \f$ A_i = R_i A \f$ and \e n is the 
   !! number of aggregates.
-  !! \ingroup RCS
   !!
   type SumOfInversedSubMtx
      type(SpMtx), pointer :: A !< Original matrix
@@ -51,7 +50,6 @@ module RobustCoarseMtx_mod
 contains
   !> Creates restrict matrices for the Robust Coarse Space algorithm
   !! from the restrict matrix of the aggregation and smoothing result.
-  !! \ingroup RCS
   function CoarseProjectionMtxsBuild(A,R) result (B)
     type(SpMtx), intent(inout) :: A
     type(SpMtx), intent(in) :: R !< restrict matrix from usual aggregate with smoothing
@@ -149,7 +147,7 @@ contains
 
   end function CoarseProjectionMtxsBuild
 
-  !> \ingroup RCS  
+  !> Matrix-vector multiplication
   subroutine SOISMtx_pmvm(y,A,x)
     type(SumOfInversedSubMtx), intent(inout) :: A !< System matrix
     real(kind=rk),dimension(:), pointer :: x !< Vector
@@ -185,7 +183,6 @@ contains
   end subroutine SOISMtx_pmvm
 
   !> Get robust restrict matrix
-  !! \ingroup RCS
   subroutine RobustRestrictMtxBuild(A,g,R)
     type(SumOfInversedSubMtx), intent(inout) :: A
     real(kind=rk), pointer :: g(:)

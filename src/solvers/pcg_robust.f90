@@ -15,7 +15,6 @@ module pcgRobust_mod
 
   !> Matrices for the robust preconditioner.
   !! This includes H and I matrix for every coarse node (fine aggregate).
-  !! \ingroup RCS
   type RobustPreconditionMtx
      type(SpMtx), pointer :: I(:)
      type(SpMtx), pointer :: H(:)
@@ -36,7 +35,6 @@ contains
   end function RobustPreconditionMtx_new
 
   !> pcg method where system matrix is the sum of inversed submatrices
-  !! \ingroup RCS
   subroutine pcg_forRCS (A, b, x)
     implicit none
 
@@ -124,7 +122,6 @@ contains
   end subroutine pcg_forRCS
 
   !> Preconditioner C
-  !! \ingroup RCS
   subroutine precondition_forRCS(y, A, C, x)
     real(kind=rk), intent(out) :: y(:)
     real(kind=rk), pointer :: x(:)
