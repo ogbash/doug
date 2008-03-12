@@ -184,9 +184,9 @@ contains
 
   !> Get robust restrict matrix
   subroutine RobustRestrictMtxBuild(A,g,R)
-    type(SumOfInversedSubMtx), intent(inout) :: A
-    real(kind=rk), pointer :: g(:)
-    type(SpMtx), intent(out) :: R !< coarse restrict matrix
+    type(SumOfInversedSubMtx), intent(inout) :: A !< system matrix
+    real(kind=rk), pointer :: g(:) !< solution of the equation \f$ B g = 1 \f$
+    type(SpMtx), intent(out) :: R !< restriction matrix
 
     real(kind=rk), pointer :: gi(:), qi(:)
     integer :: i, nnz_cur, from, to
