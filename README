@@ -10,8 +10,8 @@ Dependencies
 
 One of
   - intel fortran
-  - gfortran (not running correctly yet)
-  - g95 (not running correctly yet)
+  - gfortran
+  - g95
 
  * MPI implementation
 
@@ -24,7 +24,8 @@ wrapper simplifies configuration process)
 
 One of
   - LAM/MPI
-  - MPICH (not tested yet)
+  - OpenMPI
+  - MPICH (not tested)
 
  * Metis 4.0
 

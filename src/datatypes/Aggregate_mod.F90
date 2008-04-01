@@ -982,6 +982,30 @@ CONTAINS
        char(27),'[',b,';',col,'m',c,char(27),'[',0,'m'
    endif
  end subroutine cprintall
+
+ !> Write out aggregates to the specified file.
+ !! If coarse aggregates are specified then it used to map fine aggregates to 
+ !! coarse aggregates and write coarse aggregate numbers to file.
+ subroutine Aggr_writeFile(aggr, filename, caggr)
+   type(Aggrs), intent(in) :: aggr !< fine aggregates
+   character(*) :: filename
+   type(Aggrs), intent(in), optional :: caggr !< coarse aggregates
+   integer :: i
+
+   open(78, file=filename)
+   if (.NOT.present(caggr)) then
+      write (78,*) aggr%nagr, size(aggr%num)
+      do i=1,size(aggr%num)
+         write (78,*) aggr%num(i)
+      end do
+   else
+      write (78,*) caggr%nagr, size(aggr%num)
+      do i=1,size(aggr%num)
+         write (78,*) caggr%num(aggr%num(i))
+      end do
+   end if
+   close(78)
+ end subroutine Aggr_writeFile
 !------------------------------------------------------
 end Module Aggregate_mod
 !------------------------------------------------------

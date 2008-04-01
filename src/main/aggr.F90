@@ -171,7 +171,11 @@ program aggr
     
     call SpMtx_unscale(A)
     ! todo: to be rewritten with aggr%starts and aggr%nodes...:
-    
+
+    if (sctls%plotting==2) then
+       call Aggr_writeFile(A%aggr, 'aggr1.txt')
+    end if
+
     call Mesh_printInfo(M)
     
     if (numprocs==1.and.sctls%plotting==2.and.M%nell>0) then
@@ -272,6 +276,9 @@ program aggr
            Afine=A)
     
       call SpMtx_unscale(AC)
+      if (sctls%plotting==2) then
+         call Aggr_writeFile(A%aggr, 'aggr2.txt', AC%aggr)
+      end if
       if (sctls%plotting==2.and.M%nell>0) then
         !print *,'press Key<Enter>'
         !read *,str
