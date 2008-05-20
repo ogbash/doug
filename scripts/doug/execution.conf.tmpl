@@ -1,0 +1,53 @@
+
+[DEFAULT]
+doug-datadir: .
+#: directory where doug_main and doug_aggr are located
+doug-bindir: /usr/bin
+
+[doug]
+#: directory where temporary test directories are created
+# redefine if you have problems with hardlinks
+cwd: .
+preserveOutput: no
+
+# DOUG
+#: number of processes
+nproc: 1
+#: correct solution file
+csolutionfname: solution.dat
+#: DOUG executable
+executable: %(doug-bindir)s/doug_aggr
+
+# MPI
+mpiboot:
+mpihalt:
+mpirun: mpirun
+
+mpiboot-outfilename: mpiboot.out
+mpiboot-errfilename: mpiboot.err
+mpihalt-outfilename: mpihalt.out
+mpihalt-errfilename: mpihalt.err
+
+outfilename: doug.out
+errfilename: doug.err
+
+[doug-controls]
+#: level of plotting
+plotting: 2
+#: solution format
+solution_format: 0
+#: solver (CG,PCG)
+solver: 2
+#: method (additive, multiplicative schwarz)
+method: 1
+#: number of precondition levels
+levels: 2
+
+#: format of matrix file
+assembled_mtx_format: 0
+#: format of RHS file
+assembled_rhs_format: 0
+#: matrix file name
+assembled_mtx_file: %(doug-datadir)s/matrix.txt
+#: RHS file name
+assembled_rhs_file: %(doug-datadir)s/rhs.txt

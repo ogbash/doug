@@ -29,17 +29,8 @@ import re
 import unittest
 import popen2
 
-__all__ = ['TestCase', 'getDefaultConfig']
-
 _defaultConfig="""
 [dougtest]
-# directory where doug_main and doug_aggr are located
-dougbindir:
-# directory where temporary test directories are created, redefine
-# if you have problems with hardlinks
-tmpdir: /tmp
-preserveTmpdir: no
-
 # all info-* attributes are not necessary, but may be used by test results
 # name of the server tests are run on
 info-server:
@@ -50,210 +41,22 @@ info-fc:
 # MPI version
 info-mpi:
 
-# MPI
-mpiboot: lamboot
-mpihalt: lamhalt
-mpirun: mpirun
-mpiboot-outfilename: lamboot.out
-mpiboot-errfilename: lamboot.err
-mpihalt-outfilename: lamhalt.out
-mpihalt-errfilename: lamhalt.err
-
-doug-outfilename: dougtest.out
-doug-errfilename: dougtest.err
-
-# CWD must be filled by the script using dougtest.py module, so may stay commented
-# CWD:
-
 """
+
+__all__ = ['TestCase', 'getDefaultConfig']
+
 
 LOG = logging.getLogger("dougtest")
 
 def getDefaultConfig():
 	return _defaultConfig
 
-class ControlFile:	
-	re_assignment = re.compile("(\S+)\s+(.*)")
-
-	def __init__(self, filename):
-		self.name = filename
-		self.options = {}
-		self._parse()
-
-	def _parse(self):
-		f = open(self.name, 'r')
-		try:
-			for line in f:
-				match = self.re_assignment.match(line)
-				if match:
-					self.options[match.group(1)] = match.group(2)
-		finally:
-			f.close()
-			
-	def save(self, filename):
-		f = open(filename, "w")
-		try:
-			for key in self.options:
-				f.write("%s %s\n" % (key, self.options[key]))
-		finally:
-			f.close()
 
 class TestFailure (ScriptException):
 	pass
 
 class TestCase (unittest.TestCase):
-	failureException=TestFailure
-	
-	def __init__(self, testname, datadir, ctrlfname, csolutionfname, conf, solver, method, levels,
-		     nproc, executable):
-		unittest.TestCase.__init__(self)
-		self.testname = testname
-		self.datadir = datadir
-		self.ctrlfname = ctrlfname
-		self.csolutionfname = csolutionfname
-		self.conf = conf
-		self.nproc = nproc
-		self.executable = executable
-
-		# create control file object
-		self.controlFile = ControlFile(self.ctrlfname)
-		self.controlFile.options['plotting'] = '0'
-		self.controlFile.options['solution_format'] = '1' # binary
-		self.controlFile.options['solver'] = str(solver)
-		self.controlFile.options['method'] = str(method)
-		self.controlFile.options['levels'] = str(levels)
-		
-                # output or other files, exception grabs it on exit
-                self.files = []
-
-	controlAttributesInt = {"solver":"solver", "method":"method",
-			     "levels":"levels", "inputtype":"input_type"}
-	controlAttributes = {"solutionfname":'solution_file'}
-	def __getattr__(self, name):
-		if self.controlAttributesInt.has_key(name):
-			return int(self.controlFile.options[self.controlAttributesInt[name]])
-		if self.controlAttributes.has_key(name):
-			return self.controlFile.options[self.controlAttributes[name]]
-		raise AttributeError("No attribute %s" % name)
-	       
-	def setUp(self):
-		LOG.debug("Preparing testing environment")
-                tmprootdir = self.conf.get("dougtest", "tmpdir")
-		if self.conf.has_option("dougtest", "CWD"):
-			tmprootdir = os.path.join(self.conf.get("dougtest", "CWD"), tmprootdir)
-		tmpdir = os.tempnam(tmprootdir, 'doug-')
-		os.mkdir(tmpdir)
-		LOG.debug("Temporary directory %s created" % tmpdir)
-		self.tmpdir = tmpdir
-		self.preserveTmpdir = self.conf.getboolean("dougtest", "preserveTmpdir")
-		try:
-			# copy control file
-			self.testctrlfname = os.path.join(self.tmpdir,
-							  os.path.basename(self.ctrlfname))
-			self.controlFile.save(self.testctrlfname)
-                        self.files.append((self.testctrlfname, "Control file"))
-
-			# make hard link to all other files
-			files = os.listdir(self.datadir)
-			for fname in files:
-				fullfname = os.path.join(self.datadir, fname)
-
-				if fname == os.path.basename(self.testctrlfname): continue
-				if fname == os.path.basename(self.csolutionfname): continue
-				if fname == os.path.basename(self.solutionfname): continue
-				if os.path.isdir(fullfname):
-					continue
-				
-				LOG.debug("Creating hard link for %s" % fullfname)
-				os.link(fullfname,
-					os.path.join(self.tmpdir, fname))
-
-			# run mpiboot
-			LOG.debug("Setting up mpi")
-			mpibootname = self.conf.get("dougtest", "mpiboot")
-			outfilename = self.conf.get("dougtest", "mpiboot-outfilename")
-			errfilename = self.conf.get("dougtest", "mpiboot-errfilename")
-
-			mpiboot = popen2.Popen3("%s > %s 2> %s" % (mpibootname, outfilename, errfilename))
-			res = mpiboot.wait()
-			if res:
-				raise ScriptException("Error running %s (%d)"
-						      "inspect output files (%s, %s) for error description."
-						      % (mpibootname, res, outfilename, errfilename))
-		except:
-			self._clean()
-			raise
-		
-			
-	def tearDown(self):
-		try:
-			mpihaltname = self.conf.get("dougtest", "mpihalt")
-			if mpihaltname:
-				outfilename = self.conf.get("dougtest", "mpihalt-outfilename")
-				errfilename = self.conf.get("dougtest", "mpihalt-errfilename")			
-				LOG.debug("Shutting down mpi")
-				mpihalt = popen2.Popen3("%s > %s 2> %s" % (mpihaltname, outfilename, errfilename))
-				import time
-				time.sleep(4) # lamhalt <=7.1.1 does not wait until whole universe is shut down
-				res = mpihalt.wait()
-				if res:
-					LOG.warn("Error running %s (%d)"
-						 "inspect output files (%s, %s) for error description."
-						 % (mpihaltname, res, outfilename, errfilename))
-		except Exception, e:
-			LOG.warn("Exception running mpihalt: %s" % e)
-		
-		LOG.debug("Cleaning after test")
-		self._clean()
-
-	def _clean(self):
-		if not self.preserveTmpdir and hasattr(self, 'tmpdir') and self.tmpdir:
-			os.system('rm -rf %s' % self.tmpdir)
-			LOG.debug("Temporary directory %s deleted" % self.tmpdir)
-
-	def runTest(self):
-		LOG.debug("Running test")
-		LOG.info("solver=%d, method=%d, levels=%d, nproc=%d" % (self.solver, self.method, self.levels, self.nproc))
-		mpirun = self.conf.get("dougtest", "mpirun")
-		dougbindir = os.path.abspath(self.conf.get("dougtest", "dougbindir"))
-		main = os.path.join(dougbindir, self.executable)
-		errfname = os.path.join(self.tmpdir, self.conf.get("dougtest", "doug-errfilename"))
-		outfname = os.path.join(self.tmpdir, self.conf.get("dougtest", "doug-outfilename"))
-		
-		curdir = os.getcwd()
-
-		try:
-			LOG.debug("Changing directory to %s" % self.tmpdir)
-			os.chdir(self.tmpdir)
-			try:
-				LOG.debug("Running %s -np 1 %s -f %s" % (mpirun, main, self.testctrlfname))
-				doug = popen2.Popen3('%s -np %d %s -f %s > %s 2> %s'%
-						    (mpirun, self.nproc, main, self.testctrlfname,
-						     outfname, errfname)
-						    )
-				import time
-				#time.sleep(1) # without this mpirun somehow gets HUP signal
-
-				value = doug.wait()
-				LOG.debug("Finished %s with code %d" % (mpirun, value))
-				self.files.append((outfname, "%s standard output" % mpirun))
-				self.files.append((errfname, "%s standard error" % mpirun))
-
-				if value != 0:
-					se = ScriptException("Error occured while running doug (value=%d), "
-							     "inspect output files (%s, %s) for error description." %
-							     (value, outfname, errfname))
-					raise se
-
-				# compare answers
-				self._assertSolution()
-			finally:
-				LOG.debug("Changing directory to %s" % curdir)
-				os.chdir(curdir)
-		except ScriptException, e:
-			for fn in self.files:
-				e.addFile(*fn)
-			raise e
+	failureException=TestFailure	       
 
 	def run(self, result=None):
 		if result is None: result = self.defaultTestResult()
@@ -286,10 +89,6 @@ class TestCase (unittest.TestCase):
 				result.addError(self, self.__exc_info())
 		finally:
 			result.stopTest(self)
-
-	def __str__(self):
-		return "%s: solver=%d, method=%d, processors=%d" % \
-		       (self.testname, self.solver, self.method, self.nproc)
 
         def _assertSolution(self):
             from array import array
@@ -344,47 +143,6 @@ class TestCase (unittest.TestCase):
 
 class MPITestCase(TestCase):
 	"Test case to run DOUG directly with mpirun."
-
-	def runTest(self):
-		LOG.debug("Running test with mpirun")
-		LOG.info("solver=%d, method=%d, levels=%d, nproc=%d" % (self.solver, self.method, self.levels, self.nproc))
-		mpirun = self.conf.get("dougtest", "mpirun")
-		dougbindir = os.path.abspath(self.conf.get("dougtest", "dougbindir"))
-		main = os.path.join(dougbindir, self.executable)
-		errfname = os.path.join(self.tmpdir, self.conf.get("dougtest", "doug-errfilename"))
-		outfname = os.path.join(self.tmpdir, self.conf.get("dougtest", "doug-outfilename"))
-		
-		curdir = os.getcwd()
-
-		try:
-			LOG.debug("Changing directory to %s" % self.tmpdir)
-			os.chdir(self.tmpdir)
-			try:
-				LOG.debug("Running %s -np 1 %s -f %s" % (mpirun, main, self.testctrlfname))
-				doug = popen2.Popen3('%s -np %d %s -f %s > %s 2> %s'%
-						    (mpirun, self.nproc, main, self.testctrlfname,
-						     outfname, errfname)
-						    )
-				value = doug.wait()
-				LOG.debug("Finished %s with code %d" % (mpirun, value))
-				self.files.append((outfname, "%s standard output" % mpirun))
-				self.files.append((errfname, "%s standard error" % mpirun))
-
-				if value != 0:
-					se = ScriptException("Error occured while running doug (value=%d), "
-							     "inspect output files (%s, %s) for error description." %
-							     (value, outfname, errfname))
-					raise se
-
-				# compare answers
-				self._assertSolution()
-			finally:
-				LOG.debug("Changing directory to %s" % curdir)
-				os.chdir(curdir)
-		except ScriptException, e:
-			for fn in self.files:
-				e.addFile(*fn)
-			raise e
 
 
 class CombinedTestResult(unittest.TestResult):
