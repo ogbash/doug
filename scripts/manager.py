@@ -89,9 +89,10 @@ class ArchivePanel:
         self.updateButton.pack(side=LEFT)
         self.resetButton = Button(filesButtonPanel, text="Reset", fg="red")
         self.resetButton.pack(side=LEFT)
-        
-        self.filesPanel = Frame(filesFrame)
-        self.filesPanel.pack(side=TOP, anchor=W, fill=X, padx=5, pady=5)
+
+        panel = Pmw.ScrolledFrame(filesFrame)
+        panel.pack(side=TOP, anchor=W, fill=X, padx=5, pady=5)
+        self.filesPanel = panel.interior()
         self.filesPanel.grid_columnconfigure(2, weight=1) # extend last (empty) column to align others to the right
         
     def setArchive(self, archive):
@@ -179,13 +180,15 @@ class ProblemArchivePanel(ArchivePanel):
             
             # run            
             execution = doug.execution.DOUGExecution(config)
-            archive = Archive(self.archive.name+suffix,
-                              directoryName=self.archive.directoryName+suffix,
-                              archiveType='solution')
-            archive.info.set('general','problem-name',self.archive.name)
-            archive.info.addConfig(execution.config)
-            execution.run()
-            self.app.addArchive(archive)
+            try:
+                archive = Archive(self.archive.name+suffix,
+                                  directoryName=self.archive.directoryName+suffix,
+                                  archiveType='solution')
+                archive.info.set('general','problem-name',self.archive.name)
+                archive.info.addConfig(execution.config)
+                execution.run()
+            finally:
+                self.app.addArchive(archive)
         except(Exception), e:
             LOG.error(e, exc_info=e)
 
@@ -319,8 +322,8 @@ class Archive(object):
             config.set('general', 'name', self.name)
             configFile = file(os.path.join(self.directoryName, '.info'), 'w')
 
-            for filename, filetype in self.filetypes.items():
-                config.set('files', filename, filetype)
+            files=map(lambda f: "%s:%s"%f, self.filetypes.items())
+            config.set('files', 'types', ", ".join(files))
             
             config.write(configFile)
             configFile.close()
@@ -334,10 +337,14 @@ class Archive(object):
         if config.has_section('general'):
             self.name = config.get('general', 'name')
         else:
-            config.add_section('files')
+            config.add_section('general')
 
         if config.has_section('files'):
-            for filename, filetype in config.items('files'):
+            types = config.get('files', 'types', "").split(",")
+            types = filter(bool, types) # filter out empty strings
+            types = map(lambda s: map(str.strip, s.split(':')), types)
+            
+            for filename, filetype in types:
                 self.filetypes[filename] = filetype
         else:
             config.add_section('files')
@@ -422,35 +429,37 @@ class App:
         root.config(menu=menubar)
 
         # main frame
-        mainFrame=Frame(root)
+        mainFrame=Pmw.NoteBook(root)
         mainFrame.pack(expand=True, fill=BOTH)
-        problemsFrame = LabelFrame(mainFrame, text='Problems', fg='blue')
+        
+        problemsFrame = LabelFrame(mainFrame.add('problems'), text='Problems', fg='blue')
         problemsFrame.pack(side=TOP, expand=True, fill=BOTH)
-        solutionsFrame = LabelFrame(mainFrame, text='Solutions', fg='blue')
+        solutionsFrame = LabelFrame(mainFrame.add('solutions'), text='Solutions', fg='blue')
         solutionsFrame.pack(side=TOP, expand=True, fill=BOTH)
 
         # problems listbox
-        listbox = Pmw.ScrolledListBox(problemsFrame, selectioncommand=self.__problemsListboxSelect)
+        listbox = Pmw.ScrolledListBox(problemsFrame,
+                                      selectioncommand=self.__problemsListboxSelect)
         self.problemsListbox = listbox
         listbox.pack(side=LEFT, fill=Y)
         #listbox.bind('<<ListboxSelect>>', self.__problemsListboxSelect)
-        listbox.bind('<<AddFiles>>', self.__addFiles)
-        listbox.event_add('<<AddFiles>>', '<2>')
+        listbox.component('listbox').bind('<2>', self.__addFiles)
+        #listbox.event_add('<<AddFiles>>', '<2>')
+
 
         addb = Button(problemsFrame, text="Add archive", command=self.__addArchive)
         addb.pack(side=TOP)
 
+        self.problemPanel = ProblemArchivePanel(problemsFrame, self.config, self)
+        self.problemPanel.frame.pack(side=TOP, expand=True, fill=BOTH)
+
         # solutions listbox
-        listbox = Pmw.ScrolledListBox(solutionsFrame, selectioncommand=self.__solutionsListboxSelect)
+        listbox = Pmw.ScrolledListBox(solutionsFrame,
+                                      selectioncommand=self.__solutionsListboxSelect)
         self.solutionsListbox = listbox
         listbox.pack(side=LEFT, fill=Y)
         #listbox.bind('<<ListboxSelect>>', self.__solutionsListboxSelect)
         
-        listbox.bind('<<AddFiles>>', self.__addFiles)
-        listbox.event_add('<<AddFiles>>', '<2>')
-
-        self.problemPanel = ProblemArchivePanel(problemsFrame, self.config, self)
-        self.problemPanel.frame.pack(side=TOP, expand=True, fill=BOTH)
 
         self.solutionPanel = SolutionArchivePanel(solutionsFrame, self.config, self)
         self.solutionPanel.frame.pack(side=TOP, expand=True, fill=BOTH)
@@ -513,7 +522,7 @@ class App:
             self.addArchive(archive)
 
     def __addFiles(self, ev=None):
-        sel = ev.widget.curselection()
+        sel = self.problemsListbox.curselection()
         if not sel:
             return
 

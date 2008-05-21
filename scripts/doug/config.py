@@ -94,7 +94,6 @@ class ConfigDesc:
             if match:
                 key, value = match.groups()
                 key = key or 'description'
-                print "VALUE:%s" % value
                 doc[key] = value.strip()
                 continue
             

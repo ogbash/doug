@@ -718,13 +718,13 @@ endif
                   nisoneigs=nisoneigs+1
                   ! print out the loop:
                   j=structcol(-structcol(kk))
-                  write (stream,'(i,a25,i,i)',advance='no') &
+                  write (stream,'(i5,a25,i5,i5)',advance='no') &
                     kk,'Loop of isol. structures:',structcol(kk),j
                   k=0
             loop2:do while (j<0.and.j/=structcol(kk))
                     if (j==structcol(-j)) exit loop2
                     j=structcol(-j)
-                    write (stream,'(i)',advance='no') j
+                    write (stream,'(i5)',advance='no') j
                     k=k+1
                     if (k>3) exit loop2
                   enddo loop2
