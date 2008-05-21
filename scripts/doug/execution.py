@@ -74,7 +74,7 @@ class DOUGExecution:
         self.preserveOutput = self.config.getboolean("doug", "preserveOutput")
         try:
             # create control file
-            self.testctrlfname = os.path.join(self.workdir, 'DOUG-exec.ctl')
+            self.testctrlfname = os.path.abspath(os.path.join(self.workdir, 'DOUG-exec.ctl'))
             self.controlFile.save(self.testctrlfname)
             self.files.append((self.testctrlfname, "Control file"))
 
@@ -148,8 +148,8 @@ class DOUGExecution:
             LOG.debug("Changing directory to %s" % self.workdir)
             os.chdir(self.workdir)
             try:
-                LOG.debug("Running %s -np %d %s -f %s" % (mpirun, nproc, main, self.testctrlfname))
-                doug = popen2.Popen3('%s -np %d %s -f %s > %s 2> %s'%
+                LOG.debug("Running %s -np %d %s -f %s -p" % (mpirun, nproc, main, self.testctrlfname))
+                doug = popen2.Popen3('%s -np %d %s -f %s -p > %s 2> %s'%
                                      (mpirun, nproc, main, self.testctrlfname,
                                       outfname, errfname)
                                      )

@@ -29,7 +29,7 @@ class DOUGConfigParser(SafeConfigParser):
         if nodefaults!=None:
             del kargs['nodefaults']
         lst = SafeConfigParser.items(self, section, *args, **kargs)
-        if nodefaults:
+        if nodefaults and section!='DEFAULT':
             nlst = []
             for k,v in lst:
                 if self._sections[section].has_key(k):
@@ -69,7 +69,7 @@ class DOUGConfigParser(SafeConfigParser):
         return "Config<%s>" % (self.__name)
 
 class ConfigDesc:
-    DOCS_RE = re.compile('^#\s*(?:@(\w+))?\s*:(.*)')
+    DOCS_RE = re.compile('^#\s*(?:@([\w-]+))?\s*:(.*)')
     VALS_RE = re.compile('^\s*([^:=\s]+)\s*[:=].*')
     SECT_RE = re.compile('^\s*\[\s*([^\] \t\n]+)\s*\]')
     
@@ -114,60 +114,3 @@ class ConfigDesc:
         s.write(kvs)
         s.write("}")
         return s.getvalue()
-
-from Tkinter import *
-import Pmw
-class ConfigPanel:
-    def __init__(self, parent, config, sectionNames=None, readonly=False):
-        self.frame=Toplevel(parent)
-        self.config=config
-        self.readonly=readonly
-
-        self._showConfig(self.frame, sectionNames)
-        
-        b = Button(self.frame, text="OK", command=self.ok)
-        b.pack(pady=5)
-        self.frame.grab_set()
-        parent.wait_window(self.frame)
-
-    def _showConfig(self, parent, sectionNames):
-        notebook = Pmw.NoteBook(parent)
-        balloon=Pmw.Balloon(parent)
-        
-        # prepare docs
-        sections = {}
-        for key, docs in self.config.description.docs.items():
-            section = docs['__section__']
-            if not sections.has_key(section):
-                sections[section] = {}
-            sections[section][key]=docs
-
-        # create widgets
-        for sectionName in sectionNames or self.config.sections():
-            sectionFrame=notebook.add(sectionName)
-            #sectionFrame = LabelFrame(parent, text=section)
-            sectionFrame.grid_columnconfigure(0,weight=0)
-            sectionFrame.grid_columnconfigure(1,weight=1)
-
-            values=self.config.items(sectionName, nodefaults=True)
-            values.sort()
-            row=0
-            for key, value in values:
-                docs=sections.get(sectionName, {}).get(key, {})
-                
-                label=Label(sectionFrame, text=key, anchor=N)
-                label.grid(row=row, column=0, sticky=W)
-                field=Entry(sectionFrame)
-                field.insert(END, value)
-                if self.readonly:
-                    field.config(state='readonly')
-                field.grid(row=row, column=1, sticky=EW)
-
-                balloon.bind(label, docs.get('description', ""))
-                
-                row=row+1
-
-        notebook.pack(fill=BOTH, expand=True)
-
-    def ok(self):
-        self.frame.destroy()

@@ -5,10 +5,12 @@ doug-datadir: .
 doug-bindir: /usr/bin
 
 [doug]
-#: directory where temporary test directories are created
-# redefine if you have problems with hardlinks
+#: directory where test is run
+# @type: directory
 cwd: .
-preserveOutput: no
+# @type: list
+# @type-params: yes, no
+preserveoutput: no
 
 # DOUG
 #: number of processes
@@ -33,21 +35,59 @@ errfilename: doug.err
 
 [doug-controls]
 #: level of plotting
-plotting: 2
+plotting: 0
+
 #: solution format
+# @type: list
+# @type-params: 0:txt, 1:bin, 2:xdr
+# @subsection: Output
 solution_format: 0
+
+#: solution file
+# @subsection: Output
+solution_file: solution.txt
+
 #: solver (CG,PCG)
+# @type: list
+# @type-params: 1:CG, 2:PCG
 solver: 2
-#: method (additive, multiplicative schwarz)
+#: method
+# @type: list
+# @type-params: 1:additive, 2:multiplicative
 method: 1
 #: number of precondition levels
 levels: 2
 
 #: format of matrix file
+# @type: list
+# @type-params: 0:txt, 1:bin, 2:xdr
+# @subsection: Input
 assembled_mtx_format: 0
+
 #: format of RHS file
+# @type: list
+# @type-params: 0:txt, 1:bin, 2:xdr
+# @subsection: Input
 assembled_rhs_format: 0
+
 #: matrix file name
+# @subsection: Input
 assembled_mtx_file: %(doug-datadir)s/matrix.txt
+
 #: RHS file name
+# @subsection: Input
 assembled_rhs_file: %(doug-datadir)s/rhs.txt
+
+#: radius of fine aggregates
+# @subsection: Aggregation
+radius1: 2
+
+# @subsection: Aggregation
+strong1: 0.67e0
+#: radius of coarse aggregates
+# @subsection: Aggregation
+radius2: 5
+# @subsection: Aggregation
+strong2: 0.67e0
+# @subsection: Aggregation
+minasize2: 96

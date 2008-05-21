@@ -146,6 +146,7 @@ class ScrolledListBox(Pmw.MegaWidget):
                     self._listbox.selection_set(listitems.index(item))
                 else:
                     raise ValueError, 'no such item "%s"' % item
+        self._handleEvent(None, 'select')
 
     def setlist(self, items):
         self._listbox.delete(0, 'end')
@@ -329,6 +330,8 @@ class ScrolledListBox(Pmw.MegaWidget):
         if eventType == 'double':
             command = self['dblclickcommand']
         elif eventType == 'key':
+            command = self['selectioncommand']
+        elif eventType == 'select':
             command = self['selectioncommand']
         else: #eventType == 'release'
             # Do not execute the command if the mouse was released

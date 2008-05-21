@@ -10,17 +10,18 @@ import tkFileDialog
 import tkSimpleDialog
 import tkMessageBox
 import Pmw
-import random
+
 import os
 import shutil
 import os.path
-from ConfigParser import SafeConfigParser
-from StringIO import StringIO
 import copy
+import weakref
+import time
+
 import gridplot
 import doug.execution
-from doug.config import ConfigDesc, DOUGConfigParser, ConfigPanel
-import weakref
+from doug.config import ConfigDesc, DOUGConfigParser
+from doug.configui import ConfigPanel
 
 import logging
 logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
@@ -37,19 +38,16 @@ _configContent = """
 #@type: directory
 doug-bindir: /usr/bin
 
-"""
+[global]
+viewer: gedit
 
-#_dougConfigContent = """
-#[doug]
-#"""
+"""
 
 class ArchivePanel:
     def __init__(self,parent,globalConfig, app):
         self.archive = None
         self.app = weakref.proxy(app)
         self.globalConfig = globalConfig
-        #self.dougConfig = SafeConfigParser()
-        #self.dougConfig.readfp(StringIO(_dougConfigContent))
         
         self.frame = LabelFrame(parent, text="Archive")
         infoFrame = Frame(self.frame)
@@ -107,12 +105,27 @@ class ArchivePanel:
         for i,fileName in enumerate(files):
             l = Label(self.filesPanel, text=fileName)
             l.grid(row=i,sticky=W)
+            
             var = StringVar()
             lb = OptionMenu(self.filesPanel, var, *Archive.FILETYPES)
             lb.var = var
             filetype = archive.getFileType(fileName)
             var.set(filetype or '')
             lb.grid(row=i,column=1,sticky=E)
+
+            view=Button(self.filesPanel, text="view",command=ArchivePanel._ViewFile((self.app,archive,fileName)))
+            view.grid(row=i,column=2)
+
+    class _ViewFile:
+        def __init__(self, params):
+            self.params=params
+
+        def __call__(self):
+            app, archive, fileName = self.params
+            fullpath = os.path.join(archive.directoryName, fileName)
+            viewer=app.config.get('global', 'viewer')
+            os.spawnlp(os.P_NOWAIT, viewer, viewer, fullpath)
+        
 
     def _setEntryField(self, field, value):
         state = field['state']
@@ -164,8 +177,6 @@ class ProblemArchivePanel(ArchivePanel):
         if self.archive==None:
             return
 
-        from doug.execution import DOUGExecution
-        import time
         try:
             config = DOUGConfigParser(name='DOUG execution parameters')
             config.addConfigContents(doug.execution.getDefaultConfigContents())
@@ -176,7 +187,10 @@ class ProblemArchivePanel(ArchivePanel):
             config.set('DEFAULT', 'doug-datadir', self.archive.directoryName)
 
             # change configurations
-            configPanel = ConfigPanel(self.frame, config)
+            configPanel = ConfigPanel(self.frame, config, title="DOUG configuration",
+                                      sectionNames=['DEFAULT', 'doug', 'doug-controls'])
+            if not configPanel.done:
+                return
             
             # run            
             execution = doug.execution.DOUGExecution(config)
@@ -186,7 +200,17 @@ class ProblemArchivePanel(ArchivePanel):
                                   archiveType='solution')
                 archive.info.set('general','problem-name',self.archive.name)
                 archive.info.addConfig(execution.config)
-                execution.run()
+                try:
+                    execution.run()
+                    if not archive.info.has_section('results'):
+                        archive.info.add_section('results')
+                    archive.info.set('results', 'success', 'yes')
+                except(Exception), e:
+                    if not archive.info.has_section('results'):
+                        archive.info.add_section('results')
+                    archive.info.set('results', 'success', 'no')
+                    archive.info.set('results', 'error', str(e))
+                    raise
             finally:
                 self.app.addArchive(archive)
         except(Exception), e:
@@ -239,7 +263,8 @@ class SolutionArchivePanel(ArchivePanel):
 
     def _showInfo(self):
         configPanel=ConfigPanel(self.frame, self.archive.info,
-                                readonly=True, sectionNames=['doug', 'doug-controls'])
+                                readonly=True, sectionNames=['doug', 'doug-controls', 'results'],
+                                title='Execution info')
         
     def _showSolution(self):
         problemName = self.archive.info.get('general','problem-name')
@@ -370,40 +395,8 @@ class Archive(object):
                            self.filetypes.items()))
         return files
 
-class OptionDialog(tkSimpleDialog.Dialog):
-    def __init__(self, master, configDesc, config, *args, **kargs):
-        self.res = False
-        self.configDesc = configDesc
-        self.config = config
-        tkSimpleDialog.Dialog.__init__(self, master, *args, **kargs)
-    
-    def body(self, master):
-        self.fields = {}
-
-        for i, (key, doc) in enumerate(self.configDesc.docs.items()):
-            Label(master, text=doc['description'] or key).grid(row=i)
-            field = Entry(master)
-            self.fields[key] = field
-            value = self.config.get(doc['__section__'], key, raw=True)
-            field.insert(0, value)
-            field.grid(row=i, column=1)
-
-            if doc.get('type', None)=='directory':
-                def _openDirectory():
-                    d = tkFileDialog.askdirectory()
-                    if d:
-                        field.delete(0, END)
-                        field.insert(0, d)
-                    
-                button = Button(master, text='select')
-                button.grid(row=i, column=2)
-                button['command'] = _openDirectory
-
-    def apply(self):
-        self.res = True
-        for option in self.fields.keys():
-            section = self.configDesc.docs[option]['__section__']
-            self.config.set(section, option, self.fields[option].get())
+    def __str__(self):
+        return "Archive(directory=%s)" % self.directoryName
 
 class App:
     def __reload(self, ev):
@@ -430,6 +423,7 @@ class App:
 
         # main frame
         mainFrame=Pmw.NoteBook(root)
+        self.notebook=mainFrame
         mainFrame.pack(expand=True, fill=BOTH)
         
         problemsFrame = LabelFrame(mainFrame.add('problems'), text='Problems', fg='blue')
@@ -458,8 +452,7 @@ class App:
                                       selectioncommand=self.__solutionsListboxSelect)
         self.solutionsListbox = listbox
         listbox.pack(side=LEFT, fill=Y)
-        #listbox.bind('<<ListboxSelect>>', self.__solutionsListboxSelect)
-        
+        #listbox.bind('<<ListboxSelect>>', self.__solutionsListboxSelect)        
 
         self.solutionPanel = SolutionArchivePanel(solutionsFrame, self.config, self)
         self.solutionPanel.frame.pack(side=TOP, expand=True, fill=BOTH)
@@ -476,8 +469,8 @@ class App:
             'solution': (self.solutionsArchives, self.solutionsListbox)})
 
     def __editOptions(self):
-        d = OptionDialog(self.root, self.configDesc, self.config)
-        if d.res:
+        d = ConfigPanel(self.root, self.config, title='Global options')
+        if d.done:
             self.__saveOptions()
 
     def __scanDirectory(self, dirpath, archiveTypes):
@@ -511,9 +504,14 @@ class App:
         if archiveType=='problem':
             self.problemsArchives.append(archive)
             self.problemsListbox.insert(END, archive.name)
+            self.notebook.selectpage('problems')
+            self.problemsListbox.focus()
         elif archiveType=='solution':
             self.solutionsArchives.append(archive)
+            self.notebook.selectpage('solutions')
+            self.solutionsListbox.focus()
             self.solutionsListbox.insert(END, archive.name)
+            self.solutionsListbox.setvalue(archive.name)
             
     def __addArchive(self):
         name = tkSimpleDialog.askstring("Insert name", "Type new archive name (without .tar.gz)")
@@ -547,14 +545,9 @@ class App:
         self.root.destroy()
 
     def __loadOptions(self):
-        self.config = SafeConfigParser()
-        self.config.readfp(StringIO(_configContent))
+        self.config = DOUGConfigParser()
+        self.config.addConfigContents(_configContent)
         if os.path.exists('.manager.conf'):
-            self.config.read('.manager.conf')
-            
-        self.configDesc = ConfigDesc(_configContent.split('\n'))
-        
-        if os.path.isdir('.manager.conf'):
             self.config.read('.manager.conf')
 
     def __saveOptions(self):
