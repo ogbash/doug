@@ -1,5 +1,5 @@
 
-from ConfigParser import SafeConfigParser
+from ConfigParser import SafeConfigParser, NoOptionError
 import os.path
 import re
 import StringIO
@@ -18,11 +18,35 @@ class DOUGConfigParser(SafeConfigParser):
 
     def getpath(self, section, option):
         value = self.get(section, option)
-        if self.has_option(section, 'wd'):
-            basepath = self.get(section, 'wd')
+        try:
+            basepath = self.get(section, 'workdir', useprefix=True)
             return os.path.join(basepath, value)
-        else:
+        except(NoOptionError), e:
             return value
+
+    def setpath(self, section, option, value):
+        try:
+            basepath = self.get(section, 'workdir', useprefix=True)
+            value = os.path.normpath(value)
+            basepath = os.path.normpath(basepath)
+            prefix = os.path.commonprefix([value, basepath])
+            if prefix:
+                value = value[len(prefix):]
+                if value and value[0]==os.sep: # remove leading separator
+                    value=value[1:]
+        except(NoOptionError), e:
+            pass
+        SafeConfigParser.set(self, section, option, value)
+        
+    def get(self, section, option, *args, **kargs):
+        useprefix = kargs.get('useprefix', None)
+        if useprefix!=None:
+            del kargs['useprefix']
+            words=section.split('-')
+            if self.has_option(section, "%s-%s"%(words[0],option)):
+                return SafeConfigParser.get(self, section, "%s-%s"%(words[0],option), *args, **kargs)            
+            
+        return SafeConfigParser.get(self, section, option, *args, **kargs)
 
     def items(self, section, *args, **kargs):
         nodefaults = kargs.get('nodefaults', None)

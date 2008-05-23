@@ -136,7 +136,7 @@ class Plot:
             n = len(lx)
             for j in xrange(n):
                 if aggrs!=None and aggrs[elem[j]]==aggrs[elem[(j+1)%n]]:
-                    plcol0(aggrs[elem[j]]%16)
+                    plcol0(aggrs[elem[j]]%14+1) # except 0 (black) and 15 (white)
                 elif self.contour:
                     plwid(3)
                     plcol0(1)

@@ -37,6 +37,11 @@ doug-bindir: /usr/bin
 [global]
 viewer: gedit
 
+#: output for plplot
+# @type: list
+# @type-params: xwin, ps, psc
+plplot-device: xwin
+
 """
 
 class App:

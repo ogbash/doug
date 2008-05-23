@@ -64,7 +64,7 @@ class DOUGExecution:
 
     def setUp(self):
         LOG.debug("Preparing testing environment")
-        self.workdir = self.config.get("doug", "cwd")
+        self.workdir = self.config.get("doug", "workdir", useprefix=True)
         if os.path.isdir(self.workdir):
             self.workdirExisted = True
         else:
@@ -126,7 +126,7 @@ class DOUGExecution:
     def run(self):
         self.setUp()
         try:
-            self.runDOUG()
+            return self.runDOUG()
         finally:
             self.tearDown()
 
@@ -141,9 +141,12 @@ class DOUGExecution:
         main = self.config.getpath("doug", "executable")
         errfname = self.config.getpath("doug", "errfilename")
         outfname = self.config.getpath("doug", "outfilename")
+        solutionfname = self.config.getpath("doug-controls", "solution_file")
 
         curdir = os.getcwd()
-        
+
+        result = DOUGConfigParser(self.config.defaults())
+        result.add_section('doug-result')
         try:
             LOG.debug("Changing directory to %s" % self.workdir)
             os.chdir(self.workdir)
@@ -160,14 +163,24 @@ class DOUGExecution:
                 LOG.debug("Finished %s with code %d" % (mpirun, value))
                 self.files.append((outfname, "%s standard output" % mpirun))
                 self.files.append((errfname, "%s standard error" % mpirun))
-
+                result.setpath('doug-result', 'returnvalue', str(value))
+                result.setpath('doug-result', 'outputfile', outfname)
+                result.setpath('doug-result', 'errorfile', errfname)
+                
                 if value != 0:
                     se = ScriptException("Error occured while running doug (value=%d), "
                                              "inspect output files (%s, %s) for error description." %
                                              (value, outfname, errfname))
                     raise se
 
+                if solutionfname and os.path.isfile(solutionfname):
+                    result.setpath('doug-result', 'solutionfile', solutionfname)
+                if solutionfname and os.path.isfile('aggr1.txt'):
+                    result.setpath('doug-result', 'fineaggrsfile', 'aggr1.txt')
+                if solutionfname and os.path.isfile('aggr2.txt'):
+                    result.setpath('doug-result', 'coarseaggrsfile', 'aggr2.txt')
                 # compare answers
+                
             finally:
                 LOG.debug("Changing directory to %s" % curdir)
                 os.chdir(curdir)
@@ -175,6 +188,8 @@ class DOUGExecution:
             for fn in self.files:
                 e.addFile(*fn)
             raise
+
+        return result
 
     def __str__(self):
         return "%s: solver=%d, method=%d, processors=%d" % \

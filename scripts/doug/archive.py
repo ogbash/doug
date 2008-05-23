@@ -161,8 +161,8 @@ class ProblemArchivePanel(ArchivePanel):
             config.addConfigContents(doug.execution.getDefaultConfigContents())
             config.addConfig(self.globalConfig)            
             
-            suffix = time.strftime('_run-%y%m%d%H%M%S')
-            config.set('doug', 'cwd', self.archive.directoryName+suffix)
+            suffix = time.strftime('--run-%y%m%d-%H%M%S')
+            config.set('DEFAULT', 'doug-workdir', self.archive.directoryName+suffix)
             config.set('DEFAULT', 'doug-datadir', self.archive.directoryName)
 
             matrixFiles = self.archive.getFiles('Matrix')
@@ -193,17 +193,20 @@ class ProblemArchivePanel(ArchivePanel):
                                   archiveType='solution')
                 archive.info.set('general','problem-name',self.archive.name)
                 archive.info.addConfig(execution.config)
-                try:
-                    execution.run()
-                    if not archive.info.has_section('results'):
-                        archive.info.add_section('results')
-                    archive.info.set('results', 'success', 'yes')
-                except(Exception), e:
-                    if not archive.info.has_section('results'):
-                        archive.info.add_section('results')
-                    archive.info.set('results', 'success', 'no')
-                    archive.info.set('results', 'error', str(e))
-                    raise
+                resultConfig=execution.run()
+                archive.info.addConfig(resultConfig)
+
+                if archive.info.has_option('doug-result', 'solutionfile'):
+                    archive.setFileType(archive.info.get('doug-result', 'solutionfile'), 'Vector/Solution')
+                if archive.info.has_option('doug-result', 'errorfile'):
+                    archive.setFileType(archive.info.get('doug-result', 'errorfile'), 'Text/Error')
+                if archive.info.has_option('doug-result', 'outputfile'):
+                    archive.setFileType(archive.info.get('doug-result', 'outputfile'), 'Text/Output')
+                if archive.info.has_option('doug-result', 'fineaggrsfile'):
+                    archive.setFileType(archive.info.get('doug-result', 'fineaggrsfile'), 'Aggregates/Fine')
+                if archive.info.has_option('doug-result', 'coarseaggrsfile'):
+                    archive.setFileType(archive.info.get('doug-result', 'coarseaggrsfile'), 'Aggregates/Coarse')
+                    
             finally:
                 self.app.addArchive(archive)
         except(Exception), e:
@@ -217,7 +220,8 @@ class ProblemArchivePanel(ArchivePanel):
         if gridFiles:
             gridFile = os.path.join(self.archive.directoryName, gridFiles[0])
             plot = gridplot.Plot(gridFile)
-            plot.run(dev='xwin')
+            device=self.app.config.get('global', 'plplot-device')
+            plot.run(dev=device)
 
     def _showRHS(self):
         if self.archive==None:
@@ -229,7 +233,8 @@ class ProblemArchivePanel(ArchivePanel):
             gridFile = os.path.join(self.archive.directoryName, gridFiles[0])
             solutionFile = os.path.join(self.archive.directoryName, solutionFiles[0])
             plot = gridplot.Plot(gridFile, solutionFile=solutionFile)
-            plot.run('xwin')
+            device=self.app.config.get('global', 'plplot-device')
+            plot.run(dev=device)
 
 
 class SolutionArchivePanel(ArchivePanel):
@@ -256,7 +261,7 @@ class SolutionArchivePanel(ArchivePanel):
 
     def _showInfo(self):
         configPanel=ConfigPanel(self.frame, self.archive.info,
-                                readonly=True, sectionNames=['doug', 'doug-controls', 'results'],
+                                readonly=True, sectionNames=['DEFAULT', 'doug', 'doug-controls', 'doug-result'],
                                 title='Execution info')
         
     def _showSolution(self):
@@ -271,7 +276,8 @@ class SolutionArchivePanel(ArchivePanel):
             gridFile = os.path.join(problemArchive.directoryName, gridFiles[0])
             solutionFile = os.path.join(self.archive.directoryName, solutionFiles[0])
             plot = gridplot.Plot(gridFile, solutionFile=solutionFile)
-            plot.run('xwin')
+            device=self.app.config.get('global', 'plplot-device')
+            plot.run(dev=device)
             
     def _showFineAggregates(self):
         self._showAggregates('Aggregates/Fine')
@@ -291,7 +297,8 @@ class SolutionArchivePanel(ArchivePanel):
             gridFile = os.path.join(problemArchive.directoryName, gridFiles[0])
             aggrFile = os.path.join(self.archive.directoryName, aggrFiles[0])
             plot = gridplot.Plot(gridFile, aggregateFile=aggrFile)
-            plot.run('xwin')
+            device=self.app.config.get('global', 'plplot-device')
+            plot.run(dev=device)
 
     def setArchive(self, archive):
         ArchivePanel.setArchive(self, archive)
@@ -310,7 +317,7 @@ class Archive(object):
     ARCHIVED = 'ARCHIVED'
 
     FILETYPES = ['', 'Grid', 'Matrix', 'Vector', 'Vector/RHS', 'Vector/Solution',
-                 'Aggregates/Fine', 'Aggregates/Coarse']
+                 'Aggregates/Fine', 'Aggregates/Coarse', 'Text', 'Text/Output', 'Text/Error']
 
     def _setState(self, newstate): self._state=newstate
     state = property(lambda self: self._state, fset=_setState)
