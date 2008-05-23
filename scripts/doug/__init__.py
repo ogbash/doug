@@ -1,4 +1,5 @@
 import os
+import images
 
 _RESOURCE_PATH = os.path.dirname(__file__)
 

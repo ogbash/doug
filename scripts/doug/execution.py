@@ -179,6 +179,12 @@ class DOUGExecution:
                     result.setpath('doug-result', 'fineaggrsfile', 'aggr1.txt')
                 if solutionfname and os.path.isfile('aggr2.txt'):
                     result.setpath('doug-result', 'coarseaggrsfile', 'aggr2.txt')
+                    
+                files = os.listdir(self.workdir)
+                files = filter(lambda name: name.startswith('prof.'), files)
+                if files:
+                    result.setpath('doug-result', 'profilefile', files[0])
+                
                 # compare answers
                 
             finally:

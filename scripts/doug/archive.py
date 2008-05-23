@@ -67,7 +67,10 @@ class ArchivePanel:
     def setArchive(self, archive):
         LOG.debug("Showing %s" % archive)
         self.archive = archive
-        
+        self.updateFields()
+
+    def updateFields(self):
+        archive = self.archive
         if archive==None:
             self._setEntryField(self.nameField, '')
             self._setEntryField(self.directoryField, '')
@@ -81,19 +84,56 @@ class ArchivePanel:
 
         self._gridClean(self.filesPanel)
         files = os.listdir(archive.directoryName)
-        for i,fileName in enumerate(files):
-            l = Label(self.filesPanel, text=fileName)
+        for i,filename in enumerate(files):
+            l = Label(self.filesPanel, text=filename)
             l.grid(row=i,sticky=W)
             
             var = StringVar()
             lb = OptionMenu(self.filesPanel, var, *Archive.FILETYPES)
             lb.var = var
-            filetype = archive.getFileType(fileName)
+            filetype = archive.getFileType(filename)
             var.set(filetype or '')
             lb.grid(row=i,column=1,sticky=E)
 
-            view=Button(self.filesPanel, text="view",command=ArchivePanel._ViewFile((self.app,archive,fileName)))
-            view.grid(row=i,column=2)
+            if filetype:
+                fields=self._getFileSpecificFields(self.filesPanel, filename, filetype)
+                fields.grid(row=i,column=2)
+
+    def _getFileSpecificFields(self, parent, filename, filetype):
+        archive = self.archive
+        frame = Frame(parent)
+
+        # show text button
+        if filetype.startswith('Text'):
+            view=Button(frame,
+                        width=16, height=16,
+                        image=doug.images.getImage("notepad.gif", self.app.root),
+                        command=ArchivePanel._ViewFile((self.app,archive,filename)))
+            view.pack()
+
+        # show grid button
+        if filetype.startswith("Vector"):
+            view=Button(frame,
+                        width=16, height=16,
+                        image=doug.images.getImage("grid.gif", self.app.root),
+                        command=ArchivePanel._ViewVector(self.app,archive,None,filename))
+            view.pack()
+
+        if filetype.startswith("Aggregates"):
+            view=Button(frame,
+                        width=16, height=16,
+                        image=doug.images.getImage("grid.gif", self.app.root),
+                        command=ArchivePanel._ViewAggregates(self.app,archive,None,filename))
+            view.pack()
+            
+        if filetype.startswith("Grid"):
+            view=Button(frame,
+                        width=16, height=16,
+                        image=doug.images.getImage("grid.gif", self.app.root),
+                        command=ArchivePanel._ViewGrid(self.app,archive,filename,None))
+            view.pack()
+
+        return frame
 
     class _ViewFile:
         def __init__(self, params):
@@ -104,7 +144,53 @@ class ArchivePanel:
             fullpath = os.path.join(archive.directoryName, fileName)
             viewer=app.config.get('global', 'viewer')
             os.spawnlp(os.P_NOWAIT, viewer, viewer, fullpath)
-        
+
+    class _ViewGrid:
+        def __init__(self, app, archive, gridFileName, otherFileName):
+            self.app = app
+            self.archive = archive
+            self.gridFileName = gridFileName
+            self.otherFileName = otherFileName
+
+        def getGridFile(self):
+            gridFileName = self.gridFileName
+            if gridFileName:
+                gridFilePath = os.path.join(self.archive.directoryName, gridFileName)
+            else:
+                gridFiles = self.archive.getFiles(filetype='Grid')
+                if gridFiles:
+                    gridFilePath = os.path.join(self.archive.directoryName, gridFiles[0])
+                else:
+                    problemName = self.archive.info.get('general','problem-name')
+                    problemArchive = self.app.getProblemArchive(problemName)
+                    if problemArchive==None:
+                        return            
+                    gridFiles = problemArchive.getFiles(filetype='Grid')
+                    gridFilePath = os.path.join(problemArchive.directoryName, gridFiles[0])
+
+            return gridFilePath
+
+        def __call__(self):
+            gridFile = self.getGridFile()
+            plot = gridplot.Plot(gridFile)
+            device=self.app.config.get('global', 'plplot-device')
+            plot.run(dev=device)
+
+    class _ViewVector(_ViewGrid):
+        def __call__(self):
+            gridFilePath = self.getGridFile()
+            vectorFilePath = os.path.join(self.archive.directoryName, self.otherFileName)
+            plot = gridplot.Plot(gridFilePath, solutionFile=vectorFilePath)
+            device=self.app.config.get('global', 'plplot-device')
+            plot.run(dev=device)
+            
+    class _ViewAggregates(_ViewGrid):
+        def __call__(self):
+            gridFilePath = self.getGridFile()
+            aggrsFilePath = os.path.join(self.archive.directoryName, self.otherFileName)
+            plot = gridplot.Plot(gridFilePath, aggregateFile=aggrsFilePath)
+            device=self.app.config.get('global', 'plplot-device')
+            plot.run(dev=device)
 
     def _setEntryField(self, field, value):
         state = field['state']
@@ -138,6 +224,8 @@ class ArchivePanel:
             filename = slaves[0]['text']
             filetype = slaves[1]['text']
             archive.setFileType(filename, filetype or None)
+
+        self.updateFields()
 
 
 class ProblemArchivePanel(ArchivePanel):
@@ -206,6 +294,8 @@ class ProblemArchivePanel(ArchivePanel):
                     archive.setFileType(archive.info.get('doug-result', 'fineaggrsfile'), 'Aggregates/Fine')
                 if archive.info.has_option('doug-result', 'coarseaggrsfile'):
                     archive.setFileType(archive.info.get('doug-result', 'coarseaggrsfile'), 'Aggregates/Coarse')
+                if archive.info.has_option('doug-result', 'profilefile'):
+                    archive.setFileType(archive.info.get('doug-result', 'profilefile'), 'Text/Profile')
                     
             finally:
                 self.app.addArchive(archive)
@@ -242,12 +332,6 @@ class SolutionArchivePanel(ArchivePanel):
         ArchivePanel.__init__(self, *args, **kargs)
 
         buttonFrame = self.buttonFrame
-        self.showGridButton = Button(buttonFrame, text="Show solution", command=self._showSolution)
-        self.showGridButton.pack(side=RIGHT)
-        self.showGridButton = Button(buttonFrame, text="Show fine aggrs", command=self._showFineAggregates)
-        self.showGridButton.pack(side=RIGHT)
-        self.showGridButton = Button(buttonFrame, text="Show coarse aggrs", command=self._showCoarseAggregates)
-        self.showGridButton.pack(side=RIGHT)
         self.showGridButton = Button(buttonFrame, text="Show info", command=self._showInfo)
         self.showGridButton.pack(side=RIGHT)
 
@@ -279,27 +363,6 @@ class SolutionArchivePanel(ArchivePanel):
             device=self.app.config.get('global', 'plplot-device')
             plot.run(dev=device)
             
-    def _showFineAggregates(self):
-        self._showAggregates('Aggregates/Fine')
-
-    def _showCoarseAggregates(self):
-        self._showAggregates('Aggregates/Coarse')
-
-    def _showAggregates(self, aggrFileType):
-        problemName = self.archive.info.get('general','problem-name')
-        problemArchive = self.app.getProblemArchive(problemName)
-        if problemArchive==None:
-            return
-            
-        gridFiles = problemArchive.getFiles(filetype='Grid')
-        aggrFiles = self.archive.getFiles(filetype=aggrFileType)
-        if gridFiles and aggrFiles:
-            gridFile = os.path.join(problemArchive.directoryName, gridFiles[0])
-            aggrFile = os.path.join(self.archive.directoryName, aggrFiles[0])
-            plot = gridplot.Plot(gridFile, aggregateFile=aggrFile)
-            device=self.app.config.get('global', 'plplot-device')
-            plot.run(dev=device)
-
     def setArchive(self, archive):
         ArchivePanel.setArchive(self, archive)
 
