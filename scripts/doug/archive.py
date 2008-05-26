@@ -233,10 +233,6 @@ class ProblemArchivePanel(ArchivePanel):
         ArchivePanel.__init__(self, *args, **kargs)
 
         buttonFrame = self.buttonFrame
-        self.showGridButton = Button(buttonFrame, text="Show grid", command=self._showGrid)
-        self.showGridButton.pack(side=RIGHT)
-        self.showGridButton = Button(buttonFrame, text="Show RHS", command=self._showRHS)
-        self.showGridButton.pack(side=RIGHT)
         self.solveButton = Button(buttonFrame, text="Solve", command=self._solve, fg='blue')
         self.solveButton.pack(side=RIGHT)        
     
@@ -301,30 +297,6 @@ class ProblemArchivePanel(ArchivePanel):
                 self.app.addArchive(archive)
         except(Exception), e:
             LOG.error(e, exc_info=e)
-
-    def _showGrid(self):
-        if self.archive==None:
-            return
-
-        gridFiles = self.archive.getFiles(filetype='Grid')
-        if gridFiles:
-            gridFile = os.path.join(self.archive.directoryName, gridFiles[0])
-            plot = gridplot.Plot(gridFile)
-            device=self.app.config.get('global', 'plplot-device')
-            plot.run(dev=device)
-
-    def _showRHS(self):
-        if self.archive==None:
-            return
-        
-        gridFiles = self.archive.getFiles(filetype='Grid')
-        solutionFiles = self.archive.getFiles(filetype='Vector/RHS')
-        if gridFiles and solutionFiles:
-            gridFile = os.path.join(self.archive.directoryName, gridFiles[0])
-            solutionFile = os.path.join(self.archive.directoryName, solutionFiles[0])
-            plot = gridplot.Plot(gridFile, solutionFile=solutionFile)
-            device=self.app.config.get('global', 'plplot-device')
-            plot.run(dev=device)
 
 
 class SolutionArchivePanel(ArchivePanel):

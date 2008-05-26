@@ -62,9 +62,6 @@ class App:
         bottomFrame = Frame(root)
         bottomFrame.pack(side=BOTTOM, fill=X)
 
-        quitb = Button(bottomFrame, text="Quit", command=self.__closeApp)
-        quitb.pack(side=RIGHT)
-
         menubar = Menu(root)
         root.config(menu=menubar)
 
@@ -106,6 +103,7 @@ class App:
         self.solutionPanel.frame.pack(side=TOP, expand=True, fill=BOTH)
 
         menu = Menu(menubar, tearoff=False)
+        menu.add_command(label='Quit', command=self.__closeApp)
         menubar.add_cascade(label='File', menu=menu)
 
         menu = Menu(menubar, tearoff=False)
