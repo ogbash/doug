@@ -17,6 +17,7 @@ import shutil
 
 from doug.config import DOUGConfigParser
 from doug.configui import ConfigPanel
+from doug.ui import ResultTable
 from doug.archive import Archive, ProblemArchivePanel, SolutionArchivePanel
 
 import logging
@@ -77,6 +78,8 @@ class App:
         problemsFrame.pack(side=TOP, expand=True, fill=BOTH)
         solutionsFrame = LabelFrame(mainFrame.add('solutions'), text='Solutions', fg='blue')
         solutionsFrame.pack(side=TOP, expand=True, fill=BOTH)
+        resultsFrame = LabelFrame(mainFrame.add('results'), text='Results', fg='blue')
+        resultsFrame.pack(side=TOP, expand=True, fill=BOTH)
 
         # problems listbox
         listbox = Pmw.ScrolledListBox(problemsFrame,
@@ -116,6 +119,10 @@ class App:
         self.__scanDirectory('.', {
             'problem': (self.problemsArchives, self.problemsListbox),
             'solution': (self.solutionsArchives, self.solutionsListbox)})
+
+        # results frame
+        resultTable = ResultTable(self, resultsFrame)
+        resultTable.frame.pack(fill=BOTH, expand=True)
 
     def __problemsListboxDelete(self, e):
         listbox=self.problemsListbox

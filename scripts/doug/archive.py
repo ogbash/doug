@@ -401,12 +401,13 @@ class Archive(object):
             config.add_section('general')
 
         if config.has_section('files'):
-            types = config.get('files', 'types', "").split(",")
+            types = config.get('files', 'types', default="")
+            types = types.split(",")
             types = filter(bool, types) # filter out empty strings
             types = map(lambda s: map(str.strip, s.split(':')), types)
             
             for filename, filetype in types:
-                self.filetypes[filename] = filetype
+                self.setFileType(filename, filetype)
         else:
             config.add_section('files')
 
@@ -419,8 +420,22 @@ class Archive(object):
                 del self.filetypes[filename]
         else:
             self.filetypes[filename] = filetype
-            
+
+        if filetype=='Text/Profile':
+            self._readProfileFile(filename)
+        
         self.state = Archive.DIRTY
+
+    def _readProfileFile(self, filename):
+        f = open(os.path.join(self.directoryName, filename))
+        try:
+            for line in f:
+                line = line.strip()
+                proc, name, value = line.split(':')
+                name = name.replace(' ', '-')
+                self.info.set('doug-profile', name, value, addsection=True)
+        finally:
+            f.close()
 
     def getFileType(self, filename):
         return self.filetypes.get(filename, None)

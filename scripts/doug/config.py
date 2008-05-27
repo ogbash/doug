@@ -88,14 +88,30 @@ class DOUGConfigParser(SafeConfigParser):
         SafeConfigParser.set(self, section, option, value)
         
     def get(self, section, option, *args, **kargs):
-        useprefix = kargs.get('useprefix', None)
+        useprefix = kargs.pop('useprefix', None)
+        hasdefault = kargs.has_key('default')
+        default = kargs.pop('default', None)
+        
         if useprefix!=None:
             del kargs['useprefix']
             words=section.split('-')
             if self.has_option(section, "%s-%s"%(words[0],option)):
                 return SafeConfigParser.get(self, section, "%s-%s"%(words[0],option), *args, **kargs)            
+        if hasdefault:
+            if SafeConfigParser.has_section(self, section) and \
+               SafeConfigParser.has_option(self, section, option):
+                return SafeConfigParser.get(self, section, option, *args, **kargs)
+            else:
+                return default
             
         return SafeConfigParser.get(self, section, option, *args, **kargs)
+
+    def set(self, section, option, value, *args, **kargs):
+        addsection = kargs.pop('addsection', False)
+        if addsection and not self.has_section(section):
+            self.add_section(section)
+        
+        return SafeConfigParser.set(self, section, option, value, *args, **kargs)
 
     def items(self, section, *args, **kargs):
         nodefaults = kargs.get('nodefaults', None)
