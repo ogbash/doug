@@ -4,6 +4,8 @@ import tkFileDialog
 import tkSimpleDialog
 import Pmw
 
+import doug.config
+
 import logging
 LOG = logging.getLogger(__name__)
 
@@ -28,7 +30,7 @@ class ConfigPanel(tkSimpleDialog.Dialog):
         # prepare docs
         sections = {}
         subsections = {}
-        for key, docs in self.config.description.docs.items():
+        for key, docs in doug.config.configDesc.docs.items():
             section = docs['__section__']
             if not sections.has_key(section):
                 sections[section] = {}
@@ -124,6 +126,9 @@ class ConfigPanel(tkSimpleDialog.Dialog):
 
             self.om=OptionMenu(self, var, *map(self._tostring, params))
             self.set(value)
+            if panel.readonly:
+                self.om.config(state='disabled')
+            
             self.om.pack(side=LEFT)
 
         def set(self, value):
@@ -155,6 +160,10 @@ class ConfigPanel(tkSimpleDialog.Dialog):
             self.entry = Entry(self)
             self.entry.insert(0, value)
             self.entry.grid(row=0, column=0, sticky=EW)
+
+            if panel.readonly:
+                self.entry.config(state='readonly')
+                return
 
             def _openDirectory():
                 d = tkFileDialog.askdirectory()

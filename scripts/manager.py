@@ -39,10 +39,13 @@ viewer: gedit
 
 #: output for plplot
 # @type: list
-# @type-params: xwin, ps, psc
+# @type-params: xwin, ps, psc, gcw, <runtime>
 plplot-device: xwin
 
 """
+
+import doug.config
+doug.config.configDesc.addDescription(_configContent)
 
 class App:
     def __reload(self, ev):

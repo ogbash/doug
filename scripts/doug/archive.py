@@ -172,25 +172,37 @@ class ArchivePanel:
 
         def __call__(self):
             gridFile = self.getGridFile()
-            plot = gridplot.Plot(gridFile)
+            self._plot(gridFile)
+
+        def _plot(self, gridFile, solutionFile=None, aggregatesFile=None):
+            LOG.info("Show plot of %s", gridFile)
+
+            gridplot=os.path.join(os.path.dirname(sys.argv[0]), 'gridplot.py')
+            args = [gridplot, gridplot]
+            args.extend(['--gin', gridFile])
+            if solutionFile:
+                args.extend(['--sin', solutionFile])
+            if aggregatesFile:
+                args.extend(['--ain', aggregatesFile])
+
+            plargs=[]
             device=self.app.config.get('global', 'plplot-device')
-            plot.run(dev=device)
+            plargs.extend(['-dev', device])
+            args.extend(['--plplot', " ".join(plargs)])
+            
+            os.spawnvp(os.P_NOWAIT, 'python', args)
 
     class _ViewVector(_ViewGrid):
         def __call__(self):
             gridFilePath = self.getGridFile()
             vectorFilePath = os.path.join(self.archive.directoryName, self.otherFileName)
-            plot = gridplot.Plot(gridFilePath, solutionFile=vectorFilePath)
-            device=self.app.config.get('global', 'plplot-device')
-            plot.run(dev=device)
+            self._plot(gridFilePath, solutionFile=vectorFilePath)
             
     class _ViewAggregates(_ViewGrid):
         def __call__(self):
             gridFilePath = self.getGridFile()
             aggrsFilePath = os.path.join(self.archive.directoryName, self.otherFileName)
-            plot = gridplot.Plot(gridFilePath, aggregateFile=aggrsFilePath)
-            device=self.app.config.get('global', 'plplot-device')
-            plot.run(dev=device)
+            self._plot(gridFilePath, aggregatesFile=aggrsFilePath)
 
     def _setEntryField(self, field, value):
         state = field['state']
@@ -319,22 +331,7 @@ class SolutionArchivePanel(ArchivePanel):
         configPanel=ConfigPanel(self.frame, self.archive.info,
                                 readonly=True, sectionNames=['DEFAULT', 'doug', 'doug-controls', 'doug-result'],
                                 title='Execution info')
-        
-    def _showSolution(self):
-        problemName = self.archive.info.get('general','problem-name')
-        problemArchive = self.app.getProblemArchive(problemName)
-        if problemArchive==None:
-            return
-            
-        gridFiles = problemArchive.getFiles(filetype='Grid')
-        solutionFiles = self.archive.getFiles(filetype='Vector/Solution')
-        if gridFiles and solutionFiles:
-            gridFile = os.path.join(problemArchive.directoryName, gridFiles[0])
-            solutionFile = os.path.join(self.archive.directoryName, solutionFiles[0])
-            plot = gridplot.Plot(gridFile, solutionFile=solutionFile)
-            device=self.app.config.get('global', 'plplot-device')
-            plot.run(dev=device)
-            
+                    
     def setArchive(self, archive):
         ArchivePanel.setArchive(self, archive)
 
@@ -362,7 +359,7 @@ class Archive(object):
         self.filetypes = {} #: file name -> type
         
         if directoryName==None:
-            directoryName = name
+            directoryName = os.path.abspath(name)
             
         if os.path.isdir(directoryName):
             self._state = Archive.SAVED

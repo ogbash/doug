@@ -168,16 +168,18 @@ class Plot:
             plsdev(dev)
         plinit()
 
-        xs,ys,elems,coefs = self.readGrid(self.gridFile)
-        if self.aggregateFile:
-            self.readAggregates(self.aggregateFile, len(xs))
-        if self.solutionFile:
-            self.readSolution(self.solutionFile, len(xs))
+        try:
+            xs,ys,elems,coefs = self.readGrid(self.gridFile)
+            if self.aggregateFile:
+                self.readAggregates(self.aggregateFile, len(xs))
+            if self.solutionFile:
+                self.readSolution(self.solutionFile, len(xs))
 
-        self.drawGrid(xs,ys,elems,coefs)
-
-        plend()
-
+            self.drawGrid(xs,ys,elems,coefs)
+            
+        finally:
+            plend()
+    
 def main():
     options = ""
     loptions = [

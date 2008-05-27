@@ -26,5 +26,9 @@ def _load_resources():
         f.close()
         globals()[name.replace('.', '_')] = contents
 
+        if name.endswith('conf.tmpl'):
+            import config
+            config.configDesc.addDescription(contents)
+
 # load the resources when importing the module
 _load_resources()
