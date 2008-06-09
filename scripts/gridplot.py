@@ -7,10 +7,12 @@ import getopt
 
 class Plot:
 
-    def __init__(self, gridFile, aggregateFile=None, solutionFile=None, contour=False, aggr=None):
+    def __init__(self, gridFile, aggregateFile=None, solutionFile=None, \
+                 connectionsFile=None, contour=False, aggr=None):
         self.gridFile = gridFile
         self.aggregateFile = aggregateFile
         self.solutionFile = solutionFile
+        self.connectionsFile = connectionsFile
         self.aggr = aggr
         self.contour = contour
         self.mappings = {} #: num of nodes -> array of map indices
@@ -83,6 +85,31 @@ class Plot:
                 v = float(f.readline())
                 solution[mapping[i]] = v
             self.markings['solution'] = solution
+        finally:
+            f.close()
+
+    def readConnections(self, filename, nvertices):
+        print "Reading connections from %s" % filename
+        f = open(filename)
+        try:
+            nnodes, nnz = f.readline().split()
+            nnodes, nnz = int(nnodes), int(nnz)
+
+            Is = numpy.zeros(nnz, dtype=int)
+            Js = numpy.zeros(nnz, dtype=int)
+            Vs = numpy.zeros(nnz)
+            mapping = self.mappings[nnodes]
+            for k in xrange(nnz):
+                i,j,v = f.readline().split()
+                i,j = int(i), int(j)
+                if FORTRAN:
+                    i=i-1
+                    j=j-1
+                i = mapping[int(i)]
+                j = mapping[int(j)]
+                Is[k],Js[k],Vs[k] = int(i),int(j),float(v)
+                
+            self.markings['connections'] = (Is, Js, Vs)
         finally:
             f.close()
 
@@ -164,6 +191,17 @@ class Plot:
                 plssym(0,.2)
                 plpoin(x[i:i+1],y[i:i+1],4)
 
+        # plot connections
+        connections = self.markings.get('connections', None)
+        if connections:
+            Is, Js, Vs = connections
+            for k in xrange(len(Is)):
+                if Vs[k] > 0.0:
+                    plcol0(2)
+                    Ps = [Is[k], Js[k]]
+                    plline(x[Ps], y[Ps])
+            
+
     ## main program
 
     def run(self, dev=None):
@@ -177,21 +215,26 @@ class Plot:
                 self.readAggregates(self.aggregateFile, len(xs))
             if self.solutionFile:
                 self.readSolution(self.solutionFile, len(xs))
+            if self.connectionsFile:
+                self.readConnections(self.connectionsFile, len(xs))
 
             self.drawGrid(xs,ys,elems,coefs)
             
         finally:
             plend()
+
+FORTRAN=True
     
 def main():
     options = ""
     loptions = [
-        'fortran',
+        'nofortran',
         'plplot=',
-        'gin=',
-        'ain=',
-        'sin=',
-        'aggr='
+        'gin=', # grid in
+        'ain=', # aggregates in
+        'sin=', # solution (vector) in
+        'aggr=', # number of aggregate to show
+        'cin=' # connection (matrix) in
         ]
 
     plargs = [sys.argv[0]]
@@ -199,9 +242,12 @@ def main():
     AGGRSIN = None
     SOLUTIONIN = None
     AGGR = None
+    CONNECTIONIN = None
 
     opts = getopt.gnu_getopt(sys.argv, options, loptions)
     for key, value in opts[0]:
+        if key=='--nofortran':
+            FORTRAN=False
         if key=='--plplot':
             plargs.extend(value.split())
         elif key=='--gin':
@@ -212,10 +258,12 @@ def main():
             SOLUTIONIN=value
         elif key=='--aggr':
             AGGR=int(value)
+        elif key=='--cin':
+            CONNECTIONIN=value
 
     plparseopts(plargs, PL_PARSE_FULL)
 
-    plot = Plot(GRIDIN, AGGRSIN, SOLUTIONIN, aggr=AGGR)
+    plot = Plot(GRIDIN, AGGRSIN, SOLUTIONIN, CONNECTIONIN, aggr=AGGR)
     plot.run()
     
 if __name__=="__main__":

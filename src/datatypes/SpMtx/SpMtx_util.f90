@@ -256,4 +256,32 @@ return
 666 call DOUG_abort('[SpMtx_dumpMatrix] : Error while writing to file.',-1)
 	end subroutine SpMtx_writeMatrix
 
+
+ !> Write values (triple of row,column, value) to the file.
+ subroutine SpMtx_writeLogicalValues(A, vals, fname)
+   type(SpMtx) :: A !< Matrix
+   logical :: vals(:) !< Values to write to file (does not have to be matrix values)
+   character(*) :: fname !< Output file name.
+
+   logical   :: found
+   integer   :: iounit, k, opened
+
+   call FindFreeIOUnit(found, iounit)
+   open(unit=iounit,iostat=opened,file=fname,status='replace',err=666)
+
+   write(iounit,*) max(A%nrows, A%ncols), size(vals)
+   do k=1, size(vals)
+      if(vals(k)) then
+         write(iounit,*) A%indi(k), A%indj(k), 1
+      else
+         write(iounit,*) A%indi(k), A%indj(k), 0
+      end if
+   end do
+
+   close(iounit)
+   return
+
+666 call DOUG_abort('[SpMtx_dumpMatrix] : Error while writing to file.',-1)
+ end subroutine SpMtx_writeLogicalValues
+
 End module SpMtx_util

@@ -172,8 +172,12 @@ program aggr
     call SpMtx_unscale(A)
     ! todo: to be rewritten with aggr%starts and aggr%nodes...:
 
-    if (sctls%plotting==2) then
+    if (sctls%plotting>=2) then
        call Aggr_writeFile(A%aggr, 'aggr1.txt')
+    end if
+
+    if (sctls%plotting>=2) then
+       call SpMtx_writeLogicalValues(A, A%strong, 'strong.txt')
     end if
 
     call Mesh_printInfo(M)

@@ -125,12 +125,20 @@ class ArchivePanel:
                         command=ArchivePanel._ViewAggregates(self.app,archive,None,filename))
             view.pack()
             
+        if filetype.startswith("Matrix/Connections"):
+            view=Button(frame,
+                        width=16, height=16,
+                        image=doug.images.getImage("grid.gif", self.app.root),
+                        command=ArchivePanel._ViewConnections(self.app,archive,None,filename))
+            view.pack()
+
         if filetype.startswith("Grid"):
             view=Button(frame,
                         width=16, height=16,
                         image=doug.images.getImage("grid.gif", self.app.root),
                         command=ArchivePanel._ViewGrid(self.app,archive,filename,None))
             view.pack()
+
 
         return frame
 
@@ -173,7 +181,7 @@ class ArchivePanel:
             gridFile = self.getGridFile()
             self._plot(gridFile)
 
-        def _plot(self, gridFile, solutionFile=None, aggregatesFile=None):
+        def _plot(self, gridFile, solutionFile=None, aggregatesFile=None, connectionsFile=None):
             config = DOUGConfigParser(name='Plot parameters')
             config.addConfig(self.app.config)
             configPanel = ConfigPanel(self.app.root, config, title="Plot configuration",
@@ -191,6 +199,8 @@ class ArchivePanel:
                 args.extend(['--sin', solutionFile])
             if aggregatesFile:
                 args.extend(['--ain', aggregatesFile])
+            if connectionsFile:
+                args.extend(['--cin', connectionsFile])
 
             plargs=[]
             device=config.get('gridplot', 'device')
@@ -202,6 +212,12 @@ class ArchivePanel:
 
             LOG.debug("Spawn '%s'", args)
             os.spawnvp(os.P_NOWAIT, 'python', args)
+
+    class _ViewConnections(_ViewGrid):
+        def __call__(self):
+            gridFilePath = self.getGridFile()
+            connectionsFilePath = os.path.join(self.archive.directoryName, self.otherFileName)
+            self._plot(gridFilePath, connectionsFile=connectionsFilePath)
 
     class _ViewVector(_ViewGrid):
         def __call__(self):

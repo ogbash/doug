@@ -12,7 +12,8 @@ class Archive(object):
     ARCHIVED = 'ARCHIVED'
 
     FILETYPES = ['', 'Grid', 'Matrix', 'Vector', 'Vector/RHS', 'Vector/Solution',
-                 'Aggregates/Fine', 'Aggregates/Coarse', 'Text', 'Text/Output', 'Text/Error']
+                 'Aggregates/Fine', 'Aggregates/Coarse', 'Text', 'Text/Output', 'Text/Error',
+                 'Matrix/Connections']
 
     def _setState(self, newstate): self._state=newstate
     state = property(lambda self: self._state, fset=_setState)
