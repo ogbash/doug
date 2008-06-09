@@ -211,6 +211,11 @@ program aggr
 !write(stream,*)'Smoothed matrix is:------------'
 !call SpMtx_printRaw(Restrict)
 
+      if (sctls%verbose>5.and.AC%nnz<400) then
+        write(stream,*)'Restrict is:=================='
+        call SpMtx_printRaw(A=Restrict)
+      endif
+
       if (sctls%coarse_method<=1) then ! if not specified or ==1
          call CoarseMtxBuild(A,AC,Restrict)
 
@@ -293,6 +298,13 @@ program aggr
       write(stream,*)'# coarse aggregates:',AC%aggr%nagr
     endif 
   endif
+
+  ! profile info
+  if(pstream/=0) then
+     write(pstream, "(I0,':fine aggregates:',I0)") myrank, A%aggr%nagr
+     write(pstream, "(I0,':coarse aggregates:',I0)") myrank, AC%aggr%nagr
+  end if
+
   ! Testing UMFPACK:
   allocate(sol(A%nrows))
   allocate(rhs(A%ncols))

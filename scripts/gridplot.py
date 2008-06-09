@@ -7,10 +7,11 @@ import getopt
 
 class Plot:
 
-    def __init__(self, gridFile, aggregateFile=None, solutionFile=None, contour=False):
+    def __init__(self, gridFile, aggregateFile=None, solutionFile=None, contour=False, aggr=None):
         self.gridFile = gridFile
         self.aggregateFile = aggregateFile
         self.solutionFile = solutionFile
+        self.aggr = aggr
         self.contour = contour
         self.mappings = {} #: num of nodes -> array of map indices
         self.markings = {} #: name -> object specifying marks
@@ -135,7 +136,8 @@ class Plot:
 
             n = len(lx)
             for j in xrange(n):
-                if aggrs!=None and aggrs[elem[j]]==aggrs[elem[(j+1)%n]]:
+                if aggrs!=None and aggrs[elem[j]]==aggrs[elem[(j+1)%n]] and \
+                       (self.aggr==None or self.aggr==aggrs[elem[j]]):
                     plcol0(aggrs[elem[j]]%14+1) # except 0 (black) and 15 (white)
                 elif self.contour:
                     plwid(3)
@@ -149,7 +151,8 @@ class Plot:
             if aggrs!=None:
                 m = aggrs[elem[0]]
                 anyoutside = (aggrs[elem]==-1).any()
-                if not anyoutside and \
+                if (self.aggr==None or self.aggr==m) and \
+                       not anyoutside and \
                        (aggrs[elem]==m).all(): # all nodes in the same aggr
                     plpsty(4)
                     plfill(lx,ly)
@@ -187,13 +190,15 @@ def main():
         'plplot=',
         'gin=',
         'ain=',
-        'sin='
+        'sin=',
+        'aggr='
         ]
 
     plargs = [sys.argv[0]]
     GRIDIN = 'grid.txt'
     AGGRSIN = None
     SOLUTIONIN = None
+    AGGR = None
 
     opts = getopt.gnu_getopt(sys.argv, options, loptions)
     for key, value in opts[0]:
@@ -205,10 +210,12 @@ def main():
             AGGRSIN=value
         elif key=='--sin':
             SOLUTIONIN=value
+        elif key=='--aggr':
+            AGGR=int(value)
 
     plparseopts(plargs, PL_PARSE_FULL)
 
-    plot = Plot(GRIDIN, AGGRSIN, SOLUTIONIN)
+    plot = Plot(GRIDIN, AGGRSIN, SOLUTIONIN, aggr=AGGR)
     plot.run()
     
 if __name__=="__main__":

@@ -684,6 +684,8 @@ if (bugtrack)call Print_Glob_Vect(tmpsol,M,'tmpsol===',chk_endind=M%ninner)
     real(kind=rk),dimension(:),pointer,save :: dd,ee,alpha,beta
     !logical,parameter :: bugtrack=.true.
     logical,parameter :: bugtrack=.false.
+    ! profiling
+    real(8) :: time_iterations, t1
 
     write(stream,'(/a)') 'Preconditioned conjugate gradient:'
     if (present(refactor_).and.refactor_) then
@@ -754,9 +756,13 @@ if (bugtrack)call Print_Glob_Vect(x,Msh,'global x===')
       allocate(alpha(maxit))
       allocate(beta(maxit))
     endif
+
+    time_iterations = 0.
+    ! iterations
     do while((ratio_norm > tol*tol).and.(it < maxit))
       it = it + 1
- 
+      t1 = MPI_WTime()
+
 if (bugtrack)call Print_Glob_Vect(r,Msh,'global r===',chk_endind=Msh%ninner)
       call preconditioner(sol=z,          &
                             A=A,          &
@@ -796,12 +802,16 @@ if (bugtrack)call Print_Glob_Vect(r,Msh,'global r===')
       res_norm = Vect_dot_product(r,r)
       !write (stream,*) "Norm is", res_norm
       ratio_norm = res_norm / init_norm
+
+      time_iterations = time_iterations + MPI_WTime()-t1
+
       if (ismaster()) &
            write(stream, '(i5,a,e22.15)') it,': res_norm=',dsqrt(res_norm)
     end do
 
     if(pstream/=0) then
        write(pstream, "(I0,':pcg iterations:',I0)") myrank, it
+       write(pstream, "(I0,':iterations time:',F0.3)") myrank, time_iterations
        write(pstream, "(I0,':preconditioner time:',F0.3)") myrank, time_preconditioner
     end if
 

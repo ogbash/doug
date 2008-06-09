@@ -35,7 +35,12 @@ errfilename: doug.err
 
 [doug-controls]
 #: level of plotting
-plotting: 0
+# @type: list
+# @type-params: 0:disabled, 1, 2:show aggregates, 3
+plotting: 2
+
+#: output verbosity
+verbose: 0
 
 #: solution format
 # @type: list
@@ -91,3 +96,16 @@ radius2: 5
 strong2: 0.67e0
 # @subsection: Aggregation
 minasize2: 96
+
+#: method how to construct coarse space
+# @type: list
+# @type-params: 1:usual, 2:robust
+# @subsection: CoarseSpace
+coarse_method: 1
+
+# @subsection: CoarseSpace
+overlap: -1
+
+#: Smooth fine aggregates
+# @subsection: CoarseSpace
+smoothers: 0

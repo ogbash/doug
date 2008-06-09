@@ -93,7 +93,6 @@ class DOUGConfigParser(SafeConfigParser):
         default = kargs.pop('default', None)
         
         if useprefix!=None:
-            del kargs['useprefix']
             words=section.split('-')
             if self.has_option(section, "%s-%s"%(words[0],option)):
                 return SafeConfigParser.get(self, section, "%s-%s"%(words[0],option), *args, **kargs)            

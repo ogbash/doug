@@ -13,12 +13,12 @@ import Pmw
 
 import os
 import os.path
-import shutil
 
 from doug.config import DOUGConfigParser
 from doug.configui import ConfigPanel
-from doug.ui import ResultTable
-from doug.archive import Archive, ProblemArchivePanel, SolutionArchivePanel
+from doug.ui import ArchiveListbox, ResultTable
+from doug.archive import Archive
+from doug.ui.archive import ProblemArchivePanel, SolutionArchivePanel
 
 import logging
 logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
@@ -38,10 +38,14 @@ doug-bindir: /usr/bin
 [global]
 viewer: gedit
 
+[gridplot]
 #: output for plplot
 # @type: list
 # @type-params: xwin, ps, psc, gcw, <runtime>
-plplot-device: xwin
+device: xwin
+
+#: plot specific aggregate
+aggr:
 
 """
 
@@ -56,6 +60,8 @@ class App:
     
     def __init__(self, root):
         self.root = root
+        root.title('DOUG execution manager')
+        root.geometry('800x600')
         self.problemsArchives = []
         self.solutionsArchives = []
         self.__loadOptions()
@@ -82,30 +88,29 @@ class App:
         resultsFrame.pack(side=TOP, expand=True, fill=BOTH)
 
         # problems listbox
-        listbox = Pmw.ScrolledListBox(problemsFrame,
-                                      selectioncommand=self.__problemsListboxSelect)
+        self.problemPanel = ProblemArchivePanel(problemsFrame, self.config, self)
+
+        listbox = ArchiveListbox(problemsFrame,
+                                 archiveList=self.problemsArchives,
+                                 archivePanel=self.problemPanel)
+
         self.problemsListbox = listbox
         listbox.pack(side=LEFT, fill=Y)
-        listbox.component('listbox').bind('<Delete>', self.__problemsListboxDelete)
-        listbox.component('listbox').bind('<2>', self.__addFiles)
-        #listbox.event_add('<<AddFiles>>', '<2>')
 
+        self.problemPanel.frame.pack(side=TOP, expand=True, fill=BOTH)
 
         addb = Button(problemsFrame, text="Add archive", command=self.__addArchive)
         addb.pack(side=TOP)
 
-        self.problemPanel = ProblemArchivePanel(problemsFrame, self.config, self)
-        self.problemPanel.frame.pack(side=TOP, expand=True, fill=BOTH)
-
         # solutions listbox
-        listbox = Pmw.ScrolledListBox(solutionsFrame,
-                                      selectioncommand=self.__solutionsListboxSelect)
+        self.solutionPanel = SolutionArchivePanel(solutionsFrame, self.config, self)
+
+        listbox = ArchiveListbox(solutionsFrame,
+                                 archiveList=self.solutionsArchives,
+                                 archivePanel=self.solutionPanel)
         self.solutionsListbox = listbox
         listbox.pack(side=LEFT, fill=Y)
-        #listbox.bind('<<ListboxSelect>>', self.__solutionsListboxSelect)        
-        listbox.component('listbox').bind('<Delete>', self.__solutionsListboxDelete)
 
-        self.solutionPanel = SolutionArchivePanel(solutionsFrame, self.config, self)
         self.solutionPanel.frame.pack(side=TOP, expand=True, fill=BOTH)
 
         menu = Menu(menubar, tearoff=False)
@@ -122,33 +127,9 @@ class App:
 
         # results frame
         resultTable = ResultTable(self, resultsFrame)
+        refreshB = Button(resultsFrame, text='refresh', fg="green", command=resultTable.refresh)
+        refreshB.pack(anchor=W)
         resultTable.frame.pack(fill=BOTH, expand=True)
-
-    def __problemsListboxDelete(self, e):
-        listbox=self.problemsListbox
-        archives=self.problemsArchives
-        self.__listboxDelete(listbox, archives, self.problemPanel)
-
-    def __solutionsListboxDelete(self, e):
-        listbox=self.solutionsListbox
-        archives=self.solutionsArchives
-        self.__listboxDelete(listbox, archives, self.solutionPanel)
-
-    def __listboxDelete(self, listbox, archives, panel):
-        names=listbox.getvalue()
-        if not names:
-            return
-        for name in names:
-            indices=filter(lambda v: v[1].name==name,
-                           enumerate(archives))
-            indices.reverse()
-            for index, name in indices:
-                archive=archives[index]
-                del archives[index]
-                listbox.delete(index)
-                LOG.info('Deleting %s', archive.directoryName)
-                shutil.rmtree("%s" % (archive.directoryName))
-        panel.setArchive(None)
 
     def __editOptions(self):
         d = ConfigPanel(self.root, self.config, title='Global options')
@@ -169,20 +150,6 @@ class App:
                     archiveTypes[t][0].append(archive)
                     archiveTypes[t][1].insert(END, archive.name)
 
-    def __problemsListboxSelect(self, ev=None):
-        widget=self.problemsListbox
-        widget.component('listbox').focus_set()
-        index = int(widget.curselection()[0])
-        archive = self.problemsArchives[index]
-        self.problemPanel.setArchive(archive)
-
-    def __solutionsListboxSelect(self, ev=None):
-        widget=self.solutionsListbox
-        widget.component('listbox').focus_set()
-        index = int(widget.curselection()[0])
-        archive = self.solutionsArchives[index]
-        self.solutionPanel.setArchive(archive)
-
     def addArchive(self, archive):
         archiveType = archive.info.get('general', 'archive-type')
         if archiveType=='problem':
@@ -202,23 +169,6 @@ class App:
         if name:
             archive = Archive(name)
             self.addArchive(archive)
-
-    def __addFiles(self, ev=None):
-        sel = self.problemsListbox.curselection()
-        if not sel:
-            return
-
-        archive = self.problemsArchives[int(sel[0])]
-
-        filenames = tkFileDialog.askopenfilenames(title="Select files to include",
-                                                      filetypes=[('All',"*"), ("Text data","*.txt")])
-        if filenames:
-            #isMove= tkMessageBox.askyesno(title="%d files selected. Copy or move?" % len(filenames),
-            #                              message="Move files?",
-            #                              default="no")
-            for filename in filenames:
-                newfilename = os.path.join(archive.directoryName, os.path.basename(filename))
-                shutil.copy(filename, newfilename)
 
     def __closeApp(self):
         for archive in self.problemsArchives:
