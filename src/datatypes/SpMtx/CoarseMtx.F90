@@ -61,7 +61,7 @@ contains
     float(kind=rk),dimension(:),allocatable :: diag,val
     !!!float(kind=rk) :: omega=0.66666666666667_rk
     !!!float(kind=rk) :: omega2=0.66666666666667_rk
-    float(kind=rk) :: omega=1.33333333333333_rk
+    float(kind=rk) :: omega=0.33333333333333_rk
     float(kind=rk) :: omega2=0.66666666666667_rk
     !!float(kind=rk) :: omega=0.66666666666667_rk
     !!float(kind=rk) :: omega2=1.33333333333333_rk
@@ -148,9 +148,13 @@ contains
       deallocate(indi)
       ! Build smoother
       allocate(diag(max(A%nrows,A%ncols)))
+      diag=0.0;
       do i=1,A%nnz
         if (A%indi(i)==A%indj(i)) then
-          diag(A%indi(i))=A%val(i)
+          diag(A%indi(i))=diag(A%indi(i))+A%val(i)
+        elseif (.not.(A%strong(i).or.smoothall)) then
+          ! A^epsilon (filtered matrix) has diagonal with added weak connections
+          diag(A%indi(i))=diag(A%indi(i))+A%val(i)
         endif
       enddo
       if (present(A_ghost).and.associated(A_ghost%indi)) then
@@ -170,7 +174,7 @@ contains
           nz=nz+1
           indi(nz)=A%indi(i)
           indj(nz)=A%indj(i)
-          val(nz)=1.0_rk-omega/diag(A%indi(i))*A%val(i)
+          val(nz)=1.0_rk-omega
         elseif (A%strong(i).or.smoothall) then
           nz=nz+1
           indi(nz)=A%indi(i)
@@ -412,7 +416,7 @@ contains
         Restrict = SpMtx_AB(A=T,       &
                             B=S,       &
                            AT=.false., &
-                           BT=.false.)
+                           BT=.true.)
 !write(stream,*)'bbb done building Restrict...'
       endif
       call SpMtx_Destroy(S)
