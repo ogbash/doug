@@ -1140,9 +1140,9 @@ endif
               endif
             endif
           enddo
-!if (present(Afine)) then
-! print *,'too small aggr ',i,' of size:',aggrsize(i),' maxcw_sum:',maxconnweightsum
-!endif
+if (present(Afine)) then
+ print *,'too small aggr ',i,' of size:',aggrsize(i),' maxcw_sum:',maxconnweightsum
+endif
           if (maxconnweightsum>=alpha.or.(present(Afine).and.maxconnweightsum>=beta)) then ! let the eater get the nodes
             do j=1,aggrsize(i)
               ! print *, j, eater, lbound(aggrsize), ubound(aggrsize)
@@ -1154,11 +1154,11 @@ endif
             aggrsize(i)=0
             nagrs_new=nagrs_new-1
             neaten=neaten+1
-!print *,'eater of ',i,' is:',eater
+print *,'eater of ',i,' is:',eater
           else ! try to give the struct away node by node to all good neighbours...
-!if (present(Afine)) then
-! print *,' ...not eaten... '
-!endif
+if (present(Afine)) then
+ print *,' ...not eaten... '
+endif
             nleft=aggrsize(i)
             reduced=.true.
             do while (nleft>0.and.reduced)
@@ -1211,9 +1211,9 @@ endif
                 endif
               enddo
               aggrsize(i)=nleft
-!print *,'    ========== aggregate ',i,' remained as small as ',nleft,'@@@@@'
+print *,'    ========== aggregate ',i,' remained as small as ',nleft,'@@@@@'
             elseif (nleft==0) then ! the aggregate got removed
-!print *,'    ========== aggregate ',i,' got removed node by node ============'
+print *,'    ========== aggregate ',i,' got removed node by node ============'
               noccupied=noccupied+1
               aggrsize(i)=0
               nagrs_new=nagrs_new-1

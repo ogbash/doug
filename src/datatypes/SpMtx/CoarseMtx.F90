@@ -62,9 +62,9 @@ contains
     !!!float(kind=rk) :: omega=0.66666666666667_rk
     !!!float(kind=rk) :: omega2=0.66666666666667_rk
     float(kind=rk) :: omega=0.33333333333333_rk
-    float(kind=rk) :: omega2=0.66666666666667_rk
+    !!float(kind=rk) :: omega2=0.66666666666667_rk
     !!float(kind=rk) :: omega=0.66666666666667_rk
-    !!float(kind=rk) :: omega2=1.33333333333333_rk
+    float(kind=rk) :: omega2=0.33333333333333_rk
     !float(kind=rk) :: omega=1.33333333333333_rk
     !float(kind=rk) :: omega2=1.33333333333333_rk
     real(kind=rk),dimension(:),pointer :: sol,rhs
@@ -237,6 +237,9 @@ contains
         do i=1,A%nnz
           if (A%indi(i)==A%indj(i)) then
             diag(A%indi(i))=A%val(i)
+          elseif (.not.(A%strong(i).or.smoothall)) then
+          ! A^epsilon (filtered matrix) has diagonal with added weak connections
+            diag(A%indi(i))=diag(A%indi(i))+A%val(i)
           endif
         enddo
         if (present(A_ghost).and.associated(A_ghost%indi)) then
@@ -256,7 +259,7 @@ contains
             nz=nz+1
             indi(nz)=A%indi(i)
             indj(nz)=A%indj(i)
-            val(nz)=1.0_rk-omega2/diag(A%indi(i))*A%val(i)
+            val(nz)=1.0_rk-omega2
           elseif (A%strong(i).or.smoothall) then
             nz=nz+1
             indi(nz)=A%indi(i)
@@ -310,8 +313,8 @@ contains
           arrange_type=D_SpMtx_ARRNG_NO )
         deallocate(val,indj,indi)
         deallocate(diag)
-        SS=SpMtx_AB(A=S,       &
-                    B=S2,       &
+        SS=SpMtx_AB(A=S2,       &
+                    B=S,       &
                    AT=.false., &
                    BT=.false.)
         if (smoothers==3) then
@@ -407,7 +410,7 @@ contains
           Restrict = SpMtx_AB(A=T,       &
                               B=SS,      &
                              AT=.false., &
-                             BT=.false.)
+                             BT=.true.)
         endif
         call SpMtx_Destroy(SS)
       else ! i.e. smoothers==1 :
