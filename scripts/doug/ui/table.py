@@ -41,9 +41,15 @@ class ResultTable:
         
         l=Label(self.frame.interior(), text='rad1', fg='blue')
         l.grid(row=0, column=col) ; col=col+1
+        l=Label(self.frame.interior(), text='strong1', fg='blue')
+        l.grid(row=0, column=col) ; col=col+1
         l=Label(self.frame.interior(), text='fine aggr', fg='blue')
         l.grid(row=0, column=col) ; col=col+1
+        l=Label(self.frame.interior(), text='smooth', fg='blue')
+        l.grid(row=0, column=col) ; col=col+1
         l=Label(self.frame.interior(), text='rad2', fg='blue')
+        l.grid(row=0, column=col) ; col=col+1
+        l=Label(self.frame.interior(), text='strong2', fg='blue')
         l.grid(row=0, column=col) ; col=col+1
         l=Label(self.frame.interior(), text='coarse aggr', fg='blue')
         l.grid(row=0, column=col) ; col=col+1
@@ -72,13 +78,21 @@ class ResultTable:
             
             l=Label(self.frame.interior(), text=archive.info.get('doug-controls', 'radius1'))
             l.grid(row=i+1, column=col) ; col=col+1
+            l=Label(self.frame.interior(), text=archive.info.get('doug-controls', 'strong1'))
+            l.grid(row=i+1, column=col) ; col=col+1
             l=Label(self.frame.interior(), text=archive.info.get('doug-profile', 'fine-aggregates', default=''))
+            l.grid(row=i+1, column=col) ; col=col+1
+            l=Label(self.frame.interior(), text=archive.info.get('doug-controls', 'smoothers'))
             l.grid(row=i+1, column=col) ; col=col+1
             l=Label(self.frame.interior(), text=archive.info.get('doug-controls', 'radius2'))
             l.grid(row=i+1, column=col) ; col=col+1
+            l=Label(self.frame.interior(), text=archive.info.get('doug-controls', 'strong2'))
+            l.grid(row=i+1, column=col) ; col=col+1
             l=Label(self.frame.interior(), text=archive.info.get('doug-profile', 'coarse-aggregates', default=''))
             l.grid(row=i+1, column=col) ; col=col+1
-            l=Label(self.frame.interior(), text=archive.info.get('doug-profile', 'pcg-iterations', default=''))
+            l=Label(self.frame.interior(),
+                    text=archive.info.get('doug-profile', 'pcg-iterations', default=''),
+                    bg='yellow')
             l.grid(row=i+1, column=col) ; col=col+1
             l=Label(self.frame.interior(), text=archive.info.get('doug-profile', 'iterations-time', default=''))
             l.grid(row=i+1, column=col) ; col=col+1
