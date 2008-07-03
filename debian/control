@@ -1,0 +1,16 @@
+Source: doug
+Section: science
+Priority: extra
+Maintainer: Oleg Batrashev <ogbash@gmail.com>
+Build-Depends: debhelper (>= 6), autotools-dev, python (>= 2.3), \
+	       libmetis-dev (>= 4), libumfpack4-dev (>= 4.4), \
+	       libopenmpi-dev (>= 1.2.6)
+Standards-Version: 3.7.3
+Homepage: www.dougdevel.org
+
+Package: doug
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Aggregation-based domain decomposition for grids
+ ADOUG is a large linear system solver which uses aggregation and
+ smoothing to construct coarse space basis functions.
