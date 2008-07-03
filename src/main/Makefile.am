@@ -25,6 +25,8 @@ Make.deps:
 
 mostlyclean-local:
 	rm -f *.mod
+	rm -f *.obj *.o
+	rm -f Make.deps
 
 maintainer-clean-local:
 	rm -f Make.deps

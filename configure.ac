@@ -1,5 +1,5 @@
 
-AC_INIT(doug, 0.0.262, [olegus@ut.ee])
+AC_INIT(doug, 0.0.263, [olegus@ut.ee])
 [pvmaj=`expr "$PACKAGE_VERSION" : '\([0-9]*\)\.[0-9]*'`]
 [pvmin=`expr "$PACKAGE_VERSION" : '[0-9]*\.\([0-9]*\)'`]
 [pvtiny=`expr "$PACKAGE_VERSION" : '[0-9]*\.[0-9]*\.\([0-9]*\)'`]
@@ -152,7 +152,8 @@ AC_CONFIG_FILES([Makefile
         src/main/Makefile
         doc/Doxyfile
         doc/Makefile
-        doc/pictures/Makefile])
+        doc/pictures/Makefile
+	scripts/Makefile])
 
 AC_OUTPUT
 

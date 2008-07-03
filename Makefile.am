@@ -1,7 +1,7 @@
 
 ACLOCAL_AMFLAGS=-I config
 
-EXTRA_DIST= scripts/amdeps.py
+DIST_SUBDIRS=src doc scripts
 
 if NO_COMPILE
 else
