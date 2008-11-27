@@ -183,6 +183,7 @@ contains
     M%mfrelt = -1
     M%nnode  = -1
     M%lnnode = -1
+    M%nnghbrs   = 0
 
     nullify(M%nfrelt)
     nullify(M%mhead)
