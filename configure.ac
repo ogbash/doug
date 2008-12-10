@@ -110,7 +110,7 @@ AC_CHECK_LIB(metis, metis_partgraphkway,,
                     [AC_MSG_ERROR([metis not found])])
 
 AC_ARG_ENABLE(fxdr,[AC_HELP_STRING([--enable-fxdr],[use Fortran XDR library])],
-  [if test "X$enableval" != "Xno"; then _search_fxdr=yes; fi],[_search_fxdr=yes])
+  [if test "X$enableval" != "Xno"; then _search_fxdr=yes; fi],[_search_fxdr=no])
 
 
 if test X"$_search_fxdr" = Xyes ; then
