@@ -109,7 +109,22 @@ fi
 AC_CHECK_LIB(metis, metis_partgraphkway,,
                     [AC_MSG_ERROR([metis not found])])
 
-AC_CHECK_LIB(fxdr, initxdr)
+AC_ARG_ENABLE(fxdr,[AC_HELP_STRING([--enable-fxdr],[use Fortran XDR library])],
+  [if test "X$enableval" != "Xno"; then _search_fxdr=yes; fi],[_search_fxdr=yes])
+
+
+if test X"$_search_fxdr" = Xyes ; then
+  AC_CHECK_LIB(fxdr, initxdr, [
+    fxdr_found=yes
+    AC_DEFINE([HAVE_LIBFXDR],[1], [Use Fortran XDR IO])
+    LIBS="$LIBS -lfxdr"
+  ], [
+    AC_MSG_ERROR([fxdr not found])
+    fxdr_found=no])
+else
+  fxdr_found=no
+fi
+
 
 AC_LANG_POP(Fortran)
 
@@ -167,6 +182,7 @@ Summary:
   umfpack: $umfpack_found, UMFPACK_LIBS = $UMFPACK_LIBS
   plplot: $plplot_found, PLPLOT_LIBS = $PLPLOT_LIBS
   mumps: $mumps_found, MUMPS_LIBS = $MUMPS_LIBS
+  fxdr: $fxdr_found
 
   CPPFLAGS = $CPPFLAGS
   FCFLAGS = $FCFLAGS

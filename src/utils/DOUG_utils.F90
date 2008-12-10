@@ -1654,7 +1654,7 @@ contains
     integer :: k, fhandle, status
 
     fhandle = initxdr(fname, 'w', .FALSE.)
-    status = ixdrint( fhandle, size(x) )
+    !status = ixdrint( fhandle, size(x) )
    	status = ixdrdmat( fhandle, size(x), x )
    	status = ixdrclose( fhandle )
 
