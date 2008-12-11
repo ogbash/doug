@@ -22,8 +22,10 @@ class Plot:
         print "Reading grid from %s" % filename
         f = open(filename, 'r')
         try:
-            nvertices, nelements = map(int, f.readline().split())
+            nvertices, nelements, ndim = map(int, f.readline().split())
             self.mappings[nvertices] = numpy.arange(nvertices) # default mapping to itself
+            print "N nodes", nvertices
+            print "N elements", nelements
 
             xs = numpy.zeros(nvertices)
             ys = numpy.zeros(nvertices)
@@ -118,6 +120,7 @@ class Plot:
         xmax = max(x)
         ymin = min(y)
         ymax = max(y) 
+        print "Box: %f %f to %f %f" % (xmin, ymin, xmax, ymax)
         plenv(xmin, xmax, ymin, ymax, 0, 0)
 
         maxcoef = max(coefs)
