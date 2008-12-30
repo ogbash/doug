@@ -1,0 +1,8 @@
+DGF
+SimplexGenerator
+file grids/cooling-4.1
+dimension 2
+#
+BoundaryDomain
+default 1
+#

@@ -1,0 +1,27 @@
+# Run this file with:
+#   triangle -peA -q30 -a0.02 cooling-1.poly
+#  and then from the parent directory:
+#   ./gen --fortran -r 5 -t p -i 1. 0. -i 130. 90000000 -b 3 20. 10. -b 3 20. 10. grids/cooling-1.dgf
+8 2 0 0
+ 0 0. 0.
+ 1 0.05 0.
+ 2 0. -0.01
+ 3 0.05 -0.01
+ 4 0.02 0.
+ 5 0.03 0.
+ 6 0.02 0.003
+ 7 0.03 0.003
+9 1
+ 0 0 4 1
+ 1 4 5
+ 2 5 1 1
+ 3 1 3 1
+ 4 3 2 1
+ 5 2 0 1
+ 6 5 7 2
+ 7 7 6 2
+ 8 6 4 2
+0
+2
+0 0.001 -0.001 1 # plastic base
+1 0.021 0.001 2 # cpu
