@@ -1,0 +1,26 @@
+--- /usr/local/src/dune-1.1/dune-grid-1.1.1/grid/io/file/dgfparser/dgfparser.cc	2008-11-06 04:03:48.000000000 +0200
++++ /usr/local/include/dune/grid/io/file/dgfparser/dgfparser.cc	2008-12-04 21:51:27.000000000 +0200
+@@ -634,11 +634,11 @@
+     }
+   }
+   else {
++    dimw = para.dimension();
+     if (para.filetype().size()==0) {
+       readTetgenTriangle(para.filename());
+       return;
+     }
+-    dimw = para.dimension();
+     if (dimw!=2 && dimw!=3 && dimw!=-1) {
+       DUNE_THROW(DGFException,
+                  "SimplexGen can only generate 2d or 3d meshes but not in "
+--- /usr/local/src/dune-1.1/dune-grid-1.1.1/grid/common/scsgmapper.hh	2008-11-06 04:03:46.000000000 +0200
++++ /usr/local/include/dune/grid/common/scsgmapper.hh	2008-11-20 19:51:22.000000000 +0200
+@@ -137,7 +137,7 @@
+   template <typename G, typename IS, int c>
+   int SingleCodimSingleGeomTypeMapper<G,IS,c>::size () const
+   {
+-	return is.size(c,is.geomTypes(c)[0]);
++	return is.size(is.geomTypes(c)[0]);
+   }
+ 
+   template <typename G, typename IS, int c>
