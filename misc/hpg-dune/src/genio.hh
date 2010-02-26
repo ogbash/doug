@@ -314,7 +314,7 @@ public:
     FILE *fMatrix;
     fMatrix=fopen(matrixFileName.c_str(), "w");
     xdrstdio_create(&xdrs, fMatrix, XDR_ENCODE);
-    if (!ok) { std::cerr<<"Error opening file for writing"<<std::endl; return; }
+    //if (!ok) { std::cerr<<"Error opening file for writing"<<std::endl; return; }
   
     xdr_int(&xdrs, &newSize);
     xdr_int(&xdrs, &newNnz);
