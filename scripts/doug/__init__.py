@@ -1,5 +1,9 @@
 import os
-import images
+try:
+    # some programs do not need it
+    import images
+except Exception, e:
+    pass
 
 _RESOURCE_PATH = os.path.dirname(__file__)
 
