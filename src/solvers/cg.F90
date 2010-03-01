@@ -151,10 +151,10 @@ contains
 
 
     r = b - r
-    p = r ! p = 0.0_rk
+    p = 0.0_rk
     it = 1
     res_priv = 1.0_rk
-    do while((rhoold > tol).and.(it < maxit))
+    do while((rhoold > tol*tol).and.(it < maxit))
        rho = Vect_dot_product(r,r)
        beta = rho / rhoold
        p = r + beta*p
