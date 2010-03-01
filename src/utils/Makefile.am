@@ -8,3 +8,7 @@ libdoug_la_SOURCES += \
 
 EXTRA_DIST += \
 	utils/controls.F90
+
+noinst_PROGRAMS = matrix_gen
+matrix_gen_SOURCES = utils/MatrixGen.F90
+matrix_gen_LDADD=libdoug.la
