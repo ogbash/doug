@@ -56,9 +56,23 @@ class TestFailure (ScriptException):
 	pass
 
 class TestCase (unittest.TestCase):
-	failureException=TestFailure	       
+	failureException=TestFailure
 
-	def run(self, result=None):
+	def __init__(self, dougExecution):
+		unittest.TestCase.__init__(self, '_test')
+		self.dougExecution = dougExecution
+
+	def setUp(self):
+		self.dougExecution.setUp()
+
+	def tearDown(self):
+		self.dougExecution.tearDown()
+
+
+	def _test(self):
+		self.dougExecution.run()
+
+	def __run(self, result=None):
 		if result is None: result = self.defaultTestResult()
 		result.startTest(self)
 		testMethod = getattr(self, self.__testMethodName)
@@ -140,10 +154,6 @@ class TestCase (unittest.TestCase):
 		if tolerance > acceptedTolerance:
 			raise self.failureException("Solution is wrong with difference: %f"
 						    % (tolerance) )
-
-class MPITestCase(TestCase):
-	"Test case to run DOUG directly with mpirun."
-
 
 class CombinedTestResult(unittest.TestResult):
 	"""Holder for multiple test result objects.

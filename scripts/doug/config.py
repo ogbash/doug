@@ -58,24 +58,34 @@ _parsedContents = set()
 configDesc = ConfigDesc("")
 
 class DOUGConfigParser(SafeConfigParser):
+    """Configuration that recognises 'workdir' in sections and uses it in path recognition.
+    The working directory during constructor call is taken as basedir.
+    """
+    
     def __init__(self, *args, **kargs):
+        self.basedir = os.getcwd()
         self.__name = ''
         if 'name' in kargs:
             self.__name = kargs.get('name')
             del kargs['name']
         SafeConfigParser.__init__(self, *args, **kargs)
 
+    def getworkdir(self, section):
+        basepath = self.get(section, 'workdir', useprefix=True)
+        basepath = os.path.join(self.basedir, basepath)
+        return basepath
+
     def getpath(self, section, option):
         value = self.get(section, option)
         try:
-            basepath = self.get(section, 'workdir', useprefix=True)
+            basepath = self.getworkdir(section)
             return os.path.join(basepath, value)
         except(NoOptionError), e:
             return value
 
     def setpath(self, section, option, value):
         try:
-            basepath = self.get(section, 'workdir', useprefix=True)
+            basepath = self.getworkdir(section)
             value = os.path.normpath(value)
             basepath = os.path.normpath(basepath)
             prefix = os.path.commonprefix([value, basepath])

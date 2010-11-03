@@ -32,6 +32,8 @@ from StringIO import StringIO
 import os
 import unittest
 import dougtest
+import doug.execution
+from doug.config import DOUGConfigParser
 
 defaultConfig = """
 [testscript]
@@ -166,7 +168,19 @@ def main(testResults):
                 testtuples = generateTuples(solvers, methods, levels, processors, executables)
 
                 for testtuple in testtuples:
-                    test = dougtest.MPITestCase(name+"_"+testconf, datadir, ctrlfname, solutionfname, conf, *testtuple)
+                    dougControlFile = doug.execution.ControlFile(filename=ctrlfname)
+                    dougConfig = DOUGConfigParser(name='DOUG execution parameters')
+                    dougConfig.addConfigContents(doug.execution.getDefaultConfigContents())
+                    # set/copy doug configuration from tests configuration
+                    for name,value in conf.items('doug', raw=True):
+                        dougConfig.set('DEFAULT', name, value)
+                    for name,value in conf._sections['doug-controls'].items():
+                        dougConfig.set('doug-controls', name, value)
+                    execution = doug.execution.DOUGExecution(dougConfig, dougControlFile)
+                    test = dougtest.TestCase(execution)
+                    #resultConfig=execution.run()
+                    
+                    #test = dougtest.MPITestCase(name+"_"+testconf, datadir, ctrlfname, solutionfname, conf, *testtuple)
                     testSuite.addTest(test)
 
         # run tests

@@ -49,22 +49,34 @@ _defaultControlFile = ControlFile(contents=doug.DOUG_ctl_tmpl)
 
 class DOUGExecution:
 
-    def __init__(self, config):
+    def __init__(self, config, dougControls=None):
         self.config = DOUGConfigParser(name='DOUG execution')
         self.config.addConfigContents(doug.execution_conf_tmpl)
         self.config.addConfig(config)
         
         # create control file object
+        ## copy default
         self.controlFile = copy.deepcopy(_defaultControlFile)
+        ## copy doug-controls from config
         for option, value in self.config.items('doug-controls', nodefaults=True):
             self.controlFile.options[option] = value
+            print "--", option, value
+        ## copy controls from control file
+        if dougControls is not None:
+            for option,value in dougControls.options.items():
+                ## if ends with 'file' join with control file path
+                if option.endswith("file"):
+                    path = os.path.join(os.path.dirname(dougControls.name), value)
+                    self.controlFile.options[option] = path
+                else:
+                    self.controlFile.options[option] = value
         
         # output or other files, exception grabs it on exit
         self.files = []
 
     def setUp(self):
         LOG.debug("Preparing testing environment")
-        self.workdir = self.config.get("doug", "workdir", useprefix=True)
+        self.workdir = self.config.getworkdir('doug')#("doug", "workdir", useprefix=True)
         if os.path.isdir(self.workdir):
             self.workdirExisted = True
         else:
