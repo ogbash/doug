@@ -12,8 +12,13 @@ from scripts import ScriptException
 import logging
 LOG = logging.getLogger('doug')
 
-def getDefaultConfigContents():
-    return doug.execution_conf_tmpl
+_defaultConfig = None
+def getDefaultConfig():
+    global _defaultConfig
+    if _defaultConfig is None:
+        _defaultConfig = DOUGConfigParser(name="DOUG default config")
+        _defaultConfig.addConfigContents(doug.execution_conf_tmpl)
+    return _defaultConfig
 
 class ControlFile:
     re_assignment = re.compile("(\S+)\s+(.*)")
@@ -51,16 +56,12 @@ class DOUGExecution:
 
     def __init__(self, config, dougControls=None):
         self.config = DOUGConfigParser(name='DOUG execution')
-        self.config.addConfigContents(doug.execution_conf_tmpl)
+        self.config.addConfig(getDefaultConfig())
         self.config.addConfig(config)
         
         # create control file object
         ## copy default
         self.controlFile = copy.deepcopy(_defaultControlFile)
-        ## copy doug-controls from config
-        for option, value in self.config.items('doug-controls', nodefaults=True):
-            self.controlFile.options[option] = value
-            print "--", option, value
         ## copy controls from control file
         if dougControls is not None:
             for option,value in dougControls.options.items():
@@ -70,6 +71,9 @@ class DOUGExecution:
                     self.controlFile.options[option] = path
                 else:
                     self.controlFile.options[option] = value
+        ## copy doug-controls from config
+        for option, value in config.items('doug-controls', nodefaults=True):
+            self.controlFile.options[option] = value
         
         # output or other files, exception grabs it on exit
         self.files = []
@@ -154,6 +158,7 @@ class DOUGExecution:
         errfname = self.config.getpath("doug", "errfilename")
         outfname = self.config.getpath("doug", "outfilename")
         solutionfname = self.config.getpath("doug-controls", "solution_file")
+        print "--", solutionfname
 
         curdir = os.getcwd()
 

@@ -170,10 +170,11 @@ def main(testResults):
                 for testtuple in testtuples:
                     dougControlFile = doug.execution.ControlFile(filename=ctrlfname)
                     dougConfig = DOUGConfigParser(name='DOUG execution parameters')
-                    dougConfig.addConfigContents(doug.execution.getDefaultConfigContents())
                     # set/copy doug configuration from tests configuration
+                    dougConfig.add_section('doug')
                     for name,value in conf.items('doug', raw=True):
-                        dougConfig.set('DEFAULT', name, value)
+                        dougConfig.set('doug', name, value)
+                    dougConfig.add_section('doug-controls')
                     for name,value in conf._sections['doug-controls'].items():
                         dougConfig.set('doug-controls', name, value)
                     execution = doug.execution.DOUGExecution(dougConfig, dougControlFile)
