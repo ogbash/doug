@@ -6,6 +6,7 @@ Makefile
 *.lo
 *.la
 *.mod
+*.pyc
 /aclocal.m4
 /autom4te.cache/
 /configure
