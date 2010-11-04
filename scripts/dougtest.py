@@ -71,38 +71,7 @@ class TestCase (unittest.TestCase):
 
 	def _test(self):
 		self.dougExecution.run()
-
-	def __run(self, result=None):
-		if result is None: result = self.defaultTestResult()
-		result.startTest(self)
-		testMethod = getattr(self, self.__testMethodName)
-		try:
-			try:
-				self.setUp()
-			except KeyboardInterrupt:
-				raise
-			except:
-				result.addError(self, self.__exc_info())
-				return
-
-			try:
-				testMethod()
-				result.addSuccess(self)
-			except self.failureException:
-				result.addFailure(self, self.__exc_info())
-			except KeyboardInterrupt:
-				raise
-			except:
-				result.addError(self, self.__exc_info())
-
-			try:
-				self.tearDown()
-			except KeyboardInterrupt:
-				raise
-			except:
-				result.addError(self, self.__exc_info())
-		finally:
-			result.stopTest(self)
+		self._assertSolution()
 
         def _assertSolution(self):
             from array import array
@@ -113,7 +82,8 @@ class TestCase (unittest.TestCase):
 	    if intarr.itemsize != 4:
 		    intarr = array('i')
 
-            solfilename = os.path.abspath(self.solutionfname)
+            solfilename = self.dougExecution.config.getpath('doug-controls', 'solution_file')
+	    print "---", solfilename
             f=open(solfilename, "rb")
             try:
                 try:

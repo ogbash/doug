@@ -168,7 +168,7 @@ def main(testResults):
                 testtuples = generateTuples(solvers, methods, levels, processors, executables)
 
                 for testtuple in testtuples:
-                    dougControlFile = doug.execution.ControlFile(filename=ctrlfname)
+                    dougControlFile = doug.execution.ControlFile(filename=ctrlfname, basedir=os.path.dirname(ctrlfname))
                     dougConfig = DOUGConfigParser(name='DOUG execution parameters')
                     # set/copy doug configuration from tests configuration
                     dougConfig.add_section('doug')

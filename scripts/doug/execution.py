@@ -5,7 +5,7 @@ from StringIO import StringIO
 import os
 
 import doug
-from doug.config import DOUGConfigParser
+from doug.config import DOUGConfigParser, ControlFile
 
 from scripts import ScriptException
 
@@ -20,67 +20,31 @@ def getDefaultConfig():
         _defaultConfig.addConfigContents(doug.execution_conf_tmpl)
     return _defaultConfig
 
-class ControlFile:
-    re_assignment = re.compile("(\S+)\s+(.*)")
-
-    def __init__(self, filename=None, contents=None):
-        self.name = filename
-        self.options = {}
-
-        if not contents:
-            f = open(self.name, 'r')
-            try:
-                self._parse(f)
-            finally:
-                f.close()
-        else:
-            self._parse(StringIO(contents))
-
-    def _parse(self, f):
-        for line in f:
-            match = self.re_assignment.match(line)
-            if match:
-                self.options[match.group(1)] = match.group(2)
-            
-    def save(self, filename):
-        f = open(filename, "w")
-        try:
-            for key in self.options:
-                f.write("%s %s\n" % (key, self.options[key]))
-        finally:
-            f.close()
-
-_defaultControlFile = ControlFile(contents=doug.DOUG_ctl_tmpl)
+def getDefaultControlFile(basedir):
+    cf = ControlFile(contents=doug.DOUG_ctl_tmpl, basedir=basedir)
+    return cf
 
 class DOUGExecution:
 
     def __init__(self, config, dougControls=None):
-        self.config = DOUGConfigParser(name='DOUG execution')
+        self.workdir = os.path.abspath(config.get('doug', 'workdir'))
+        self.config = DOUGConfigParser(name='DOUG execution', basedir=self.workdir)
+        # default config
         self.config.addConfig(getDefaultConfig())
-        self.config.addConfig(config)
+        self.config.addControlFile(getDefaultControlFile(self.workdir))
         
-        # create control file object
-        ## copy default
-        self.controlFile = copy.deepcopy(_defaultControlFile)
-        ## copy controls from control file
+        # copy controls from control file
         if dougControls is not None:
-            for option,value in dougControls.options.items():
-                ## if ends with 'file' join with control file path
-                if option.endswith("file"):
-                    path = os.path.join(os.path.dirname(dougControls.name), value)
-                    self.controlFile.options[option] = path
-                else:
-                    self.controlFile.options[option] = value
-        ## copy doug-controls from config
-        for option, value in config.items('doug-controls', nodefaults=True):
-            self.controlFile.options[option] = value
-        
+            self.config.addControlFile(dougControls)
+        # copy config
+        self.config.addConfig(config)
+
         # output or other files, exception grabs it on exit
         self.files = []
 
     def setUp(self):
         LOG.debug("Preparing testing environment")
-        self.workdir = self.config.getworkdir('doug')#("doug", "workdir", useprefix=True)
+        self.workdir = self.workdir
         if os.path.isdir(self.workdir):
             self.workdirExisted = True
         else:
@@ -91,7 +55,8 @@ class DOUGExecution:
         try:
             # create control file
             self.testctrlfname = os.path.abspath(os.path.join(self.workdir, 'DOUG-exec.ctl'))
-            self.controlFile.save(self.testctrlfname)
+            controlFile = self.config.getControlFile(self.testctrlfname)
+            controlFile.save(self.testctrlfname)
             self.files.append((self.testctrlfname, "Control file"))
 
             # run mpiboot
@@ -148,8 +113,8 @@ class DOUGExecution:
 
     def runDOUG(self):
         LOG.debug("Running DOUG")
-        solver = self.config.getint('doug-controls', 'solver')
         nproc = self.config.getint('doug', 'nproc')
+        solver = self.config.getint('doug-controls', 'solver')
         levels = self.config.getint('doug-controls', 'levels')
         method = self.config.getint('doug-controls', 'method')
         LOG.info("solver=%d, method=%d, levels=%d, nproc=%d" % (solver, method, levels, nproc))
@@ -157,7 +122,7 @@ class DOUGExecution:
         main = self.config.getpath("doug", "executable")
         errfname = self.config.getpath("doug", "errfilename")
         outfname = self.config.getpath("doug", "outfilename")
-        solutionfname = self.config.getpath("doug-controls", "solution_file")
+        solutionfname = self.config.getpath('doug-controls', 'solution_file')
         print "--", solutionfname
 
         curdir = os.getcwd()
