@@ -1,4 +1,4 @@
-import popen2
+import subprocess
 import re
 import copy
 from StringIO import StringIO
@@ -66,7 +66,7 @@ class DOUGExecution:
 
             if mpibootname:
                 LOG.debug("Setting up mpi")
-                mpiboot = popen2.Popen3("%s > %s 2> %s" % (mpibootname, outfilename, errfilename))
+                mpiboot = subprocess.Popen("%s > %s 2> %s" % (mpibootname, outfilename, errfilename), shell=True)
                 res = mpiboot.wait()
                 if res:
                     raise ScriptException("Error running %s (%d)"
@@ -84,7 +84,7 @@ class DOUGExecution:
                 outfilename = self.config.get("doug", "mpihalt-outfilename")
                 errfilename = self.config.get("doug", "mpihalt-errfilename")          
                 LOG.debug("Shutting down mpi")
-                mpihalt = popen2.Popen3("%s > %s 2> %s" % (mpihaltname, outfilename, errfilename))
+                mpihalt = subprocess.Popen("%s > %s 2> %s" % (mpihaltname, outfilename, errfilename), shell=True)
                 import time
                 time.sleep(4) # lamhalt <=7.1.1 does not wait until whole universe is shut down
                 res = mpihalt.wait()
@@ -132,16 +132,26 @@ class DOUGExecution:
         try:
             LOG.debug("Changing directory to %s" % self.workdir)
             os.chdir(self.workdir)
+            outf = open(outfname, "w")
+            errf = open(errfname, "w")
             try:
-                LOG.debug("Running %s -np %d %s -f %s -p" % (mpirun, nproc, main, self.testctrlfname))
-                doug = popen2.Popen3('%s -np %d %s -f %s -p > %s 2> %s'%
-                                     (mpirun, nproc, main, self.testctrlfname,
-                                      outfname, errfname)
-                                     )
+                args = [mpirun, "-np", "%d"%nproc, main, "-f", self.testctrlfname, "-p"]
+                LOG.debug("Running %s" % " ".join(args))
+                doug = subprocess.Popen(args, stdout=outf, stderr=errf)
+                    
                 import time
-                #time.sleep(1) # without this mpirun somehow gets HUP signal
-
-                value = doug.wait()
+                maxtime = self.config.getint('doug', 'max-time')
+                for i in xrange(maxtime): # ~1 minute
+                    time.sleep(1)
+                    doug.poll()
+                    if doug.returncode != None:
+                        break
+                else:
+                    LOG.info("Terminating DOUG")
+                    doug.terminate()
+                    doug.wait()
+                    
+                value = doug.returncode
                 LOG.debug("Finished %s with code %d" % (mpirun, value))
                 self.files.append((outfname, "%s standard output" % mpirun))
                 self.files.append((errfname, "%s standard error" % mpirun))
@@ -170,6 +180,8 @@ class DOUGExecution:
                 # compare answers
                 
             finally:
+                outf.close()
+                errf.close()
                 LOG.debug("Changing directory to %s" % curdir)
                 os.chdir(curdir)
         except ScriptException, e:
