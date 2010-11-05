@@ -28,6 +28,8 @@ import sys
 import re
 import unittest
 import popen2
+from array import array
+import xdrlib
 
 _defaultConfig="""
 [dougtest]
@@ -73,44 +75,53 @@ class TestCase (unittest.TestCase):
 		self.dougExecution.run()
 		self._assertSolution()
 
+	def _readFortranVector(self, filename):
+		# we need 4 byte integer, ugly hack for 64bit platforms
+		intarr = array('l')
+		if intarr.itemsize != 4:
+			intarr = array('i')
+			f=open(solfilename, "rb")
+		try:
+			intarr.fromfile(f, 1)
+			smarker = intarr[-1]
+			sol.fromfile(f, smarker/sol.itemsize)
+			intarr.fromfile(f, 1)
+			emarker = intarr[-1]
+		finally:
+			f.close()
+
+	def _readXDRVector(self, filename):
+		f=open(filename, "rb")
+		bytes = f.read()
+		u = xdrlib.Unpacker(bytes)
+		try:
+			sol = u.unpack_array(u.unpack_double)
+		finally:
+			f.close()
+		return sol
+
         def _assertSolution(self):
-            from array import array
-            solCorrect = array('d')
-            sol = array('d')
-	    # we need 4 byte integer, ugly hack for 64bit platforms
-            intarr = array('l')
-	    if intarr.itemsize != 4:
-		    intarr = array('i')
-
-            solfilename = self.dougExecution.config.getpath('doug-controls', 'solution_file')
-	    print "---", solfilename
-            f=open(solfilename, "rb")
-            try:
+		# read solution
+		solfilename = self.dougExecution.config.getpath('doug-controls', 'solution_file')
                 try:
-                    intarr.fromfile(f, 1)
-                    smarker = intarr[-1]
-                    sol.fromfile(f, smarker/sol.itemsize)
-                    intarr.fromfile(f, 1)
-                    emarker = intarr[-1]
+			sol = self._readXDRVector(solfilename)
                 except Exception, e:
-                    se = ScriptException("Error reading solution, investigate '%s' file."
+			se = ScriptException("Error reading solution, investigate '%s' file."
                                          % os.path.basename(solfilename), e)
-		    se.addFile(solfilename, "solution file")
-                    raise se
-            finally:
-                f.close()
-            
-            f=open(self.csolutionfname, "rb")
-            try:
-                intarr.fromfile(f, 1)
-                smarker = intarr[-1]
-                solCorrect.fromfile(f, smarker/solCorrect.itemsize)
-                intarr.fromfile(f, 1)
-                emarker = intarr[-1]
-            finally:
-                f.close()
+			se.addFile(solfilename, "solution file")
+			raise se
 
-	    self.assertAlmostEqual(sol, solCorrect, 1E-6)
+		# read correct solution
+		csolfilename = self.dougExecution.config.getpath('doug-tests', 'csolution_file')
+                try:
+			solCorrect = self._readXDRVector(csolfilename)
+                except Exception, e:
+			se = ScriptException("Error reading correct solution, investigate '%s' file."
+                                         % os.path.basename(csolfilename), e)
+			se.addFile(csolfilename, "correct solution file")
+			raise se
+
+		self.assertAlmostEqual(sol, solCorrect, 1E-6)
 
 	def assertAlmostEqual(self, v1, v2, acceptedTolerance):
 		if len(v1) != len(v2):

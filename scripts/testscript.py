@@ -177,6 +177,10 @@ def main(testResults):
                     dougConfig.add_section('doug-controls')
                     for name,value in conf._sections['doug-controls'].items():
                         dougConfig.set('doug-controls', name, value)
+                    dougConfig.add_section('doug-tests')
+                    dougConfig.set('doug-tests', 'csolution_file', solutionfname)
+
+                    # create DOUG execution object
                     execution = doug.execution.DOUGExecution(dougConfig, dougControlFile)
                     test = dougtest.TestCase(execution)
                     #resultConfig=execution.run()
