@@ -167,7 +167,7 @@ def main(testResults):
 
                 testtuples = generateTuples(solvers, methods, levels, processors, executables)
 
-                for testtuple in testtuples:
+                for solver,method,level,nproc,executable in testtuples:
                     dougControlFile = doug.execution.ControlFile(filename=ctrlfname, basedir=os.path.dirname(ctrlfname))
                     dougConfig = DOUGConfigParser(name='DOUG execution parameters')
                     # set/copy doug configuration from tests configuration
@@ -179,6 +179,11 @@ def main(testResults):
                         dougConfig.set('doug-controls', name, value)
                     dougConfig.add_section('doug-tests')
                     dougConfig.set('doug-tests', 'csolution_file', solutionfname)
+                    # set test configuration
+                    dougConfig.set('doug-controls', 'solver', str(solver))
+                    dougConfig.set('doug-controls', 'method', str(method))
+                    dougConfig.set('doug-controls', 'levels', str(level))
+                    dougConfig.set('doug', 'nproc', str(nproc))
 
                     # create DOUG execution object
                     execution = doug.execution.DOUGExecution(dougConfig, dougControlFile)
