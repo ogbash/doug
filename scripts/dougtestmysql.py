@@ -52,11 +52,17 @@ class DougMySQLTestResult(unittest.TestResult):
 
 	def startTest(self, test):
             unittest.TestResult.startTest(self, test)
+            conf = test.dougExecution.config
             self.cursor.execute("insert into testresults (name, testrun_ID, starttime, "
                                 " executable, inputtype, method, solver, nproc, levels)"
                                 " values (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
                                 (test.testname, self.ID, datetime.today(),
-                                 test.executable, test.inputtype, test.method, test.solver, test.nproc, test.levels))
+                                 conf.get("doug", "executable"),
+                                 conf.get("doug-controls", "input_type"),
+                                 conf.get("doug-controls", "method"),
+                                 conf.get("doug-controls", "solver"),
+                                 conf.get("doug", "nproc"),
+                                 conf.get("doug-controls", "levels")))
             test.ID = self.cursor.lastrowid
             self.cursor.execute("update testresults set status=%s where id=%s",
                                 (TestStatus.RUNNING, test.ID))

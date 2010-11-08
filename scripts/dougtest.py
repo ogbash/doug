@@ -60,7 +60,8 @@ class TestFailure (ScriptException):
 class TestCase (unittest.TestCase):
 	failureException=TestFailure
 
-	def __init__(self, dougExecution):
+	def __init__(self, dougExecution, testname=None):
+		self.testname = testname
 		unittest.TestCase.__init__(self, '_test')
 		self.dougExecution = dougExecution
 

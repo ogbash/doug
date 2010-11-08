@@ -184,10 +184,11 @@ def main(testResults):
                     dougConfig.set('doug-controls', 'method', str(method))
                     dougConfig.set('doug-controls', 'levels', str(level))
                     dougConfig.set('doug', 'nproc', str(nproc))
+                    dougConfig.set('doug', 'executable', executable)
 
                     # create DOUG execution object
                     execution = doug.execution.DOUGExecution(dougConfig, dougControlFile)
-                    test = dougtest.TestCase(execution)
+                    test = dougtest.TestCase(execution, testconfname)
                     #resultConfig=execution.run()
                     
                     #test = dougtest.MPITestCase(name+"_"+testconf, datadir, ctrlfname, solutionfname, conf, *testtuple)

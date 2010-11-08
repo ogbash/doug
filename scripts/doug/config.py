@@ -141,7 +141,7 @@ class DOUGConfigParser(SafeConfigParser):
         
         def copyOptions(sectionName, section):
             for option in section.keys():
-                value = section[option]
+                value = conf.get(sectionName, option)
                 #if option.endswith("file") or option.endswith("dir"):
                 #    value = os.path.join(conf.basedir, value)
                 LOG.log(logging.DEBUG/2, "Setting %s in %s to %s", option, sectionName, value)
