@@ -941,6 +941,7 @@ endif
     A%nrows=max(0, maxval(A%indi(1:A%nnz)))
     A%ncols=max(0, maxval(A%indj))
     A%arrange_type=D_SpMTX_ARRNG_NO
+    call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS,sort=.true.) ! without this A_tmp got wrong size of M_bound in pcg()
     if (ol>0) then
       do i=1,A_ghost%nnz
         A_ghost%indi(i)=M%gl_fmap(A_ghost%indi(i))
