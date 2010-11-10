@@ -109,8 +109,8 @@ class DougMySQLTestResult(unittest.TestResult):
                         c.getint('doug-profile', 'pcg-iterations'),
                         c.getfloat('doug-profile', 'iterations-time'),
                         c.getfloat('doug-profile', 'preconditioner-time'),
-                        c.getint('doug-profile', 'fine-aggregates'),
-                        c.getint('doug-profile', 'coarse-aggregates'),
+                        c.has_option('doug-profile', 'fine-aggregates') and c.getint('doug-profile', 'fine-aggregates') or -1,
+                        c.has_option('doug-profile', 'coarse-aggregates') and c.getint('doug-profile', 'coarse-aggregates') or -1,
                         test.ID)
                     self.cursor.execute(sqlr)
 

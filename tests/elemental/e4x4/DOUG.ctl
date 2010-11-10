@@ -14,10 +14,10 @@ initial_guess 2
 start_vec_file ./NOT.DEFINED.start_vec_file
 start_vec_type 2
 solve_tolerance 1.0e-12
-solution_format 1
-solution_file ./solution.file
+solution_format 2
+solution_file solution.xdr
 debug 0
 verbose 10
-plotting 1
+plotting 0
 maxcie 4
 cutbal 3

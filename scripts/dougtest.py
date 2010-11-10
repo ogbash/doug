@@ -110,6 +110,7 @@ class TestCase (unittest.TestCase):
 			f.close()
 
 	def _readXDRVector(self, filename):
+		LOG.debug("Reading XDR file %s" % filename)
 		f=open(filename, "rb")
 		bytes = f.read()
 		u = xdrlib.Unpacker(bytes)

@@ -202,7 +202,7 @@ class ControlFile:
             self.basedir = os.getcwd()
         
 
-        if not contents:
+        if not contents and os.path.isfile(filename):
             f = open(self.name, 'r')
             try:
                 self._parse(f)
