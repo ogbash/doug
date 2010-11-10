@@ -22,6 +22,7 @@ def getDefaultConfig():
 
 def getDefaultControlFile(basedir):
     cf = ControlFile(contents=doug.DOUG_ctl_tmpl, basedir=basedir)
+    cf.name = '<doug.DOUG_ctl_tmpl>'
     return cf
 
 class DOUGExecution:
@@ -105,11 +106,7 @@ class DOUGExecution:
             LOG.debug("Temporary directory %s deleted" % self.tmpdir)
 
     def run(self):
-        self.setUp()
-        try:
-            return self.runDOUG()
-        finally:
-            self.tearDown()
+        return self.runDOUG()
 
     def runDOUG(self):
         LOG.debug("Running DOUG")
@@ -123,11 +120,10 @@ class DOUGExecution:
         errfname = self.config.getpath("doug", "errfilename")
         outfname = self.config.getpath("doug", "outfilename")
         solutionfname = self.config.getpath('doug-controls', 'solution_file')
-        print "--", solutionfname
 
         curdir = os.getcwd()
 
-        result = DOUGConfigParser(self.config.defaults())
+        result = DOUGConfigParser(self.config.defaults(), basedir=self.workdir)
         result.add_section('doug-result')
         try:
             LOG.debug("Changing directory to %s" % self.workdir)

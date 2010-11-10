@@ -73,8 +73,26 @@ class TestCase (unittest.TestCase):
 
 
 	def _test(self):
-		self.dougExecution.run()
-		self._assertSolution()
+		try:
+			self.resultConfig = res = self.dougExecution.run()
+			if res.has_option('doug-result', 'profilefile'):
+				res.add_section('doug-profile')
+				fname = res.getpath('doug-result', 'profilefile')
+				self._readProfileFile(fname, res)
+			self._assertSolution()
+		finally:
+			self.files = self.dougExecution.files
+
+	def _readProfileFile(self, filepath, conf):
+		f = open(filepath)
+		try:
+			for line in f:
+				line = line.strip()
+				proc, name, value = line.split(':')
+				name = name.replace(' ', '-')
+				conf.set('doug-profile', name, value, addsection=True)
+		finally:
+			f.close()
 
 	def _readFortranVector(self, filename):
 		# we need 4 byte integer, ugly hack for 64bit platforms

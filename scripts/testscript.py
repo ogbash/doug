@@ -25,6 +25,7 @@ from scripts import ScriptException
 import svnscripts
 import autotools
 import logging
+logging.basicConfig(level=logging.DEBUG)
 import getopt
 import sys
 from ConfigParser import SafeConfigParser
@@ -164,10 +165,11 @@ def main(testResults):
                 levels = map(int, conf.get(testconfname, "levels").split(","))
                 processors = map(int, conf.get(testconfname, "processors").split(","))
                 executables = conf.get(testconfname, "executables").split(",")
+                smoothers = map(int, conf.get(testconfname, "smoothers").split(","))
 
-                testtuples = generateTuples(solvers, methods, levels, processors, executables)
+                testtuples = generateTuples(solvers, methods, levels, processors, executables, smoothers)
 
-                for solver,method,level,nproc,executable in testtuples:
+                for solver,method,level,nproc,executable,smoother in testtuples:
                     dougControlFile = doug.execution.ControlFile(filename=ctrlfname, basedir=os.path.dirname(ctrlfname))
                     dougConfig = DOUGConfigParser(name='DOUG execution parameters')
                     # set/copy doug configuration from tests configuration
@@ -185,6 +187,7 @@ def main(testResults):
                     dougConfig.set('doug-controls', 'levels', str(level))
                     dougConfig.set('doug', 'nproc', str(nproc))
                     dougConfig.set('doug', 'executable', executable)
+                    dougConfig.set('doug-controls', 'smoothers', str(smoother))
 
                     # create DOUG execution object
                     execution = doug.execution.DOUGExecution(dougConfig, dougControlFile)
