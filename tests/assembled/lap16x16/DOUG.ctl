@@ -26,14 +26,13 @@ initial_guess 2
 start_vec_file ./NOT.DEFINED.start_vec_file
 start_vec_type 2
 solve_tolerance 1.0e-12
-solution_format 1
-solution_file ./solution.dat
+solution_format 2
+solution_file solution.xdr
 #debug -5
 debug 0
 verbose 3
 plotting 0
 assembled_mtx_file Lap16x16.txt
 assembled_mtx_format 0
-#assembled_rhs_format 1
-#assembled_rhs_file ./rhs.dat
-
+assembled_rhs_format 2
+assembled_rhs_file rhs.xdr

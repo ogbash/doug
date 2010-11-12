@@ -54,15 +54,16 @@ class DougMySQLTestResult(unittest.TestResult):
             unittest.TestResult.startTest(self, test)
             conf = test.dougExecution.config
             self.cursor.execute("insert into testresults (name, testrun_ID, starttime, "
-                                " executable, inputtype, method, solver, nproc, levels)"
-                                " values (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                                " executable, inputtype, method, solver, nproc, levels, smoothers)"
+                                " values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                                 (test.testname, self.ID, datetime.today(),
                                  conf.get("doug", "executable"),
                                  conf.get("doug-controls", "input_type"),
                                  conf.get("doug-controls", "method"),
                                  conf.get("doug-controls", "solver"),
                                  conf.get("doug", "nproc"),
-                                 conf.get("doug-controls", "levels")))
+                                 conf.get("doug-controls", "levels"),
+                                 conf.get("doug-controls", "smoothers")))
             test.ID = self.cursor.lastrowid
             self.cursor.execute("update testresults set status=%s where id=%s",
                                 (TestStatus.RUNNING, test.ID))
@@ -100,6 +101,18 @@ class DougMySQLTestResult(unittest.TestResult):
 			for fname, descr in test.files:
 				self._addFile(fname, test)
 
+                # update profiling values
+                if test.resultConfig.has_section('doug-profile'):
+                    c = test.resultConfig
+                    sqlr = ("update testresults set iterations=%d, iterations_time=%f, preconditioner_time=%f," + \
+                            " fine_aggrs=%d, coarse_aggrs=%d where id=%s") % (
+                        c.getint('doug-profile', 'pcg-iterations'),
+                        c.getfloat('doug-profile', 'iterations-time'),
+                        c.getfloat('doug-profile', 'preconditioner-time'),
+                        c.has_option('doug-profile', 'fine-aggregates') and c.getint('doug-profile', 'fine-aggregates') or -1,
+                        c.has_option('doug-profile', 'coarse-aggregates') and c.getint('doug-profile', 'coarse-aggregates') or -1,
+                        test.ID)
+                    self.cursor.execute(sqlr)
 
 	def stop(self):
 		unittest.TestResult.stop(self)

@@ -44,6 +44,12 @@ CREATE TABLE `testresults` (
   inputtype int,
   levels int,
   executable varchar(16),
+  smoothers int(11),
+  iterations int(11),
+  iterations_time float,
+  preconditioner_time float,
+  fine_aggrs int(11),
+  coarse_aggrs int(11),
   PRIMARY KEY  (`ID`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 

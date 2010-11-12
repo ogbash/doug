@@ -4,7 +4,6 @@ import os.path
 import re
 import StringIO
 import logging
-logging.basicConfig(level=logging.DEBUG/2)
 LOG = logging.getLogger(__name__)
 
 class ConfigDesc:
@@ -174,6 +173,7 @@ class DOUGConfigParser(SafeConfigParser):
 
     def addControlFile(self, controlFile):
         "Add configuration to 'doug-controls' section."
+        LOG.debug("Adding control file %s to %s" % (controlFile.name, self))
         for option,value in controlFile.options.items():
             ## if ends with 'file' join with control file path
             if option.endswith("file") or option.endswith("dir"):
@@ -202,7 +202,7 @@ class ControlFile:
             self.basedir = os.getcwd()
         
 
-        if not contents:
+        if not contents and os.path.isfile(filename):
             f = open(self.name, 'r')
             try:
                 self._parse(f)

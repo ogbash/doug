@@ -319,7 +319,7 @@ program aggr
 ! allocate(b(A%nrows))
   allocate(xl(M%nlf))
   xl = 0.0_rk
-  if (sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED.and.len_trim(mctls%assembled_rhs_file)<=0) then ! just test the solver
+  if (.FALSE..and.sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED.and.len_trim(mctls%assembled_rhs_file)<=0) then ! just test the solver
     ! Set solution to random vector and calcluate RHS via b = A*x
     write(stream,'(a,a)')' ##### (testing the solver: random RHS with known answer)'
     allocate(xchk(M%nlf))
