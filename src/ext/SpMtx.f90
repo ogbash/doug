@@ -1,4 +1,13 @@
 
+subroutine ext_pmvmCommStructs_init(A,M)
+  use SpMtx_operation
+
+  type(SpMtx), intent(in) :: A
+  type(Mesh), intent(in) :: M
+
+  call pmvmCommStructs_init(A,M)
+end subroutine ext_pmvmCommStructs_init
+
 subroutine ext_SpMtx_pmvm(r,A,x,M,n)
   use SpMtx_operation
 

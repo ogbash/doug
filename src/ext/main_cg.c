@@ -1,5 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
+
+#include <mpi.h>
 
 extern void ext_doug_init_(int *init_type);
 extern void ext_doug_finalize_();
@@ -9,6 +12,7 @@ extern void ext_paralleldistributeinput_(void *M, void *A, double *b, int *npart
 extern void ext_cg_(void *A, double *b, void *M, double *xl, int *nlf);
 extern void ext_spmtx_pmvm_(double *b, void *A, double *xl, void *M, int *nlf);
 extern double ext_vec_dot_(double *v, double *x, double *y, int *nlf);
+extern void ext_pmvmcommstructs_init_(void *A, void *M);
 
 static void daxpy(double *r, double a, double *x, double *y, int nlf)
 {
@@ -25,19 +29,26 @@ static void cg(void *A, void *M, double *xl, double *b, int nlf)
   double *q = malloc(nlf*sizeof(double));
   double tol, rho, rho_old, alpha, beta, tmp;
   int it;
+  int rank, i;
 
   tol = 1E-12;
 
   // initialize pmvm constructs for communication
+  ext_pmvmcommstructs_init_(A, M);
 
   rho_old = 1.0;
   ext_spmtx_pmvm_(r,A,xl,M, &nlf);
   daxpy(r, -1.0, r, b, nlf);
+  for(i=0; i<nlf; i++)
+    p[i] = 0.0;
+
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
   it = 1;
   while (rho_old > tol*tol) {
     ext_vect_dot_(&rho, r, r, &nlf);
-    printf("it = %d, sqrt(rho) = %e\n", it, sqrt(rho));
+    if (rank==0)
+      printf("rank=%d, it = %d, sqrt(rho) = %e\n", rank, it, sqrt(rho));
 
     beta = rho/rho_old;
     daxpy(p, beta, p, r, nlf);
