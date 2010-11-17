@@ -44,6 +44,7 @@ CREATE TABLE `testresults` (
   inputtype int,
   levels int,
   executable varchar(16),
+  overlap int(11),
   smoothers int(11),
   iterations int(11),
   iterations_time float,
