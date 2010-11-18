@@ -38,6 +38,8 @@ _defaultConfig="""
 info-server:
 # DOUG svn version
 info-svn:
+# DOUG git version
+info-git:
 # fortran compiler
 info-fc:
 # MPI version
