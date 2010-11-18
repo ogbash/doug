@@ -10,5 +10,6 @@ extern void ext_cg_(void *A, double *b, void *M, double *xl, int *nlf);
 extern void ext_spmtx_pmvm_(double *b, void *A, double *xl, void *M, int *nlf);
 extern double ext_vec_dot_(double *v, double *x, double *y, int *nlf);
 extern void ext_pmvmcommstructs_init_(void *A, void *M);
+extern void ext_preconditioner_1level_(double *sol, void *A, double *rhs, void *M, void *A_interf_, int *refactor_, int *nlf);
 
 #endif

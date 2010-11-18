@@ -116,3 +116,32 @@ subroutine ext_vect_dot(v,x,y,n)
   v = Vect_dot_product(x_,y_)
 
 end subroutine ext_vect_dot
+
+subroutine ext_preconditioner_1level(sol,A,rhs,M,A_interf_,refactor_,nlf)
+  use pcg_mod
+
+  implicit none
+  real(kind=rk),dimension(nlf),target :: sol !< solution
+  type(SpMtx)                         :: A   !< sparse system matrix
+  real(kind=rk),dimension(nlf),target :: rhs !< right hand side
+  type(Mesh),intent(in)              :: M   !< Mesh
+  type(SpMtx),optional               :: A_interf_  !< matr@interf.
+  logical,intent(inout) :: refactor_
+  integer, intent(in) :: nlf
+
+  !< residual vector, allocated
+  !! here for multiplicative Schwarz
+  real(kind=rk),dimension(:),pointer :: res => NULL()
+
+  real(kind=rk), pointer :: sol_(:), rhs_(:)
+
+  sol_ => sol
+  rhs_ => rhs
+  sol_ = 0
+  call preconditioner_1level(sol_,A,rhs_,M,res,A_interf_,refactor_)
+
+  if (sctls%method/=0) then
+     call Add_common_interf(sol_,A,M)
+  endif
+
+end subroutine ext_preconditioner_1level
