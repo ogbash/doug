@@ -35,6 +35,7 @@ import unittest
 import dougtest
 import doug.execution
 from doug.config import DOUGConfigParser
+import subprocess
 
 defaultConfig = """
 [testscript]
@@ -222,6 +223,16 @@ try:
             conf.set('dougtest', 'info-svn', str(revision))
         except ValueError, e:
             LOG.warn("Cannot parse svn revision: %s" % e)
+
+    # pick up git version if not specified
+    if not conf.has_option('dougtest', 'info-git') or \
+       not conf.get('dougtest', 'info-git'):
+        subp = subprocess.Popen(["git","log","--pretty=%H","HEAD^..HEAD"], stdout=subprocess.PIPE)
+        subp.wait()
+        if subp.returncode==0:
+            gitversion = subp.communicate()[0].strip()
+            conf.set('dougtest', 'info-git', gitversion)
+            LOG.debug("Set git version to %s" % gitversion)
 
     # create test result objects
     testResults = [unittest._TextTestResult(unittest._WritelnDecorator(sys.stderr), False, 1)]
