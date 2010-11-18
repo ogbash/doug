@@ -148,22 +148,22 @@ def main(testResults):
         items = conf.items("tests")
         for name, value in items:
             if not name.startswith("test"): continue
-            name = name[4:]
+            tname = name[4:]
 
             # read test data
             ctrlfname, solutionfname, testconfs = tuple(value.strip().split(" ", 2))
             ctrlfname = os.path.abspath(ctrlfname)
             solutionfname = os.path.abspath(solutionfname)
             datadir = os.path.dirname(ctrlfname)
-            LOG.debug("Constructing test '%s'" % (name, ))
+            LOG.debug("Constructing test '%s'" % (tname, ))
             LOG.debug("Control file: %s" % ctrlfname)
             LOG.debug("Correct solution file: %s" % (solutionfname,))
 
             # read test configurations
             testconfs = testconfs.split(",")
             for testconf in testconfs:
-                testname = "%s_%s" % (name, testconf)
                 testconfname = "testconf_%s" % testconf
+                testname = "%s_%s" % (tname, testconf)
                 solvers = map(int, conf.get(testconfname, "solver").split(","))
                 methods = map(int, conf.get(testconfname, "method").split(","))
                 levels = map(int, conf.get(testconfname, "levels").split(","))
