@@ -145,11 +145,13 @@ module Mesh_class
     !                  |/                         |/                         |
     !              actual freedoms                |     ghost freedoms       |
 
-
+     !> \addtogroup domain_decomp 
+     !! @{
      type(indlist),dimension(:),pointer :: ax_recvidx,ax_sendidx
      type(indlist),dimension(:),pointer :: ol_outer
      type(indlist),dimension(:),pointer :: ol_inner
      type(indlist),dimension(:),pointer :: ol_solve
+     !> @}
 
      !! Graph
      type(Graph) :: G

@@ -1423,8 +1423,9 @@ endif
 
   end subroutine SpMtx_distributeWithOverlap
 
-
-
+  !> \ingroup domain_decomp
+  !> Calculates overlap and then figures out which vector values need to be exchanged and which matrix values must be used in parallel matrix-vector multiplication and first level preconditioner.
+  !! The implementation takes 2 times overlap from the point of each domain, so that it can move \ol steps back and deduce the overlap from the perspective of each neighbour.
   ! Take away from matrix unneeded elements...
   ! (the matrix should be arranged into row format with SpMtx_arrange_clrorder)
   subroutine SpMtx_build_ghost(clr,ol,A,A_ghost,M,clrorder,clrstarts)
