@@ -19,7 +19,7 @@
 !!   - UMFPACK
 !! - aggregates
 !! - preconditioners
-!!   - fine level preconditioner
+!!   - \subpage domain_decomp (first level preconditioner)
 !!   - coarse level preconditioner
 !! - coarse space
 !!   - smoothed

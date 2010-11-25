@@ -158,7 +158,7 @@
         <dia:real val="0.10000000149011612"/>
       </dia:attribute>
       <dia:attribute name="border_color">
-        <dia:color val="#0000ff"/>
+        <dia:color val="#00ff00"/>
       </dia:attribute>
       <dia:attribute name="show_background">
         <dia:boolean val="false"/>
@@ -189,6 +189,15 @@
       <dia:attribute name="elem_height">
         <dia:real val="0.37499999999999822"/>
       </dia:attribute>
+      <dia:attribute name="border_width">
+        <dia:real val="0.10000000149011612"/>
+      </dia:attribute>
+      <dia:attribute name="border_color">
+        <dia:color val="#00ff00"/>
+      </dia:attribute>
+      <dia:attribute name="inner_color">
+        <dia:color val="#00ff00"/>
+      </dia:attribute>
     </dia:object>
     <dia:object type="Standard - Ellipse" version="0" id="O5">
       <dia:attribute name="obj_pos">
@@ -205,6 +214,15 @@
       </dia:attribute>
       <dia:attribute name="elem_height">
         <dia:real val="0.37499999999999822"/>
+      </dia:attribute>
+      <dia:attribute name="border_width">
+        <dia:real val="0.10000000149011612"/>
+      </dia:attribute>
+      <dia:attribute name="border_color">
+        <dia:color val="#00ff00"/>
+      </dia:attribute>
+      <dia:attribute name="inner_color">
+        <dia:color val="#00ff00"/>
       </dia:attribute>
     </dia:object>
     <dia:object type="Standard - Ellipse" version="0" id="O6">
@@ -223,25 +241,17 @@
       <dia:attribute name="elem_height">
         <dia:real val="0.37499999999999822"/>
       </dia:attribute>
+      <dia:attribute name="border_width">
+        <dia:real val="0.10000000149011612"/>
+      </dia:attribute>
+      <dia:attribute name="border_color">
+        <dia:color val="#00ff00"/>
+      </dia:attribute>
+      <dia:attribute name="inner_color">
+        <dia:color val="#00ff00"/>
+      </dia:attribute>
     </dia:object>
     <dia:object type="Standard - Ellipse" version="0" id="O7">
-      <dia:attribute name="obj_pos">
-        <dia:point val="15,6.175"/>
-      </dia:attribute>
-      <dia:attribute name="obj_bb">
-        <dia:rectangle val="14.95,6.125;15.4,6.6"/>
-      </dia:attribute>
-      <dia:attribute name="elem_corner">
-        <dia:point val="15,6.175"/>
-      </dia:attribute>
-      <dia:attribute name="elem_width">
-        <dia:real val="0.34999999999999787"/>
-      </dia:attribute>
-      <dia:attribute name="elem_height">
-        <dia:real val="0.37499999999999822"/>
-      </dia:attribute>
-    </dia:object>
-    <dia:object type="Standard - Ellipse" version="0" id="O8">
       <dia:attribute name="obj_pos">
         <dia:point val="15.275,10.325"/>
       </dia:attribute>
@@ -255,10 +265,19 @@
         <dia:real val="0.34999999999999787"/>
       </dia:attribute>
       <dia:attribute name="elem_height">
-        <dia:real val="0.37499999999999822"/>
+        <dia:real val="0.375"/>
+      </dia:attribute>
+      <dia:attribute name="border_width">
+        <dia:real val="0.10000000149011612"/>
+      </dia:attribute>
+      <dia:attribute name="border_color">
+        <dia:color val="#00ff00"/>
+      </dia:attribute>
+      <dia:attribute name="inner_color">
+        <dia:color val="#00ff00"/>
       </dia:attribute>
     </dia:object>
-    <dia:object type="Standard - Ellipse" version="0" id="O9">
+    <dia:object type="Standard - Ellipse" version="0" id="O8">
       <dia:attribute name="obj_pos">
         <dia:point val="15.25,11.275"/>
       </dia:attribute>
@@ -272,61 +291,19 @@
         <dia:real val="0.34999999999999787"/>
       </dia:attribute>
       <dia:attribute name="elem_height">
-        <dia:real val="0.37499999999999822"/>
+        <dia:real val="0.375"/>
+      </dia:attribute>
+      <dia:attribute name="border_width">
+        <dia:real val="0.10000000149011612"/>
+      </dia:attribute>
+      <dia:attribute name="border_color">
+        <dia:color val="#00ff00"/>
+      </dia:attribute>
+      <dia:attribute name="inner_color">
+        <dia:color val="#00ff00"/>
       </dia:attribute>
     </dia:object>
-    <dia:object type="Standard - Ellipse" version="0" id="O10">
-      <dia:attribute name="obj_pos">
-        <dia:point val="15.175,12.225"/>
-      </dia:attribute>
-      <dia:attribute name="obj_bb">
-        <dia:rectangle val="15.125,12.175;15.575,12.65"/>
-      </dia:attribute>
-      <dia:attribute name="elem_corner">
-        <dia:point val="15.175,12.225"/>
-      </dia:attribute>
-      <dia:attribute name="elem_width">
-        <dia:real val="0.34999999999999787"/>
-      </dia:attribute>
-      <dia:attribute name="elem_height">
-        <dia:real val="0.37499999999999822"/>
-      </dia:attribute>
-    </dia:object>
-    <dia:object type="Standard - Ellipse" version="0" id="O11">
-      <dia:attribute name="obj_pos">
-        <dia:point val="14.45,12.9"/>
-      </dia:attribute>
-      <dia:attribute name="obj_bb">
-        <dia:rectangle val="14.4,12.85;14.85,13.325"/>
-      </dia:attribute>
-      <dia:attribute name="elem_corner">
-        <dia:point val="14.45,12.9"/>
-      </dia:attribute>
-      <dia:attribute name="elem_width">
-        <dia:real val="0.34999999999999787"/>
-      </dia:attribute>
-      <dia:attribute name="elem_height">
-        <dia:real val="0.37499999999999822"/>
-      </dia:attribute>
-    </dia:object>
-    <dia:object type="Standard - Ellipse" version="0" id="O12">
-      <dia:attribute name="obj_pos">
-        <dia:point val="14.1,5.8"/>
-      </dia:attribute>
-      <dia:attribute name="obj_bb">
-        <dia:rectangle val="14.05,5.75;14.5,6.225"/>
-      </dia:attribute>
-      <dia:attribute name="elem_corner">
-        <dia:point val="14.1,5.8"/>
-      </dia:attribute>
-      <dia:attribute name="elem_width">
-        <dia:real val="0.34999999999999787"/>
-      </dia:attribute>
-      <dia:attribute name="elem_height">
-        <dia:real val="0.37499999999999822"/>
-      </dia:attribute>
-    </dia:object>
-    <dia:object type="Standard - Text" version="1" id="O13">
+    <dia:object type="Standard - Text" version="1" id="O9">
       <dia:attribute name="obj_pos">
         <dia:point val="8.875,8.06875"/>
       </dia:attribute>
@@ -359,7 +336,7 @@
         <dia:enum val="3"/>
       </dia:attribute>
     </dia:object>
-    <dia:object type="Standard - Text" version="1" id="O14">
+    <dia:object type="Standard - Text" version="1" id="O10">
       <dia:attribute name="obj_pos">
         <dia:point val="11.225,9.56875"/>
       </dia:attribute>
@@ -395,7 +372,7 @@
         <dia:connection handle="0" to="O2" connection="8"/>
       </dia:connections>
     </dia:object>
-    <dia:object type="Standard - Text" version="1" id="O15">
+    <dia:object type="Standard - Text" version="1" id="O11">
       <dia:attribute name="obj_pos">
         <dia:point val="18.7,8.03125"/>
       </dia:attribute>
