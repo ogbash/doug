@@ -32,7 +32,7 @@ from ConfigParser import SafeConfigParser
 from StringIO import StringIO
 import os
 import unittest
-import dougtest
+import doug.test as dougtest
 import doug.execution
 from doug.config import DOUGConfigParser
 import subprocess
@@ -241,13 +241,13 @@ try:
     saveMysql = conf.getboolean("testscript", "save-mysql")
 
     if saveTar:
-        import dougtesttar
+        import doug.testtar as dougtesttar
         tarFileName = os.path.abspath(conf.get("testscript", "tar-file"))
         tarTestResult = dougtesttar.DougTarTestResult(tarFileName)
         testResults.append(tarTestResult)
 
     if saveMysql:
-        import dougtestmysql
+        import doug.testmysql as dougtestmysql
         mysqlHost = conf.get("testscript", "mysql-host")
         mysqlUser = conf.get("testscript", "mysql-user")
         mysqlPassword = conf.get("testscript", "mysql-password")
