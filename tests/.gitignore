@@ -1,0 +1,7 @@
+*.err
+*.out
+solution.xdr
+log.*
+prof.*
+/testdir
+/mysql.conf
