@@ -43,6 +43,9 @@ class DOUGExecution:
         # output or other files, exception grabs it on exit
         self.files = []
 
+        # how many test results are using this test, files are deleted only after last free() call
+        self._inUse = 0
+
     def setUp(self):
         LOG.debug("Preparing testing environment")
         self.workdir = self.workdir
@@ -95,15 +98,19 @@ class DOUGExecution:
                          % (mpihaltname, res, outfilename, errfilename))
         except Exception, e:
             LOG.warn("Exception running mpihalt: %s" % e)
-        
-        LOG.debug("Cleaning after test")
-        self._clean()
-
 
     def _clean(self):
-        if not self.preserveOutput and hasattr(self, 'tmpdir') and self.tmpdir:
-            # dangerous while developing -- os.system('rm -rf %s' % self.tmpdir)
-            LOG.debug("Temporary directory %s deleted" % self.tmpdir)
+        if not self.preserveOutput and not self.workdirExisted:
+            os.system('rm -rf %s' % self.workdir)
+            LOG.debug("Temporary directory %s deleted" % self.workdir)
+
+    def acquire(self):
+        self._inUse += 1
+
+    def free(self):
+        self._inUse -= 1
+        if self._inUse == 0:
+            self._clean()
 
     def run(self):
         return self.runDOUG()

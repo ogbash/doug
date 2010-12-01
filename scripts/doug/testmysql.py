@@ -36,6 +36,7 @@ class TestStatus:
     SUCCESS=2
     FAILURE=3
     ERROR=4
+    STRS = ['NONE','RUNNING','SUCCESS','FAILURE','ERROR']
 
 class DougMySQLTestResult(unittest.TestResult):
 	"""Saves DOUG test results into MySQL DB."""
@@ -51,6 +52,7 @@ class DougMySQLTestResult(unittest.TestResult):
                 self._createTestRun()
 
 	def startTest(self, test):
+            test.acquire()
             unittest.TestResult.startTest(self, test)
             conf = test.dougExecution.config
             self.cursor.execute("insert into testresults (name, testrun_ID, starttime, "
@@ -70,6 +72,7 @@ class DougMySQLTestResult(unittest.TestResult):
                                 (TestStatus.RUNNING, test.ID))
 
 	def stopTest(self, test):
+            test.free()            
             unittest.TestResult.stopTest(self, test)
             self.cursor.execute("update testresults set endtime=%s where id=%s",
                                 (datetime.today(), test.ID))

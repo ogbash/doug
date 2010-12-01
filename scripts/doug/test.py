@@ -74,6 +74,13 @@ class TestCase (unittest.TestCase):
 		self.dougExecution.tearDown()
 
 
+	def acquire(self):
+		"Increase count of usage for this test, so that files are not deleted immediatelly."
+		self.dougExecution.acquire()
+
+	def free(self):
+		self.dougExecution.free()
+
 	def _test(self):
 		try:
 			self.resultConfig = res = self.dougExecution.run()
