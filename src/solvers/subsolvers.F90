@@ -249,14 +249,14 @@ contains
         A%subsolve_ids=0
         allocate(A%subd(A%fullaggr%nagr+1))
         if (present(A_interf_).and.A_interf_%nnz>0) then
-          if (A%arrange_type/=D_SpMtx_ARRNG_ROWS) then
-            write (stream,*) 'Arranging A to row storage format!'
-            call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS,sort=.true.)
-          endif
-          if (numprocs>1.and.A_interf_%arrange_type/=D_SpMtx_ARRNG_ROWS) then
-            write (stream,*) 'Arranging A_interf_ to row storage format!'
-            call SpMtx_arrange(A_interf_,D_SpMtx_ARRNG_ROWS,sort=.true.)
-          endif
+          !if (A%arrange_type/=D_SpMtx_ARRNG_ROWS) then
+          !  write (stream,*) 'Arranging A to row storage format!'
+          !  call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS,sort=.true.)
+          !endif
+          !if (numprocs>1.and.A_interf_%arrange_type/=D_SpMtx_ARRNG_ROWS) then
+          !  write (stream,*) 'Arranging A_interf_ to row storage format!'
+          !  call SpMtx_arrange(A_interf_,D_SpMtx_ARRNG_ROWS,sort=.true.)
+          !endif
           if (numprocs==1) then 
             A_interf_%nnz=0
           endif
@@ -276,39 +276,17 @@ contains
                  indj_interf=A_interf_%indj, &
                  val_interf=A_interf_%val)
         else
-          if (A%arrange_type==D_SpMtx_ARRNG_ROWS) then
-!write(stream,*)'######## calling 1  multi_subsolve',A%mtx_bbe(2,2)
-!write(stream,*)'M%ninner,M%nlf:',M%ninner,M%nlf
-!write(stream,*)'A to be solved with is:'
-!call SpMtx_printRaw(A=A,startnz=1,endnz=A%mtx_bbe(2,2))
-!call doug_abort('testing...',5342)
-            call multi_subsolve(               &
-                   nids=A%nsubsolves,          &
-                   ids=A%subsolve_ids,         &
-                   sol=sol,                    &
-                   rhs=rhs,                    &
-                   subd=A%subd,                &
-                   nfreds=A%nrows,             &
-                   nnz=A%mtx_bbe(2,2),         &
-                   indi=A%indi,                &
-                   indj=A%indj,                &
-                   val=A%val)
-          else
-            call multi_subsolve(               &
-                   nids=A%nsubsolves,          &
-                   ids=A%subsolve_ids,         &
-                   sol=sol,                    &
-                   rhs=rhs,                    &
-                   subd=A%subd,                &
-                   nfreds=A%nrows,             &
-                   nnz=A%mtx_bbe(2,2),         &
-                   indi=A%indi,                &
-                   indj=A%indj,                &
-                   val=A%val,                  &
-                   nagr1=A%fullaggr%nagr,      &
-                   starts1=A%fullaggr%starts,  &
-                   nodes1=A%fullaggr%nodes)
-          endif
+           call multi_subsolve(             &
+                nids=A%nsubsolves,          &
+                ids=A%subsolve_ids,         &
+                sol=sol,                    &
+                rhs=rhs,                    &
+                subd=A%subd,                &
+                nfreds=A%nrows,             &
+                nnz=A%mtx_bbe(2,2),         &
+                indi=A%indi,                &
+                indj=A%indj,                &
+                val=A%val)
         endif
       endif !}
       factorised=.true.
