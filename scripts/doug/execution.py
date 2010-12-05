@@ -172,13 +172,16 @@ class DOUGExecution:
                     result.setpath('doug-result', 'solutionfile', solutionfname)
                 if solutionfname and os.path.isfile('aggr1.txt'):
                     result.setpath('doug-result', 'fineaggrsfile', 'aggr1.txt')
+                    #self.files.append(("aggr1.txt", "Fine aggregates"))
                 if solutionfname and os.path.isfile('aggr2.txt'):
                     result.setpath('doug-result', 'coarseaggrsfile', 'aggr2.txt')
+                    #self.files.append(("aggr2.txt", "Coarse aggregates"))
                     
                 files = os.listdir(self.workdir)
-                files = filter(lambda name: name.startswith('prof.'), files)
+                files = filter(lambda name: name.startswith('prof.00'), files)
                 if files:
                     result.setpath('doug-result', 'profilefile', files[0])
+                    self.files.append((os.path.join(self.workdir, files[0]), "Profile info"))
                 
                 # compare answers
                 
