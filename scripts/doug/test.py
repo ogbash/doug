@@ -62,10 +62,13 @@ class TestFailure (ScriptException):
 class TestCase (unittest.TestCase):
 	failureException=TestFailure
 
+	resultConfig = property(lambda self: self.dougExecution.result)
+
 	def __init__(self, dougExecution, testname=None):
 		self.testname = testname
 		unittest.TestCase.__init__(self, '_test')
 		self.dougExecution = dougExecution
+		self.files = []
 
 	def setUp(self):
 		self.dougExecution.setUp()
@@ -93,8 +96,7 @@ class TestCase (unittest.TestCase):
 				self._readProfileFile(fname, res)
 			self._assertSolution()
 		finally:
-			self.resultConfig = self.dougExecution.result
-			self.files = self.dougExecution.files
+			self.files.extend(self.dougExecution.files)
 
 	def _readProfileFile(self, filepath, conf):
 		f = open(filepath)

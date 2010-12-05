@@ -102,19 +102,18 @@ class DougTarTestResult(unittest.TestResult):
 		self._addResult(test, 'success')
 
 	def _addResult(self, test, status):
-		rfilepath = os.path.join(test.dougExecution.workdir,RESULT_CONF)
 		test.resultConfig.set('doug-result', 'status', status)
-		f = open(rfilepath, 'w')
-		test.resultConfig.write(f)
-		f.close()
-		self._addFile(rfilepath, "Results of the test execution.")
+
+		content = StringIO()
+		test.resultConfig.write(content)
+		content.seek(0)
+		self._addFile(RESULT_CONF, "Results of the test execution.", fd=content)
 
 	def _addException(self, test, err):
-		rfilepath = os.path.join(test.dougExecution.workdir, EXCEPTION_FILE)
-		f = open(rfilepath, 'w')
-		pickle.dump(err, f)
-		f.close()
-		self._addFile(rfilepath, "Exception")
+		content = StringIO()
+		pickle.dump(err, content)
+		content.seek(0)
+		self._addFile(EXCEPTION_FILE, "Exception", fd=content)
 
 	def startTestRun(self, test):
 		# python <2.7 does not have it

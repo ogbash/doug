@@ -45,6 +45,9 @@ class DOUGExecution:
 
         # how many test results are using this test, files are deleted only after last free() call
         self._inUse = 0
+        self.preserveOutput = self.config.getboolean("doug", "preserveOutput")
+        self.result = DOUGConfigParser(self.config.defaults(), basedir=self.workdir)
+        self.result.add_section('doug-result')
 
     def setUp(self):
         LOG.debug("Preparing testing environment")
@@ -55,7 +58,7 @@ class DOUGExecution:
             self.workdirExisted = False
             os.mkdir(self.workdir)
             LOG.debug("Working directory %s created" % self.workdir)
-        self.preserveOutput = self.config.getboolean("doug", "preserveOutput")
+
         try:
             # create control file
             self.testctrlfname = os.path.abspath(os.path.join(self.workdir, 'DOUG-exec.ctl'))
@@ -123,15 +126,16 @@ class DOUGExecution:
         method = self.config.getint('doug-controls', 'method')
         LOG.info("solver=%d, method=%d, levels=%d, nproc=%d" % (solver, method, levels, nproc))
         mpirun = self.config.get("doug", "mpirun")
-        main = self.config.getpath("doug", "executable")
+        main = self.config.get("doug", "executable")
+        bindir = self.config.get("doug", "bindir")
+        main = os.path.join(bindir, main)
         errfname = self.config.getpath("doug", "errfilename")
         outfname = self.config.getpath("doug", "outfilename")
         solutionfname = self.config.getpath('doug-controls', 'solution_file')
 
         curdir = os.getcwd()
 
-        self.result = result = DOUGConfigParser(self.config.defaults(), basedir=self.workdir)
-        result.add_section('doug-result')
+        result = self.result
         try:
             LOG.debug("Changing directory to %s" % self.workdir)
             os.chdir(self.workdir)
@@ -139,7 +143,7 @@ class DOUGExecution:
             errf = open(errfname, "w")
             try:
                 args = [mpirun, "-np", "%d"%nproc, main, "-f", self.testctrlfname, "-p"]
-                LOG.debug("Running %s" % " ".join(args))
+                LOG.info("Running %s" % " ".join(args))
                 doug = subprocess.Popen(args, stdout=outf, stderr=errf)
                     
                 import time
