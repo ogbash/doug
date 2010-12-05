@@ -86,13 +86,14 @@ class TestCase (unittest.TestCase):
 
 	def _test(self):
 		try:
-			self.resultConfig = res = self.dougExecution.run()
+			res = self.dougExecution.run()
 			if res.has_option('doug-result', 'profilefile'):
 				res.add_section('doug-profile')
 				fname = res.getpath('doug-result', 'profilefile')
 				self._readProfileFile(fname, res)
 			self._assertSolution()
 		finally:
+			self.resultConfig = self.dougExecution.result
 			self.files = self.dougExecution.files
 
 	def _readProfileFile(self, filepath, conf):

@@ -243,7 +243,7 @@ try:
     if saveTar:
         import doug.testtar as dougtesttar
         tarFileName = os.path.abspath(conf.get("testscript", "tar-file"))
-        tarTestResult = dougtesttar.DougTarTestResult(tarFileName)
+        tarTestResult = dougtesttar.DougTarTestResult(tarFileName, conf)
         testResults.append(tarTestResult)
 
     if saveMysql:

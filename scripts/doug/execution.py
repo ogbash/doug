@@ -130,7 +130,7 @@ class DOUGExecution:
 
         curdir = os.getcwd()
 
-        result = DOUGConfigParser(self.config.defaults(), basedir=self.workdir)
+        self.result = result = DOUGConfigParser(self.config.defaults(), basedir=self.workdir)
         result.add_section('doug-result')
         try:
             LOG.debug("Changing directory to %s" % self.workdir)

@@ -24,37 +24,63 @@ import tarfile
 import unittest
 import logging
 import os
+import pickle
 
 LOG = logging.getLogger("dougtesttar")
 
 class DougTarTestResult(unittest.TestResult):
 	"""Tars DOUG test results into one file."""
 	
-	def __init__(self, tarfname):
+	def __init__(self, tarfname, conf):
 		unittest.TestResult.__init__(self)
 		self.tarFileName = tarfname
+		self.conf = conf
+		self.testCount = 0
 		self.tarFile = tarfile.open(self.tarFileName, "w")
+		self.testDir = None
 
 	def startTest(self, test):
+		test.acquire()
 		unittest.TestResult.startTest(self, test)
-		d = self._getTestDirectory(test)
+		self.testDir = self._newTarDirectory()
 
 	def stopTest(self, test):
 		unittest.TestResult.stopTest(self, test)
+		test.free()
+		self.testDir = None
 
 	def addError(self, test, err):
 		unittest.TestResult.addError(self, test, err)
 		errtp, errval, errtb = err
-		d = self._getTestDirectory(test)
-		if issubclass(errtp, ScriptException):
-			for fname, descr in errval.files:
-				self._addFile(fname, descr, test)
+		self._addFiles(test.files)
+		self._addResult(test, 'error')
+		self._addException(test, errval)
 
 	def addFailure(self, test, err):
 		unittest.TestResult.addFailure(self, test, err)
+		self._addFiles(test.files)
+		self._addResult(test, 'failure')
+		self._addException(test, errval)
 
 	def addSuccess(self, test):
 		unittest.TestResult.addSuccess(self, test)
+		self._addFiles(test.files)
+		self._addResult(test, 'success')
+
+	def _addResult(self, test, status):
+		rfilepath = os.path.join(test.dougExecution.workdir,'result.dat')
+		test.resultConfig.set('doug-result', 'status', status)
+		f = open(rfilepath, 'w')
+		test.resultConfig.write(f)
+		f.close()
+		self._addFile(rfilepath, "Results of the test execution.")
+
+	def _addException(self, test, err):
+		rfilepath = os.path.join(test.dougExecution.workdir,'exception.pickle')
+		f = open(rfilepath, 'w')
+		pickle.dump(err, f)
+		f.close()
+		self._addFile(rfilepath, "Exception")
 
 	def stop(self):
 		unittest.TestResult.stop(self)
@@ -62,12 +88,10 @@ class DougTarTestResult(unittest.TestResult):
 	def close(self):
 		self.tarFile.close()
 
-	def _getTestDirectory(self, test):
+	def _newTarDirectory(self):
 		import time
-		dirName = "/".join([test.testname,
-				    test.executable,
-				    "s%dm%dl%dnp%d" % (test.solver, test.method, test.levels, test.nproc),
-				    ""])
+		dirName = "/%04d" % self.testCount
+		self.testCount += 1
 		try:
 			testDir = self.tarFile.getmember(dirName)
 		except KeyError:
@@ -78,8 +102,14 @@ class DougTarTestResult(unittest.TestResult):
 			self.tarFile.addfile(testDir)
 		return testDir
 
-	def _addFile(self, fname, descr, test):
+	def _addFiles(self, files):
+		"Add files from the test directory, where each file is its name and description."
+		d = self.testDir
+		for fname, descr in files:
+			self._addFile(fname, descr)
+
+	def _addFile(self, fname, descr):
 		LOG.debug("Adding file %s to tar" % fname)
-		d = self._getTestDirectory(test)
+		d = self.testDir
 		arcname = "/".join([d.name, os.path.basename(fname)])
 		self.tarFile.add(fname, arcname)
