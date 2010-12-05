@@ -188,6 +188,20 @@ class CombinedTestResult(unittest.TestResult):
 		for testResult in self.testResults:
 			testResult.stopTest(test)
 
+	def startTestRun(self, test):
+		# python <2.7 does not have this method
+		#unittest.TestResult.startTestRun(self, test)
+		for testResult in self.testResults:
+			if hasattr(testResult, 'startTestRun'):
+				testResult.startTestRun(test)
+
+	def stopTestRun(self, test):
+		# python <2.7 does not have this method
+		#unittest.TestResult.stopTestRun(self, test)
+		for testResult in self.testResults:
+			if hasattr(testResult, 'stopTestRun'):
+				testResult.stopTestRun(test)
+
 	def addError(self, test, err):
 		unittest.TestResult.addError(self, test, err)
 		for testResult in self.testResults:
@@ -226,8 +240,11 @@ class TestRunner:
 		import time
 		result = CombinedTestResult(self.testResults)
 		
+		
 		startTime = time.time()
+		result.startTestRun(None)
 		test(result)			
+		result.stopTestRun(None)
 		stopTime = time.time()
 		
 		timeTaken = stopTime - startTime

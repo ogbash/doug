@@ -27,6 +27,7 @@ import os
 import pickle
 from StringIO import StringIO
 import time
+from config import DOUGConfigParser
 
 LOG = logging.getLogger("dougtesttar")
 
@@ -36,11 +37,12 @@ class DougTarTestResult(unittest.TestResult):
 	def __init__(self, tarfname, conf):
 		unittest.TestResult.__init__(self)
 		self.tarFileName = tarfname
-		self.conf = conf
+		self.conf = DOUGConfigParser()
+		self.conf.addConfig(conf)
+		self.conf.add_section("testrun")
 		self.testCount = 0
 		self.tarFile = tarfile.open(self.tarFileName, "w")
 		self.testDir = None
-		self._addConf()
 
 	def _addConf(self):
 		conf = self.conf
@@ -49,21 +51,26 @@ class DougTarTestResult(unittest.TestResult):
 		content.seek(0)
 		self._addFileGlobal('global.conf', "Configuration for all tests", fd=content)
 
-	def _addTestConf(self, test):
-		conf = test.dougExecution.config
+	def _addTestConf(self):
+		conf = self.testConf
 		content = StringIO()
 		conf.write(content)
 		content.seek(0)
 		self._addFile('test.conf', "Configuration for the test", fd=content)
 
 	def startTest(self, test):
-		test.acquire()
 		unittest.TestResult.startTest(self, test)
+		test.acquire()
+		self.testConf = DOUGConfigParser()
+		self.testConf.add_section("test")
+		self.testConf.set("test", "starttime", str(time.time()))
 		self.testDir = self._newTarDirectory()
-		self._addTestConf(test)
 
 	def stopTest(self, test):
 		unittest.TestResult.stopTest(self, test)
+		self.testConf.set("test", "stoptime", str(time.time()))
+		self.testConf.addConfig(test.dougExecution.config)
+		self._addTestConf()
 		test.free()
 		self.testDir = None
 
@@ -86,7 +93,7 @@ class DougTarTestResult(unittest.TestResult):
 		self._addResult(test, 'success')
 
 	def _addResult(self, test, status):
-		rfilepath = os.path.join(test.dougExecution.workdir,'result.dat')
+		rfilepath = os.path.join(test.dougExecution.workdir,'result.conf')
 		test.resultConfig.set('doug-result', 'status', status)
 		f = open(rfilepath, 'w')
 		test.resultConfig.write(f)
@@ -100,8 +107,16 @@ class DougTarTestResult(unittest.TestResult):
 		f.close()
 		self._addFile(rfilepath, "Exception")
 
-	def stop(self):
-		unittest.TestResult.stop(self)
+	def startTestRun(self, test):
+		# python <2.7 does not have it
+		#unittest.TestResult.startTestRun(self)
+		self.conf.set("testrun", "starttime", str(time.time()))
+
+	def stopTestRun(self, test):
+		# python <2.7 does not have it
+		#unittest.TestResult.stopTestRun(self)
+		self.conf.set("testrun", "stoptime", str(time.time()))
+		self._addConf()
 
 	def close(self):
 		self.tarFile.close()
