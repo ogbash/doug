@@ -25,6 +25,8 @@ import unittest
 import logging
 import os
 import pickle
+from StringIO import StringIO
+import time
 
 LOG = logging.getLogger("dougtesttar")
 
@@ -38,11 +40,27 @@ class DougTarTestResult(unittest.TestResult):
 		self.testCount = 0
 		self.tarFile = tarfile.open(self.tarFileName, "w")
 		self.testDir = None
+		self._addConf()
+
+	def _addConf(self):
+		conf = self.conf
+		content = StringIO()
+		conf.write(content)
+		content.seek(0)
+		self._addFileGlobal('global.conf', "Configuration for all tests", fd=content)
+
+	def _addTestConf(self, test):
+		conf = test.dougExecution.config
+		content = StringIO()
+		conf.write(content)
+		content.seek(0)
+		self._addFile('test.conf', "Configuration for the test", fd=content)
 
 	def startTest(self, test):
 		test.acquire()
 		unittest.TestResult.startTest(self, test)
 		self.testDir = self._newTarDirectory()
+		self._addTestConf(test)
 
 	def stopTest(self, test):
 		unittest.TestResult.stopTest(self, test)
@@ -90,7 +108,7 @@ class DougTarTestResult(unittest.TestResult):
 
 	def _newTarDirectory(self):
 		import time
-		dirName = "/%04d" % self.testCount
+		dirName = "%04d" % self.testCount
 		self.testCount += 1
 		try:
 			testDir = self.tarFile.getmember(dirName)
@@ -108,8 +126,23 @@ class DougTarTestResult(unittest.TestResult):
 		for fname, descr in files:
 			self._addFile(fname, descr)
 
-	def _addFile(self, fname, descr):
-		LOG.debug("Adding file %s to tar" % fname)
+	def _addFile(self, fname, descr, fd=None):
+		LOG.debug("Adding file %s to tar test" % fname)
 		d = self.testDir
-		arcname = "/".join([d.name, os.path.basename(fname)])
-		self.tarFile.add(fname, arcname)
+		arcname = os.path.join(d.name, os.path.basename(fname))
+		self._tarAddFile(arcname, fname, fd)
+
+	def _addFileGlobal(self, fname, descr, fd=None):
+		LOG.debug("Adding file %s to tar" % fname)
+		arcname = os.path.basename(fname)
+		self._tarAddFile(arcname, fname, fd)
+
+	def _tarAddFile(self, arcname, fname=None, fd=None):
+		if fd is None:
+			self.tarFile.add(fname, arcname)
+		else:
+			tarinfo = tarfile.TarInfo(name=arcname)
+			tarinfo.mtime = int(time.time())
+			tarinfo.size = len(fd.getvalue())
+			self.tarFile.addfile(tarinfo, fd)
+
