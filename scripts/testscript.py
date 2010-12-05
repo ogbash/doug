@@ -232,7 +232,25 @@ try:
         if subp.returncode==0:
             gitversion = subp.communicate()[0].strip()
             conf.set('dougtest', 'info-git', gitversion)
-            LOG.debug("Set git version to %s" % gitversion)
+            LOG.info("Set git version to %s" % gitversion)
+
+    # set hostname
+    if not conf.has_option('dougtest', 'info-server') or \
+       not conf.get('dougtest', 'info-server'):
+        import socket
+        conf.set('dougtest', 'info-server', socket.gethostname())
+        LOG.info("Set hostname to %s" % socket.gethostname())
+
+    # try to recognise fortran compile through mpif90
+    if not conf.has_option('dougtest', 'info-fc') or \
+       not conf.get('dougtest', 'info-fc'):
+        subp = subprocess.Popen(["mpif90","-showme"], stdout=subprocess.PIPE)
+        subp.wait()
+        if subp.returncode==0:
+            fc = subp.communicate()[0].split(" ")[0]
+            conf.set('dougtest', 'info-fc', fc)
+            LOG.info("Set fc to %s" % fc)
+
 
     # create test result objects
     testResults = [unittest._TextTestResult(unittest._WritelnDecorator(sys.stderr), False, 1)]
