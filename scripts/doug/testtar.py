@@ -31,6 +31,14 @@ from config import DOUGConfigParser
 
 LOG = logging.getLogger("dougtesttar")
 
+# global configuration file name for tests in tar file
+GLOBAL_CONF = 'global.conf'
+# test configuration file name
+TEST_CONF = 'test.conf'
+# DOUG result file name
+RESULT_CONF = 'result.conf'
+EXCEPTION_FILE='exception.pickle'
+
 class DougTarTestResult(unittest.TestResult):
 	"""Tars DOUG test results into one file."""
 	
@@ -49,20 +57,21 @@ class DougTarTestResult(unittest.TestResult):
 		content = StringIO()
 		conf.write(content)
 		content.seek(0)
-		self._addFileGlobal('global.conf', "Configuration for all tests", fd=content)
+		self._addFileGlobal(GLOBAL_CONF, "Configuration for all tests", fd=content)
 
 	def _addTestConf(self):
 		conf = self.testConf
 		content = StringIO()
 		conf.write(content)
 		content.seek(0)
-		self._addFile('test.conf', "Configuration for the test", fd=content)
+		self._addFile(TEST_CONF, "Configuration for the test", fd=content)
 
 	def startTest(self, test):
 		unittest.TestResult.startTest(self, test)
 		test.acquire()
 		self.testConf = DOUGConfigParser()
 		self.testConf.add_section("test")
+		self.testConf.set("test", "name", test.testname)
 		self.testConf.set("test", "starttime", str(time.time()))
 		self.testDir = self._newTarDirectory()
 
@@ -93,7 +102,7 @@ class DougTarTestResult(unittest.TestResult):
 		self._addResult(test, 'success')
 
 	def _addResult(self, test, status):
-		rfilepath = os.path.join(test.dougExecution.workdir,'result.conf')
+		rfilepath = os.path.join(test.dougExecution.workdir,RESULT_CONF)
 		test.resultConfig.set('doug-result', 'status', status)
 		f = open(rfilepath, 'w')
 		test.resultConfig.write(f)
@@ -101,7 +110,7 @@ class DougTarTestResult(unittest.TestResult):
 		self._addFile(rfilepath, "Results of the test execution.")
 
 	def _addException(self, test, err):
-		rfilepath = os.path.join(test.dougExecution.workdir,'exception.pickle')
+		rfilepath = os.path.join(test.dougExecution.workdir, EXCEPTION_FILE)
 		f = open(rfilepath, 'w')
 		pickle.dump(err, f)
 		f.close()

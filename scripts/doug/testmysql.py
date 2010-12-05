@@ -49,7 +49,7 @@ class MysqlTestStore:
         self.connection = MySQLdb.connect(host, user, password, database)
         self.cursor = self.connection.cursor()
 
-    def insertTestRun(self, conf):
+    def insertTestRun(self, conf, time):
         servername = conf.get("dougtest", "info-server")
         revision = conf.get("dougtest","info-svn")
         revision = revision or None
@@ -60,7 +60,7 @@ class MysqlTestStore:
             
         self.cursor.execute("insert into testruns (servername, svnrevision, gitversion, fcompiler, mpi, starttime)"
                             " values (%s, %s, %s, %s, %s, %s)",
-                            (servername, revision, gitversion, compiler, mpi, datetime.today()))
+                            (servername, revision, gitversion, compiler, mpi, time))
         self.ID = self.cursor.lastrowid
 
     def updateTestRunStop(self, time):
@@ -130,7 +130,7 @@ class DougMySQLTestResult(unittest.TestResult):
 		unittest.TestResult.__init__(self)
                 self.store = MysqlTestStore(host,user,password,database)
                 self.conf = conf
-                self.store.insertTestRun(self.conf)
+                self.store.insertTestRun(self.conf, datetime.today())
 
 	def startTest(self, test):
             test.acquire()
