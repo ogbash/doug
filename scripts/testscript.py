@@ -25,7 +25,7 @@ from scripts import ScriptException
 import svnscripts
 import autotools
 import logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 import getopt
 import sys
 from ConfigParser import SafeConfigParser
