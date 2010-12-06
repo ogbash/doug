@@ -2,11 +2,43 @@
 
 import MySQLdb
 import sys
+import getopt
 import logging
 logging.basicConfig()
 LOG = logging.getLogger('testcompare')
 
 from doug import testmysql
+from doug.config import DOUGConfigParser
+
+def usage():
+    sys.stderr.write("Usage: %s\n"
+                     "\t [--conf=<filename>]...\n"
+                     % (sys.argv[0],))
+
+
+try:
+    opts, extra = getopt.getopt(sys.argv[1:], "", ["conf="])
+except getopt.GetoptError:
+    usage()
+    sys.exit(1)
+
+if len(extra)>0:
+    usage()
+    sys.exit(1)
+
+confFileNames = []
+for opt in opts:
+    if opt[0]=="--conf":
+        confFileNames.append(opt[1])
+
+# config and tar file
+conf = DOUGConfigParser()
+conf.read(confFileNames)
+
+host = conf.get("testscript", "mysql-host")
+user = conf.get("testscript", "mysql-user")
+password = conf.get("testscript", "mysql-password")
+database = conf.get("testscript", "mysql-database")
 
 class TestResult:
     def __init__(self, **kvargs):
@@ -92,10 +124,7 @@ def compareTestResults(testResultss):
 
 def login():
     global connection
-    print "Enter mysql password:"
-    password = sys.stdin.readline().strip()
-
-    connection = MySQLdb.connect('localhost', 'dougtester', password, 'dougtests')
+    connection = MySQLdb.connect(host, user, password, database)
 
 login()
 
