@@ -241,33 +241,19 @@ contains
                  nodes2=AC%fullaggr%nodes)   
         endif
       else !}{ no coarse solves:
-!       if (present(A_interf_).or.sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED) then
         A%fullaggr%nagr=1
         A%nsubsolves=1
-!       endif
         allocate(A%subsolve_ids(A%fullaggr%nagr))
         A%subsolve_ids=0
         allocate(A%subd(A%fullaggr%nagr+1))
-        if (present(A_interf_).and.A_interf_%nnz>0) then
-          !if (A%arrange_type/=D_SpMtx_ARRNG_ROWS) then
-          !  write (stream,*) 'Arranging A to row storage format!'
-          !  call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS,sort=.true.)
-          !endif
-          !if (numprocs>1.and.A_interf_%arrange_type/=D_SpMtx_ARRNG_ROWS) then
-          !  write (stream,*) 'Arranging A_interf_ to row storage format!'
-          !  call SpMtx_arrange(A_interf_,D_SpMtx_ARRNG_ROWS,sort=.true.)
-          !endif
-          if (numprocs==1) then 
-            A_interf_%nnz=0
-          endif
-          call multi_subsolve(               &
+        call multi_subsolve(               &
                  nids=A%nsubsolves,          &
                  ids=A%subsolve_ids,         &
                  sol=sol,                    &
                  rhs=rhs,                    &
                  subd=A%subd,                &
                  nfreds=max(A%nrows,A_interf_%nrows),&
-                 nnz=A%nnz,                  &
+                 nnz=A%mtx_bbe(2,2),         &
                  indi=A%indi,                &
                  indj=A%indj,                &
                  val=A%val,                  &
@@ -275,19 +261,6 @@ contains
                  indi_interf=A_interf_%indi, &
                  indj_interf=A_interf_%indj, &
                  val_interf=A_interf_%val)
-        else
-           call multi_subsolve(             &
-                nids=A%nsubsolves,          &
-                ids=A%subsolve_ids,         &
-                sol=sol,                    &
-                rhs=rhs,                    &
-                subd=A%subd,                &
-                nfreds=A%nrows,             &
-                nnz=A%mtx_bbe(2,2),         &
-                indi=A%indi,                &
-                indj=A%indj,                &
-                val=A%val)
-        endif
       endif !}
       factorised=.true.
     else

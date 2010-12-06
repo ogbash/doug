@@ -361,11 +361,13 @@ program aggr
          if (sctls%levels==2) then
            write(stream,*)'calling pcg_weigs /3/...'
            call pcg_weigs(A=A,b=b,x=xl,Msh=M,it=it,cond_num=cond_num, &
+                A_interf_=A_ghost, &
                   CoarseMtx_=AC,Restrict=Restrict, &
                   refactor_=.true.)
          else
            write(stream,*)'calling pcg_weigs /4/...'
-           call pcg_weigs(A, b, xl, M,it,cond_num,refactor_=.true.)
+           call pcg_weigs(A, b, xl, M,it,cond_num, &
+                A_interf_=A_ghost, refactor_=.true.)
          endif
        endif
      endif

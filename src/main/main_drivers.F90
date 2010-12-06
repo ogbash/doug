@@ -60,6 +60,8 @@ contains
     integer, dimension(6), intent(in) :: part_opts !< partition options (see METIS manual)
     type(SpMtx),intent(in out),optional :: A_interf !< matrix at interface
 
+    A_interf = SpMtx_New()
+
     select case (input_type)
     case (DCTL_INPUT_TYPE_ELEMENTAL)
        ! ELEMENTAL
