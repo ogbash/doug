@@ -91,7 +91,6 @@ module Graph_class
   private :: &
        Graph_partng
   
-
 contains
 
   !------------------------------------------
@@ -310,9 +309,9 @@ contains
           
           ! Multilevel K-way (min. communication)
           write(stream, *) 'multilevel K-way (min. communication)'
-          
           call METIS_PartGraphVKway(G%nvtx, G%xadj, G%adjncy, &
-               G%vwgt, G%adjwgt, G%wgtflag, G%numflag, &
+               !G%vwgt, G%adjwgt, G%wgtflag, G%numflag, & ! currently gfortran fails on G%vwgt=>NULL() and G%adjwgt=>NULL(), compiler bug?
+               NULL(), NULL(), G%wgtflag, G%numflag, & 
                nparts, options, G%edgecut, G%part)
           
        case default

@@ -25,13 +25,17 @@ from scripts import ScriptException
 import svnscripts
 import autotools
 import logging
+logging.basicConfig(level=logging.INFO)
 import getopt
 import sys
 from ConfigParser import SafeConfigParser
 from StringIO import StringIO
 import os
 import unittest
-import dougtest
+import doug.test as dougtest
+import doug.execution
+from doug.config import DOUGConfigParser
+import subprocess
 
 defaultConfig = """
 [testscript]
@@ -59,6 +63,8 @@ mysql-database:
 #  method=1
 #  levels=1,2
 #  processors=1,4
+#  overlaps=-1
+#  smoothers=0,1
 #  executables=doug_main,doug_aggr
 """
 
@@ -142,14 +148,14 @@ def main(testResults):
         items = conf.items("tests")
         for name, value in items:
             if not name.startswith("test"): continue
-            name = name[4:]
+            tname = name[4:]
 
             # read test data
             ctrlfname, solutionfname, testconfs = tuple(value.strip().split(" ", 2))
             ctrlfname = os.path.abspath(ctrlfname)
             solutionfname = os.path.abspath(solutionfname)
             datadir = os.path.dirname(ctrlfname)
-            LOG.debug("Constructing test '%s'" % (name, ))
+            LOG.debug("Constructing test '%s'" % (tname, ))
             LOG.debug("Control file: %s" % ctrlfname)
             LOG.debug("Correct solution file: %s" % (solutionfname,))
 
@@ -157,16 +163,44 @@ def main(testResults):
             testconfs = testconfs.split(",")
             for testconf in testconfs:
                 testconfname = "testconf_%s" % testconf
+                testname = "%s_%s" % (tname, testconf)
                 solvers = map(int, conf.get(testconfname, "solver").split(","))
                 methods = map(int, conf.get(testconfname, "method").split(","))
                 levels = map(int, conf.get(testconfname, "levels").split(","))
                 processors = map(int, conf.get(testconfname, "processors").split(","))
                 executables = conf.get(testconfname, "executables").split(",")
+                overlaps = map(int, conf.get(testconfname, "overlaps").split(","))
+                smoothers = map(int, conf.get(testconfname, "smoothers").split(","))
 
-                testtuples = generateTuples(solvers, methods, levels, processors, executables)
+                testtuples = generateTuples(solvers, methods, levels, processors, executables, overlaps, smoothers)
 
-                for testtuple in testtuples:
-                    test = dougtest.MPITestCase(name+"_"+testconf, datadir, ctrlfname, solutionfname, conf, *testtuple)
+                for solver,method,level,nproc,executable,overlap,smoother in testtuples:
+                    dougControlFile = doug.execution.ControlFile(filename=ctrlfname, basedir=os.path.dirname(ctrlfname))
+                    dougConfig = DOUGConfigParser(name='DOUG execution parameters')
+                    # set/copy doug configuration from tests configuration
+                    dougConfig.add_section('doug')
+                    for name,value in conf.items('doug', raw=True):
+                        dougConfig.set('doug', name, value)
+                    dougConfig.add_section('doug-controls')
+                    for name,value in conf._sections['doug-controls'].items():
+                        dougConfig.set('doug-controls', name, value)
+                    dougConfig.add_section('doug-tests')
+                    dougConfig.set('doug-tests', 'csolution_file', solutionfname)
+                    # set test configuration
+                    dougConfig.set('doug-controls', 'solver', str(solver))
+                    dougConfig.set('doug-controls', 'method', str(method))
+                    dougConfig.set('doug-controls', 'levels', str(level))
+                    dougConfig.set('doug', 'nproc', str(nproc))
+                    dougConfig.set('doug', 'executable', executable)
+                    dougConfig.set('doug-controls', 'overlap', str(overlap))
+                    dougConfig.set('doug-controls', 'smoothers', str(smoother))
+
+                    # create DOUG execution object
+                    execution = doug.execution.DOUGExecution(dougConfig, dougControlFile)
+                    test = dougtest.TestCase(execution, testname)
+                    #resultConfig=execution.run()
+                    
+                    #test = dougtest.MPITestCase(name+"_"+testconf, datadir, ctrlfname, solutionfname, conf, *testtuple)
                     testSuite.addTest(test)
 
         # run tests
@@ -190,6 +224,34 @@ try:
         except ValueError, e:
             LOG.warn("Cannot parse svn revision: %s" % e)
 
+    # pick up git version if not specified
+    if not conf.has_option('dougtest', 'info-git') or \
+       not conf.get('dougtest', 'info-git'):
+        subp = subprocess.Popen(["git","log","--pretty=%H","HEAD^..HEAD"], stdout=subprocess.PIPE)
+        subp.wait()
+        if subp.returncode==0:
+            gitversion = subp.communicate()[0].strip()
+            conf.set('dougtest', 'info-git', gitversion)
+            LOG.info("Set git version to %s" % gitversion)
+
+    # set hostname
+    if not conf.has_option('dougtest', 'info-server') or \
+       not conf.get('dougtest', 'info-server'):
+        import socket
+        conf.set('dougtest', 'info-server', socket.gethostname())
+        LOG.info("Set hostname to %s" % socket.gethostname())
+
+    # try to recognise fortran compile through mpif90
+    if not conf.has_option('dougtest', 'info-fc') or \
+       not conf.get('dougtest', 'info-fc'):
+        subp = subprocess.Popen(["mpif90","-showme"], stdout=subprocess.PIPE)
+        subp.wait()
+        if subp.returncode==0:
+            fc = subp.communicate()[0].split(" ")[0]
+            conf.set('dougtest', 'info-fc', fc)
+            LOG.info("Set fc to %s" % fc)
+
+
     # create test result objects
     testResults = [unittest._TextTestResult(unittest._WritelnDecorator(sys.stderr), False, 1)]
 
@@ -197,13 +259,13 @@ try:
     saveMysql = conf.getboolean("testscript", "save-mysql")
 
     if saveTar:
-        import dougtesttar
+        import doug.testtar as dougtesttar
         tarFileName = os.path.abspath(conf.get("testscript", "tar-file"))
-        tarTestResult = dougtesttar.DougTarTestResult(tarFileName)
+        tarTestResult = dougtesttar.DougTarTestResult(tarFileName, conf)
         testResults.append(tarTestResult)
 
     if saveMysql:
-        import dougtestmysql
+        import doug.testmysql as dougtestmysql
         mysqlHost = conf.get("testscript", "mysql-host")
         mysqlUser = conf.get("testscript", "mysql-user")
         mysqlPassword = conf.get("testscript", "mysql-password")

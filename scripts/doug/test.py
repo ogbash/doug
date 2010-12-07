@@ -28,6 +28,8 @@ import sys
 import re
 import unittest
 import popen2
+from array import array
+import xdrlib
 
 _defaultConfig="""
 [dougtest]
@@ -36,6 +38,8 @@ _defaultConfig="""
 info-server:
 # DOUG svn version
 info-svn:
+# DOUG git version
+info-git:
 # fortran compiler
 info-fc:
 # MPI version
@@ -56,77 +60,103 @@ class TestFailure (ScriptException):
 	pass
 
 class TestCase (unittest.TestCase):
-	failureException=TestFailure	       
+	failureException=TestFailure
 
-	def run(self, result=None):
-		if result is None: result = self.defaultTestResult()
-		result.startTest(self)
-		testMethod = getattr(self, self.__testMethodName)
+	resultConfig = property(lambda self: self.dougExecution.result)
+
+	def __init__(self, dougExecution, testname=None):
+		self.testname = testname
+		unittest.TestCase.__init__(self, '_test')
+		self.dougExecution = dougExecution
+		self.files = []
+
+	def setUp(self):
+		self.dougExecution.setUp()
+		self.dougExecution.acquire()
+
+	def tearDown(self):
 		try:
-			try:
-				self.setUp()
-			except KeyboardInterrupt:
-				raise
-			except:
-				result.addError(self, self.__exc_info())
-				return
-
-			try:
-				testMethod()
-				result.addSuccess(self)
-			except self.failureException:
-				result.addFailure(self, self.__exc_info())
-			except KeyboardInterrupt:
-				raise
-			except:
-				result.addError(self, self.__exc_info())
-
-			try:
-				self.tearDown()
-			except KeyboardInterrupt:
-				raise
-			except:
-				result.addError(self, self.__exc_info())
+			self.dougExecution.tearDown()
 		finally:
-			result.stopTest(self)
+			self.dougExecution.free()
+
+	def acquire(self):
+		"Increase count of usage for this test, so that files are not deleted immediatelly."
+		self.dougExecution.acquire()
+
+	def free(self):
+		self.dougExecution.free()
+
+	def _test(self):
+		try:
+			res = self.dougExecution.run()
+			if res.has_option('doug-result', 'profilefile'):
+				res.add_section('doug-profile')
+				fname = res.getpath('doug-result', 'profilefile')
+				self._readProfileFile(fname, res)
+			self._assertSolution()
+		finally:
+			self.files.extend(self.dougExecution.files)
+
+	def _readProfileFile(self, filepath, conf):
+		f = open(filepath)
+		try:
+			for line in f:
+				line = line.strip()
+				proc, name, value = line.split(':')
+				name = name.replace(' ', '-')
+				conf.set('doug-profile', name, value, addsection=True)
+		finally:
+			f.close()
+
+	def _readFortranVector(self, filename):
+		# we need 4 byte integer, ugly hack for 64bit platforms
+		intarr = array('l')
+		if intarr.itemsize != 4:
+			intarr = array('i')
+			f=open(solfilename, "rb")
+		try:
+			intarr.fromfile(f, 1)
+			smarker = intarr[-1]
+			sol.fromfile(f, smarker/sol.itemsize)
+			intarr.fromfile(f, 1)
+			emarker = intarr[-1]
+		finally:
+			f.close()
+
+	def _readXDRVector(self, filename):
+		LOG.debug("Reading XDR file %s" % filename)
+		f=open(filename, "rb")
+		bytes = f.read()
+		u = xdrlib.Unpacker(bytes)
+		try:
+			sol = u.unpack_array(u.unpack_double)
+		finally:
+			f.close()
+		return sol
 
         def _assertSolution(self):
-            from array import array
-            solCorrect = array('d')
-            sol = array('d')
-	    # we need 4 byte integer, ugly hack for 64bit platforms
-            intarr = array('l')
-	    if intarr.itemsize != 4:
-		    intarr = array('i')
-
-            solfilename = os.path.abspath(self.solutionfname)
-            f=open(solfilename, "rb")
-            try:
+		# read solution
+		solfilename = self.dougExecution.config.getpath('doug-controls', 'solution_file')
                 try:
-                    intarr.fromfile(f, 1)
-                    smarker = intarr[-1]
-                    sol.fromfile(f, smarker/sol.itemsize)
-                    intarr.fromfile(f, 1)
-                    emarker = intarr[-1]
+			sol = self._readXDRVector(solfilename)
                 except Exception, e:
-                    se = ScriptException("Error reading solution, investigate '%s' file."
+			se = ScriptException("Error reading solution, investigate '%s' file."
                                          % os.path.basename(solfilename), e)
-		    se.addFile(solfilename, "solution file")
-                    raise se
-            finally:
-                f.close()
-            
-            f=open(self.csolutionfname, "rb")
-            try:
-                intarr.fromfile(f, 1)
-                smarker = intarr[-1]
-                solCorrect.fromfile(f, smarker/solCorrect.itemsize)
-                intarr.fromfile(f, 1)
-                emarker = intarr[-1]
-            finally:
-                f.close()
+			se.addFile(solfilename, "solution file")
+			raise se
 
-	    self.assertAlmostEqual(sol, solCorrect, 1E-6)
+		# read correct solution
+		csolfilename = self.dougExecution.config.getpath('doug-tests', 'csolution_file')
+                try:
+			solCorrect = self._readXDRVector(csolfilename)
+                except Exception, e:
+			se = ScriptException("Error reading correct solution, investigate '%s' file."
+                                         % os.path.basename(csolfilename), e)
+			se.addFile(csolfilename, "correct solution file")
+			raise se
+
+		self.assertAlmostEqual(sol, solCorrect, 1E-6)
 
 	def assertAlmostEqual(self, v1, v2, acceptedTolerance):
 		if len(v1) != len(v2):
@@ -140,10 +170,6 @@ class TestCase (unittest.TestCase):
 		if tolerance > acceptedTolerance:
 			raise self.failureException("Solution is wrong with difference: %f"
 						    % (tolerance) )
-
-class MPITestCase(TestCase):
-	"Test case to run DOUG directly with mpirun."
-
 
 class CombinedTestResult(unittest.TestResult):
 	"""Holder for multiple test result objects.
@@ -163,6 +189,20 @@ class CombinedTestResult(unittest.TestResult):
 		unittest.TestResult.stopTest(self, test)
 		for testResult in self.testResults:
 			testResult.stopTest(test)
+
+	def startTestRun(self, test):
+		# python <2.7 does not have this method
+		#unittest.TestResult.startTestRun(self, test)
+		for testResult in self.testResults:
+			if hasattr(testResult, 'startTestRun'):
+				testResult.startTestRun(test)
+
+	def stopTestRun(self, test):
+		# python <2.7 does not have this method
+		#unittest.TestResult.stopTestRun(self, test)
+		for testResult in self.testResults:
+			if hasattr(testResult, 'stopTestRun'):
+				testResult.stopTestRun(test)
 
 	def addError(self, test, err):
 		unittest.TestResult.addError(self, test, err)
@@ -202,8 +242,11 @@ class TestRunner:
 		import time
 		result = CombinedTestResult(self.testResults)
 		
+		
 		startTime = time.time()
+		result.startTestRun(None)
 		test(result)			
+		result.stopTestRun(None)
 		stopTime = time.time()
 		
 		timeTaken = stopTime - startTime

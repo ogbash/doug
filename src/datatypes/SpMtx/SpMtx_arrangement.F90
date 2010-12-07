@@ -941,6 +941,7 @@ endif
     A%nrows=max(0, maxval(A%indi(1:A%nnz)))
     A%ncols=max(0, maxval(A%indj))
     A%arrange_type=D_SpMTX_ARRNG_NO
+    call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS,sort=.true.) ! without this A_tmp got wrong size of M_bound in pcg()
     if (ol>0) then
       do i=1,A_ghost%nnz
         A_ghost%indi(i)=M%gl_fmap(A_ghost%indi(i))
@@ -1422,8 +1423,9 @@ endif
 
   end subroutine SpMtx_distributeWithOverlap
 
-
-
+  !> \ingroup domain_decomp
+  !> Calculates overlap and then figures out which vector values need to be exchanged and which matrix values must be used in parallel matrix-vector multiplication and first level preconditioner.
+  !! The implementation takes 2 times overlap from the point of each domain, so that it can move \ol steps back and deduce the overlap from the perspective of each neighbour.
   ! Take away from matrix unneeded elements...
   ! (the matrix should be arranged into row format with SpMtx_arrange_clrorder)
   subroutine SpMtx_build_ghost(clr,ol,A,A_ghost,M,clrorder,clrstarts)

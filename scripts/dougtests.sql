@@ -44,6 +44,13 @@ CREATE TABLE `testresults` (
   inputtype int,
   levels int,
   executable varchar(16),
+  overlap int(11),
+  smoothers int(11),
+  iterations int(11),
+  iterations_time float,
+  preconditioner_time float,
+  fine_aggrs int(11),
+  coarse_aggrs int(11),
   PRIMARY KEY  (`ID`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
@@ -58,6 +65,7 @@ CREATE TABLE `testruns` (
   `starttime` datetime default NULL,
   `endtime` datetime default NULL,
   svnrevision int,
+  gitversion varchar(40),
   fcompiler varchar(32),
   mpi varchar(32),
   errortext text,

@@ -111,6 +111,8 @@ module SpMtx_class
     !> scaling of the matrix
     integer :: scaling = D_SpMtx_SCALE_UNDEF
 
+    !> \addtogroup domain_decomp
+    !> @{
     !> \name Block structure 
     !! @{
 
@@ -128,16 +130,18 @@ module SpMtx_class
     integer, dimension(:,:), pointer :: mtx_bbe
     !> @}
 
-    !> \code
-    !>this is needed in parallel aggregation case with zero overlap.
-    !>  then A%mtx_bbe(2,2)+1,...,A%nnz holds the "incoming" nonzeroes,
-    !>                           ie, indi \in local, indj \in ghost
-    !>       A%nnz+1,...,A%ol0nnz holds the "outgoing" nonzeroes,
-    !>                           ie, indi \in ghost, indj \in local
-    !> \endcode
+    !> This is needed in parallel aggregation case with zero overlap.
+    !!  then A%mtx_bbe(2,2)+1,...,A%nnz holds the "incoming" nonzeroes,
+    !!                           ie, indi \in local, indj \in ghost
+    !!       A%nnz+1,...,A%ol0nnz holds the "outgoing" nonzeroes,
+    !!                           ie, indi \in ghost, indj \in local
+    !!
     integer                          :: ol0nnz = -1
+    !> @}
+
     !> Permutation map for freedoms : perm_map[M%nlf]
     integer,   dimension(:), pointer :: perm_map
+
 
     !> \name Aggregates info
     !! @{

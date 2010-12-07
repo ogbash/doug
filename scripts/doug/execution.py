@@ -1,81 +1,69 @@
-import popen2
+import subprocess
 import re
 import copy
 from StringIO import StringIO
 import os
 
 import doug
-from doug.config import DOUGConfigParser
+from doug.config import DOUGConfigParser, ControlFile
 
 from scripts import ScriptException
 
 import logging
 LOG = logging.getLogger('doug')
 
-def getDefaultConfigContents():
-    return doug.execution_conf_tmpl
+_defaultConfig = None
+def getDefaultConfig():
+    global _defaultConfig
+    if _defaultConfig is None:
+        _defaultConfig = DOUGConfigParser(name="DOUG default config")
+        _defaultConfig.addConfigContents(doug.execution_conf_tmpl)
+    return _defaultConfig
 
-class ControlFile:
-    re_assignment = re.compile("(\S+)\s+(.*)")
-
-    def __init__(self, filename=None, contents=None):
-        self.name = filename
-        self.options = {}
-
-        if not contents:
-            f = open(self.name, 'r')
-            try:
-                self._parse(f)
-            finally:
-                f.close()
-        else:
-            self._parse(StringIO(contents))
-
-    def _parse(self, f):
-        for line in f:
-            match = self.re_assignment.match(line)
-            if match:
-                self.options[match.group(1)] = match.group(2)
-            
-    def save(self, filename):
-        f = open(filename, "w")
-        try:
-            for key in self.options:
-                f.write("%s %s\n" % (key, self.options[key]))
-        finally:
-            f.close()
-
-_defaultControlFile = ControlFile(contents=doug.DOUG_ctl_tmpl)
+def getDefaultControlFile(basedir):
+    cf = ControlFile(contents=doug.DOUG_ctl_tmpl, basedir=basedir)
+    cf.name = '<doug.DOUG_ctl_tmpl>'
+    return cf
 
 class DOUGExecution:
 
-    def __init__(self, config):
-        self.config = DOUGConfigParser(name='DOUG execution')
-        self.config.addConfigContents(doug.execution_conf_tmpl)
+    def __init__(self, config, dougControls=None):
+        self.workdir = os.path.abspath(config.get('doug', 'workdir'))
+        self.config = DOUGConfigParser(name='DOUG execution', basedir=self.workdir)
+        # default config
+        self.config.addConfig(getDefaultConfig())
+        self.config.addControlFile(getDefaultControlFile(self.workdir))
+        
+        # copy controls from control file
+        if dougControls is not None:
+            self.config.addControlFile(dougControls)
+        # copy config
         self.config.addConfig(config)
-        
-        # create control file object
-        self.controlFile = copy.deepcopy(_defaultControlFile)
-        for option, value in self.config.items('doug-controls', nodefaults=True):
-            self.controlFile.options[option] = value
-        
+
         # output or other files, exception grabs it on exit
         self.files = []
 
+        # how many test results are using this test, files are deleted only after last free() call
+        self._inUse = 0
+        self.preserveOutput = self.config.getboolean("doug", "preserveOutput")
+        self.result = DOUGConfigParser(self.config.defaults(), basedir=self.workdir)
+        self.result.add_section('doug-result')
+
     def setUp(self):
         LOG.debug("Preparing testing environment")
-        self.workdir = self.config.get("doug", "workdir", useprefix=True)
+        self.workdir = self.workdir
         if os.path.isdir(self.workdir):
             self.workdirExisted = True
         else:
             self.workdirExisted = False
             os.mkdir(self.workdir)
             LOG.debug("Working directory %s created" % self.workdir)
-        self.preserveOutput = self.config.getboolean("doug", "preserveOutput")
+
         try:
             # create control file
             self.testctrlfname = os.path.abspath(os.path.join(self.workdir, 'DOUG-exec.ctl'))
-            self.controlFile.save(self.testctrlfname)
+            controlFile = self.config.getControlFile(self.testctrlfname)
+            controlFile.save(self.testctrlfname)
             self.files.append((self.testctrlfname, "Control file"))
 
             # run mpiboot
@@ -85,7 +73,7 @@ class DOUGExecution:
 
             if mpibootname:
                 LOG.debug("Setting up mpi")
-                mpiboot = popen2.Popen3("%s > %s 2> %s" % (mpibootname, outfilename, errfilename))
+                mpiboot = subprocess.Popen("%s > %s 2> %s" % (mpibootname, outfilename, errfilename), shell=True)
                 res = mpiboot.wait()
                 if res:
                     raise ScriptException("Error running %s (%d)"
@@ -103,7 +91,7 @@ class DOUGExecution:
                 outfilename = self.config.get("doug", "mpihalt-outfilename")
                 errfilename = self.config.get("doug", "mpihalt-errfilename")          
                 LOG.debug("Shutting down mpi")
-                mpihalt = popen2.Popen3("%s > %s 2> %s" % (mpihaltname, outfilename, errfilename))
+                mpihalt = subprocess.Popen("%s > %s 2> %s" % (mpihaltname, outfilename, errfilename), shell=True)
                 import time
                 time.sleep(4) # lamhalt <=7.1.1 does not wait until whole universe is shut down
                 res = mpihalt.wait()
@@ -113,53 +101,64 @@ class DOUGExecution:
                          % (mpihaltname, res, outfilename, errfilename))
         except Exception, e:
             LOG.warn("Exception running mpihalt: %s" % e)
-        
-        LOG.debug("Cleaning after test")
-        self._clean()
-
 
     def _clean(self):
-        if not self.preserveOutput and hasattr(self, 'tmpdir') and self.tmpdir:
-            # dangerous while developing -- os.system('rm -rf %s' % self.tmpdir)
-            LOG.debug("Temporary directory %s deleted" % self.tmpdir)
+        if not self.preserveOutput and not self.workdirExisted:
+            os.system('rm -rf %s' % self.workdir)
+            LOG.debug("Temporary directory %s deleted" % self.workdir)
+
+    def acquire(self):
+        self._inUse += 1
+
+    def free(self):
+        self._inUse -= 1
+        if self._inUse == 0:
+            self._clean()
 
     def run(self):
-        self.setUp()
-        try:
-            return self.runDOUG()
-        finally:
-            self.tearDown()
+        return self.runDOUG()
 
     def runDOUG(self):
         LOG.debug("Running DOUG")
-        solver = self.config.getint('doug-controls', 'solver')
         nproc = self.config.getint('doug', 'nproc')
+        solver = self.config.getint('doug-controls', 'solver')
         levels = self.config.getint('doug-controls', 'levels')
         method = self.config.getint('doug-controls', 'method')
         LOG.info("solver=%d, method=%d, levels=%d, nproc=%d" % (solver, method, levels, nproc))
         mpirun = self.config.get("doug", "mpirun")
-        main = self.config.getpath("doug", "executable")
+        main = self.config.get("doug", "executable")
+        bindir = self.config.get("doug", "bindir")
+        main = os.path.join(bindir, main)
         errfname = self.config.getpath("doug", "errfilename")
         outfname = self.config.getpath("doug", "outfilename")
-        solutionfname = self.config.getpath("doug-controls", "solution_file")
+        solutionfname = self.config.getpath('doug-controls', 'solution_file')
 
         curdir = os.getcwd()
 
-        result = DOUGConfigParser(self.config.defaults())
-        result.add_section('doug-result')
+        result = self.result
         try:
             LOG.debug("Changing directory to %s" % self.workdir)
             os.chdir(self.workdir)
+            outf = open(outfname, "w")
+            errf = open(errfname, "w")
             try:
-                LOG.debug("Running %s -np %d %s -f %s -p" % (mpirun, nproc, main, self.testctrlfname))
-                doug = popen2.Popen3('%s -np %d %s -f %s -p > %s 2> %s'%
-                                     (mpirun, nproc, main, self.testctrlfname,
-                                      outfname, errfname)
-                                     )
+                args = [mpirun, "-np", "%d"%nproc, main, "-f", self.testctrlfname, "-p"]
+                LOG.info("Running %s" % " ".join(args))
+                doug = subprocess.Popen(args, stdout=outf, stderr=errf)
+                    
                 import time
-                #time.sleep(1) # without this mpirun somehow gets HUP signal
-
-                value = doug.wait()
+                maxtime = self.config.getint('doug', 'max-time')
+                for i in xrange(maxtime): # ~1 minute
+                    time.sleep(1)
+                    doug.poll()
+                    if doug.returncode != None:
+                        break
+                else:
+                    LOG.info("Terminating DOUG")
+                    doug.terminate()
+                    doug.wait()
+                    
+                value = doug.returncode
                 LOG.debug("Finished %s with code %d" % (mpirun, value))
                 self.files.append((outfname, "%s standard output" % mpirun))
                 self.files.append((errfname, "%s standard error" % mpirun))
@@ -177,17 +176,22 @@ class DOUGExecution:
                     result.setpath('doug-result', 'solutionfile', solutionfname)
                 if solutionfname and os.path.isfile('aggr1.txt'):
                     result.setpath('doug-result', 'fineaggrsfile', 'aggr1.txt')
+                    #self.files.append(("aggr1.txt", "Fine aggregates"))
                 if solutionfname and os.path.isfile('aggr2.txt'):
                     result.setpath('doug-result', 'coarseaggrsfile', 'aggr2.txt')
+                    #self.files.append(("aggr2.txt", "Coarse aggregates"))
                     
                 files = os.listdir(self.workdir)
-                files = filter(lambda name: name.startswith('prof.'), files)
+                files = filter(lambda name: name.startswith('prof.00'), files)
                 if files:
                     result.setpath('doug-result', 'profilefile', files[0])
+                    self.files.append((os.path.join(self.workdir, files[0]), "Profile info"))
                 
                 # compare answers
                 
             finally:
+                outf.close()
+                errf.close()
                 LOG.debug("Changing directory to %s" % curdir)
                 os.chdir(curdir)
         except ScriptException, e:
