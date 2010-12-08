@@ -242,54 +242,6 @@ contains
 
   end function Mesh_newInit
 
-
-  !----------------------------------------------------------
-  !! Allocates Mesh's main data
-  !----------------------------------------------------------
-  subroutine Mesh_allocate(M, &
-       nfrelt,  &
-       mhead,   &
-       freemap, &
-       coords,  &
-       eptnmap, &
-       freemask)
-    implicit none
-
-    type(Mesh), intent(in out)         :: M
-    logical,    intent(in),   optional :: nfrelt, mhead, freemap
-    logical,    intent(in),   optional :: coords, eptnmap, freemask
-    logical                            :: all=.false.
-    if (.not.present(nfrelt)    .and.&
-         (.not.present(mhead))  .and.&
-         (.not.present(freemap)).and.&
-         (.not.present(coords)) .and.&
-         (.not.present(eptnmap)) .and.&
-         (.not.present(freemask))) then
-       if (.not.associated(M%nfrelt))   allocate(M%nfrelt(M%nell))
-       if (.not.associated(M%mhead))    allocate(M%mhead(M%mfrelt,M%nell))
-       if (.not.associated(M%freemap))  allocate(M%freemap(M%ngf))
-       if (.not.associated(M%coords))   allocate(M%coords(M%nsd,M%nnode))
-       if (.not.associated(M%eptnmap))  allocate(M%eptnmap(M%nell))
-       if (.not.associated(M%freemask)) allocate(M%freemask(M%ngf))
-       all = .true.
-    end if
-
-    if (present(nfrelt)  .and.(.not.all).and.&
-         (.not.associated(M%nfrelt)))   allocate(M%nfrelt(M%nell))
-    if (present(mhead)   .and.(.not.all).and.&
-         (.not.associated(M%mhead)))    allocate(M%mhead(M%mfrelt,M%nell))
-    if (present(freemap) .and.(.not.all).and.&
-         (.not.associated(M%freemap)))  allocate(M%freemap(M%ngf))
-    if (present(coords)  .and.(.not.all).and.&
-         (.not.associated(M%coords)))   allocate(M%coords(M%nsd,M%nnode))
-    if (present(eptnmap)  .and.(.not.all).and.&
-         (.not.associated(M%eptnmap)))  allocate(M%eptnmap(M%nell))
-    if (present(freemask).and.(.not.all).and.&
-         (.not.associated(M%freemask))) allocate(M%freemask(M%ngf))
-
-  end subroutine Mesh_allocate
-
-
   !-------------------------
   !! Destructor
   !-------------------------
@@ -386,7 +338,7 @@ contains
     mfrelt=4
     nnode=ngf
     call Mesh_Init(M, nell, ngf, nsd, mfrelt, nnode)
-    call Mesh_allocate(M,coords=.true.,freemap=.true.) ! needing the coords...
+    allocate(M%coords(M%nsd,M%nnode),M%freemap(M%ngf)) ! needing the coords...
     M%freemap= (/ (i,i=1,ngf) /)
     do j=1,n
       do i=1,n
@@ -1502,6 +1454,7 @@ contains
                   p, D_TAG_MESH_NFRELT, MPI_COMM_WORLD, request, ierr)
           end do
        else
+          if (.NOT.associated(M%nfrelt)) allocate(M%nfrelt(M%nell))
           call MPI_RECV(M%nfrelt, M%nell, MPI_INTEGER, &
                D_MASTER, D_TAG_MESH_NFRELT, MPI_COMM_WORLD, status, ierr)
        end if
@@ -1515,6 +1468,7 @@ contains
                   p, D_TAG_MESH_MHEAD, MPI_COMM_WORLD, request, ierr)
           end do
        else
+          if (.NOT.associated(M%mhead)) allocate(M%mhead(M%mfrelt,M%nell))
           call MPI_RECV(M%mhead, M%mfrelt*M%nell, MPI_INTEGER, &
                D_MASTER, D_TAG_MESH_MHEAD, MPI_COMM_WORLD, status, ierr)
        end if
@@ -1528,6 +1482,7 @@ contains
                   p, D_TAG_MESH_FREEMASK, MPI_COMM_WORLD, request, ierr)
           end do
        else
+          if (.not.associated(M%freemap)) allocate(M%freemap(M%ngf))
           call MPI_RECV(M%freemap, M%ngf, MPI_INTEGER, &
                D_MASTER, D_TAG_MESH_FREEMASK, MPI_COMM_WORLD, status, ierr)
        end if
@@ -1541,6 +1496,7 @@ contains
                   p, D_TAG_MESH_FREEMASK, MPI_COMM_WORLD, request, ierr)
           end do
        else
+          if (.not.associated(M%coords))   allocate(M%coords(M%nsd,M%nnode))
           call MPI_RECV(M%coords, M%nnode*M%nsd, MPI_xyzkind, &
                D_MASTER, D_TAG_MESH_FREEMASK, MPI_COMM_WORLD, status, ierr)
        end if
@@ -1554,6 +1510,7 @@ contains
                   p, D_TAG_MESH_EPTNMAP, MPI_COMM_WORLD, request, ierr)
           end do
        else
+          if (.not.associated(M%eptnmap))  allocate(M%eptnmap(M%nell))
           call MPI_RECV(M%eptnmap, M%nell, MPI_INTEGER, &
                D_MASTER, D_TAG_MESH_EPTNMAP, MPI_COMM_WORLD, status, ierr)
        end if
@@ -1591,6 +1548,7 @@ contains
                   p, D_TAG_MESH_FREEMASK, MPI_COMM_WORLD, request, ierr)
           end do
        else
+          if (.not.associated(M%freemask)) allocate(M%freemask(M%ngf))
           call MPI_RECV(M%freemask, M%ngf, MPI_BYTE, &
                D_MASTER, D_TAG_MESH_FREEMASK, MPI_COMM_WORLD, status, ierr)
        end if

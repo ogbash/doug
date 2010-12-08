@@ -87,41 +87,35 @@ contains
     integer, dimension(6), intent(in) :: part_opts !< partition options (see METIS manual)
     type(SpMtx),intent(in out),optional :: A_interf !< matrix at interface
 
+    if (ismaster()) then ! MASTER
+       write(stream,*)
+       write(stream,*) 'master thread'
+       if (D_MSGLVL > 1) &
+            call MasterCtrlData_print()
+
+    else ! SLAVES
+       write(stream,'(a,i4,a)') 'slave [',myrank,'] thread'
+       if (D_MSGLVL > 1) &
+            call SharedCtrlData_print()
+    end if
+
     ! =======================
     ! Mesh and its Dual Graph
     ! =======================
     !
     ! Create Mesh object
+
     Msh = Mesh_New()
 
-    if (ismaster()) then ! MASTER
-       write(stream,*)
-       write(stream,*) 'master thread'
-
-       if (D_MSGLVL > 1) &
-            call MasterCtrlData_print()
-
+    if (ismaster()) then
        ! Initialise Mesh object
        call Mesh_initFromFile(Msh, trim(mctls%info_file))
-
-    else ! SLAVES
-       write(stream,'(a,i4,a)') 'slave [',myrank,'] thread'
-
-       if (D_MSGLVL > 1) &
-            call SharedCtrlData_print()
-    end if
+    endif
 
     ! Get from master Mesh's parameters: nell, ngf, mfrelt, nsd, nnode
     call Mesh_paramsMPIBCAST(Msh)
     if (D_MSGLVL > 1) &
          call Mesh_printInfo(Msh)
-
-    ! Allocate data arrays (nfrelt, mhead, freemap, eptnmap) for mesh
-    call Mesh_allocate(Msh, &
-         nfrelt  =.true.,   &
-         mhead   =.true.,   &
-         freemap =.true.,   &
-         eptnmap  =.true.)
 
     ! Master reads in from files: feedom lists, coordinates, freedom map
     if (ismaster()) then
@@ -140,7 +134,6 @@ contains
 
     ! For multi-variable problems which have more than one block
     if (sctls%number_of_blocks > 1) then
-       call Mesh_allocate(Msh, freemask=.true.)
        if (ismaster()) then
           call Mesh_readFromFile(Msh, &
                fnFreemask = trim(mctls%freedom_mask_file))
