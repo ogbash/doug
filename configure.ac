@@ -166,6 +166,7 @@ AC_CONFIG_FILES([Makefile
         src/Makefile
         src/main/Makefile
 	src/ext/C/Makefile
+	src/ext/triangle/Makefile
         doc/Doxyfile
         doc/Makefile
         doc/pictures/Makefile
