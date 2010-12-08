@@ -1504,6 +1504,9 @@ contains
 
     ! Send/recv 'eptnmap'
     if (present(eptnmap)) then
+       call MPI_BCAST(M%nparts, 1, MPI_INTEGER, &
+            D_MASTER, MPI_COMM_WORLD, ierr)
+
        if (ismaster()) then
           do p = 1,numprocs-1
              call MPI_ISEND(M%eptnmap, M%nell, MPI_INTEGER, &
@@ -1513,6 +1516,7 @@ contains
           if (.not.associated(M%eptnmap))  allocate(M%eptnmap(M%nell))
           call MPI_RECV(M%eptnmap, M%nell, MPI_INTEGER, &
                D_MASTER, D_TAG_MESH_EPTNMAP, MPI_COMM_WORLD, status, ierr)
+          M%parted = .true.
        end if
     end if
 
@@ -1642,6 +1646,35 @@ contains
   !
   !! Plotting routines
   !
+
+  !> Show a sequence of plots of the mesh.
+  subroutine Mesh_pl2D_mesh(Msh)
+    type(Mesh), intent(inout) :: Msh
+
+    call Mesh_pl2D_pointCloud(Msh,D_PLPLOT_INIT)
+    ! Plots mesh's dual graph
+    call Mesh_pl2D_plotGraphDual(Msh,D_PLPLOT_END)
+    ! Mesh & its Dual Graph
+    call Mesh_pl2D_plotMesh(Msh, D_PLPLOT_INIT)
+    call Mesh_pl2D_plotGraphDual(Msh, D_PLPLOT_END)
+  end subroutine Mesh_pl2D_mesh
+
+  !> Show plots of the mesh partitions.
+  subroutine Mesh_pl2D_partitions(Msh)
+    type(Mesh), intent(inout) :: Msh
+
+    ! Draw colored partitoined graph
+    call Mesh_pl2D_plotGraphParted(Msh)
+
+    ! Plot partitions of the mesh
+    ! NB: Check for multivariable case! TODO
+    call Mesh_pl2D_Partition(Msh)
+    ! Partition with Dual Graph upon it
+    call Mesh_pl2D_Partition(Msh, D_PLPLOT_INIT)
+    call Mesh_pl2D_plotGraphDual(Msh, D_PLPLOT_CONT)
+    call Mesh_pl2D_pointCloud(Msh,D_PLPLOT_END)
+  end subroutine Mesh_pl2D_partitions
+
   !------------------------------------------------
   !! Plot cloud field
   !------------------------------------------------
@@ -2481,7 +2514,10 @@ contains
           ind_coords(i) = M%freemap(M%mhead(i,e))
        end do
 
-       if (M%nfrelt(e) == 1) then ! 1-node boundary element
+       if (M%nfrelt(e) == 0) then
+          cycle
+
+       else if (M%nfrelt(e) == 1) then ! 1-node boundary element
 
           ! Fake centre of 1-node element by simply assigning to
           ! it coordinates of the node itself

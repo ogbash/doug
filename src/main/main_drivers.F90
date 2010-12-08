@@ -148,45 +148,16 @@ contains
 
     ! Partition mesh's dual graph
     if (ismaster()) then
-
-       !! Build dual graph (Graph object is a data field in Mesh class)
-       !call Mesh_buildGraphDual(Msh)
-
        if (sctls%plotting == D_PLOT_YES) then
-
-          call Mesh_pl2D_pointCloud(Msh,D_PLPLOT_INIT)
-          ! Plots mesh's dual graph
-          call Mesh_pl2D_plotGraphDual(Msh,D_PLPLOT_END)
-          ! Mesh & its Dual Graph
-          call Mesh_pl2D_plotMesh(Msh, D_PLPLOT_INIT)
-          call Mesh_pl2D_plotGraphDual(Msh, D_PLPLOT_END)
+          call Mesh_pl2D_mesh(Msh)
        end if
 
        ! Partition graph: D_PART_PMETIS, D_PART_KMETIS, D_PART_VKMETIS
        call Mesh_partitionDual(Msh, nparts, D_PART_VKMETIS, part_opts)
-
        if (sctls%plotting == D_PLOT_YES) then
-          ! Draw colored partitoined graph
-          call Mesh_pl2D_plotGraphParted(Msh)
-
-          ! Plot partitions of the mesh
-          ! NB: Check for multivariable case! TODO
-          call Mesh_pl2D_Partition(Msh)
-          ! Partition with Dual Graph upon it
-          call Mesh_pl2D_Partition(Msh, D_PLPLOT_INIT)
-          call Mesh_pl2D_plotGraphDual(Msh, D_PLPLOT_CONT)
-          call Mesh_pl2D_pointCloud(Msh,D_PLPLOT_END)
+          call Mesh_pl2D_partitions(Msh)
        end if
-
-       ! Destroy previously created graph (purely to save memory)
-       ! (If it is not killed here or somewere else Mesh_Destroy()
-       !  will kill it any way)
-       !call Mesh_destroyGraph(Msh)
-    else ! SLAVES
-       ! Number of partions the mesh was partitioned into
-       Msh%nparts = nparts
-       Msh%parted = .true.
-    end if
+    endif
 
     ! Distribute elements to partitons map among slaves
     call Mesh_dataMPIISENDRECV(Msh, eptnmap=.true.)
