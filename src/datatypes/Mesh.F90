@@ -312,7 +312,7 @@ contains
     if (associated(M%nfreesend_map)) deallocate(M%nfreesend_map)
     if (associated(M%partnelems)) deallocate(M%partnelems)
     if (associated(M%nghbrs))    deallocate(M%nghbrs)
-    if (associated(M%lcoords)) deallocate(M%lcoords)
+    if (.NOT.ismaster().AND.associated(M%lcoords)) deallocate(M%lcoords) ! for master it = coords
     if (associated(M%lfreemap)) deallocate(M%lfreemap)
     !if (associated(M%)) deallocate(M%)
 
