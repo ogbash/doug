@@ -242,6 +242,122 @@ contains
     if (associated(arr_copy)) deallocate(arr_copy)
   end subroutine pcg
 
+  subroutine preconditioner_1level(sol,A,rhs,M,res,A_interf_,refactor_)
+    use subsolvers
+    implicit none
+    real(kind=rk),dimension(:),pointer :: sol !< solution
+    type(SpMtx)                        :: A   !< sparse system matrix
+    real(kind=rk),dimension(:),pointer :: rhs !< right hand side
+    type(Mesh),intent(in)              :: M   !< Mesh
+    real(kind=rk),dimension(:),pointer :: res !< residual vector, allocated
+                                              !! here for multiplicative Schwarz
+    type(SpMtx),optional               :: A_interf_  !< matr@interf.
+    logical,intent(inout),optional :: refactor_
+
+    type(SpMtx)                        :: A_tmp
+
+    if (refactor_.and.present(A_interf_)) then!{
+       if (sctls%verbose>9) then
+          !call SpMtx_printMat(A)
+          call SpMtx_printRaw(A)
+          !call SpMtx_printMat(A_interf_)
+          call SpMtx_printRaw(A_interf_)
+          !stop
+       endif
+       if (sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED) then
+          ! we need the fully sorted entries but A has block struct...
+          !   keep the original values...
+          if (associated(A%M_bound)) then
+             A_tmp=SpMtx_newInit(nnz=A%nnz,nblocks=A%nblocks,&
+                  nrows=A%nrows,ncols=A%ncols,&
+                  indi=A%indi,indj=A%indj,val=A%val,&
+                  arrange_type=A%arrange_type,M_bound=A%M_bound)
+          else
+             A_tmp=SpMtx_newInit(nnz=A%nnz,nblocks=A%nblocks,&
+                  nrows=A%nrows,ncols=A%ncols,&
+                  indi=A%indi,indj=A%indj,val=A%val,&
+                  arrange_type=A%arrange_type)
+          endif
+          A%arrange_type=D_SpMtx_ARRNG_NO
+          !A%nrows=max(A%nrows,A_interf_%nrows)
+          !A%ncols=max(A%nrows,A_interf_%ncols)
+          !if (associated(A%M_bound)) then
+          !  deallocate(A%M_bound)
+          !endif
+          call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS,sort=.true.)
+          call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
+               A_interf_=A_interf_, &
+               refactor=refactor_) !fine solves 
+          if (sctls%method>1) then ! For multiplicative Schwarz method...:
+             refactor_=.false.
+             call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
+                  A_interf_=A_interf_, &
+                  refactor=refactor_) !fine solves 
+          endif
+          ! put the original structure and orders back:
+          A%indi=A_tmp%indi
+          A%indj=A_tmp%indj
+          A%val=A_tmp%val
+          if (associated(A_tmp%M_bound)) A%M_bound=A_tmp%M_bound
+          A%nrows=A_tmp%nrows
+          A%ncols=A_tmp%ncols
+          A%arrange_type=A_tmp%arrange_type
+          call SpMtx_Destroy(A_tmp)
+       else
+          call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
+               A_interf_=A_interf_, &
+               refactor=refactor_) !fine solves 
+          if (sctls%method>1) then ! For multiplicative Schwarz method...:
+             refactor_=.false.
+             call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
+                  A_interf_=A_interf_, &
+                  refactor=refactor_) !fine solves 
+          endif
+       endif
+    elseif (refactor_.and.sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED) then!}{
+       if (associated(A%M_bound)) then
+          A_tmp=SpMtx_newInit(nnz=size(A%indi),nblocks=A%nblocks,&
+               nrows=A%nrows,ncols=A%ncols,&
+               indi=A%indi,indj=A%indj,val=A%val,&
+               arrange_type=A%arrange_type,M_bound=A%M_bound)
+       else
+          A_tmp=SpMtx_newInit(nnz=size(A%indi),nblocks=A%nblocks,&
+               nrows=A%nrows,ncols=A%ncols,&
+               indi=A%indi,indj=A%indj,val=A%val,&
+               arrange_type=A%arrange_type)
+       endif
+       A_tmp%nnz=A%nnz
+       A%arrange_type=D_SpMtx_ARRNG_NO
+       call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS,sort=.true.)
+       call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
+            refactor=refactor_) !fine solves 
+       if (sctls%method>1) then ! For multiplicative Schwarz method...:
+          refactor_=.false.
+          call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
+               refactor=refactor_) !fine solves 
+       endif
+       ! put the original structure and orders back:
+       A%indi=A_tmp%indi
+       A%indj=A_tmp%indj
+       A%val=A_tmp%val
+       if (associated(A_tmp%M_bound)) A%M_bound=A_tmp%M_bound
+       A%nrows=A_tmp%nrows
+       A%ncols=A_tmp%ncols
+       A%arrange_type=A_tmp%arrange_type
+       call SpMtx_Destroy(A_tmp)
+    else!}{
+       call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
+            A_interf_=A_interf_, &
+            refactor=refactor_) !fine solves 
+       if (sctls%method>1) then ! For multiplicative Schwarz method...:
+          refactor_=.false.
+          call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
+               A_interf_=A_interf_, &
+               refactor=refactor_) !fine solves 
+       endif
+    endif!}
+  end subroutine preconditioner_1level
+
   !-------------------------------
   !> Make preconditioner
   !-------------------------------
@@ -265,7 +381,6 @@ contains
     logical,optional                   :: bugtrack_
     ! ----- local: ------
     real(kind=rk),dimension(:),pointer,save :: csol,crhs,tmpsol,tmpsol2,clrhs
-    type(SpMtx)                        :: A_tmp
     integer :: i,ol
     logical :: add,bugtrack
     real(kind=rk) :: t1
@@ -286,7 +401,6 @@ contains
     if (sctls%method>1) then ! For multiplicative Schwarz method...:
       allocate(res(size(rhs)))
     endif
-    print *, "A1"
     if (present(CoarseMtx_)) then !{
       if (.not.present(Restrict)) call DOUG_abort("Restriction matrix needs to be passed along with the coarse matrix!")
       if (cdat%active) then
@@ -517,116 +631,8 @@ if (bugtrack)call Print_Glob_Vect(tmpsol,M,'tmpsol===',chk_endind=M%ninner)
         ! multiplicative on fine level, additive with coarse level: 
         sol(1:A%nrows)=sol(1:A%nrows)+tmpsol(1:A%nrows)
       endif
-      print *, "A1e"
     else !}{
-       print *, "A2"
-      if (refactor_.and.present(A_interf_)) then!{
-        if (sctls%verbose>9) then
-          !call SpMtx_printMat(A)
-          call SpMtx_printRaw(A)
-          !call SpMtx_printMat(A_interf_)
-          call SpMtx_printRaw(A_interf_)
-          !stop
-        endif
-        if (sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED) then
-          ! we need the fully sorted entries but A has block struct...
-          !   keep the original values...
-          if (associated(A%M_bound)) then
-            A_tmp=SpMtx_newInit(nnz=A%nnz,nblocks=A%nblocks,&
-                                nrows=A%nrows,ncols=A%ncols,&
-                                indi=A%indi,indj=A%indj,val=A%val,&
-                                arrange_type=A%arrange_type,M_bound=A%M_bound)
-          else
-            A_tmp=SpMtx_newInit(nnz=A%nnz,nblocks=A%nblocks,&
-                                nrows=A%nrows,ncols=A%ncols,&
-                                indi=A%indi,indj=A%indj,val=A%val,&
-                                arrange_type=A%arrange_type)
-          endif
-          A%arrange_type=D_SpMtx_ARRNG_NO
-          !A%nrows=max(A%nrows,A_interf_%nrows)
-          !A%ncols=max(A%nrows,A_interf_%ncols)
-          !if (associated(A%M_bound)) then
-          !  deallocate(A%M_bound)
-          !endif
-          call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS,sort=.true.)
-          call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
-                                 A_interf_=A_interf_, &
-                                  refactor=refactor_) !fine solves 
-          if (sctls%method>1) then ! For multiplicative Schwarz method...:
-            refactor_=.false.
-            call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
-                                   A_interf_=A_interf_, &
-                                    refactor=refactor_) !fine solves 
-          endif
-          ! put the original structure and orders back:
-          A%indi=A_tmp%indi
-          A%indj=A_tmp%indj
-          A%val=A_tmp%val
-          if (associated(A_tmp%M_bound)) A%M_bound=A_tmp%M_bound
-          A%nrows=A_tmp%nrows
-          A%ncols=A_tmp%ncols
-          A%arrange_type=A_tmp%arrange_type
-          call SpMtx_Destroy(A_tmp)
-        else
-          call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
-                               A_interf_=A_interf_, &
-                                refactor=refactor_) !fine solves 
-          if (sctls%method>1) then ! For multiplicative Schwarz method...:
-            refactor_=.false.
-            call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
-                                 A_interf_=A_interf_, &
-                                  refactor=refactor_) !fine solves 
-          endif
-        endif
-       print *, "A2e"
-      elseif (refactor_.and.sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED) then!}{
-       print *, "A3"
-        if (associated(A%M_bound)) then
-           print *, "--------------", size(A%M_bound)
-          A_tmp=SpMtx_newInit(nnz=size(A%indi),nblocks=A%nblocks,&
-                             nrows=A%nrows,ncols=A%ncols,&
-                             indi=A%indi,indj=A%indj,val=A%val,&
-                             arrange_type=A%arrange_type,M_bound=A%M_bound)
-        else
-           print *, " NA --------------", size(A%M_bound)
-          A_tmp=SpMtx_newInit(nnz=size(A%indi),nblocks=A%nblocks,&
-                             nrows=A%nrows,ncols=A%ncols,&
-                             indi=A%indi,indj=A%indj,val=A%val,&
-                             arrange_type=A%arrange_type)
-        endif
-        A_tmp%nnz=A%nnz
-        A%arrange_type=D_SpMtx_ARRNG_NO
-        call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS,sort=.true.)
-        call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
-                                refactor=refactor_) !fine solves 
-        if (sctls%method>1) then ! For multiplicative Schwarz method...:
-          refactor_=.false.
-          call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
-                                  refactor=refactor_) !fine solves 
-        endif
-        ! put the original structure and orders back:
-        A%indi=A_tmp%indi
-        A%indj=A_tmp%indj
-        A%val=A_tmp%val
-        if (associated(A_tmp%M_bound)) A%M_bound=A_tmp%M_bound
-        A%nrows=A_tmp%nrows
-        A%ncols=A_tmp%ncols
-        A%arrange_type=A_tmp%arrange_type
-        call SpMtx_Destroy(A_tmp)
-       print *, "A3e"
-      else!}{
-       print *, "A4"
-        call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
-                             A_interf_=A_interf_, &
-                              refactor=refactor_) !fine solves 
-        if (sctls%method>1) then ! For multiplicative Schwarz method...:
-          refactor_=.false.
-          call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
-                               A_interf_=A_interf_, &
-                                refactor=refactor_) !fine solves 
-        endif
-      endif!}
-       print *, "A4e"
+       call preconditioner_1level(sol,A,rhs,M,res,A_interf_,refactor_)
     endif !}
     if (sctls%method>1) then ! For multiplicative Schwarz method...:
       if (associated(res)) deallocate(res)
@@ -774,7 +780,6 @@ if (bugtrack)call Print_Glob_Vect(x,Msh,'global x===')
       t1 = MPI_WTime()
 
 if (bugtrack)call Print_Glob_Vect(r,Msh,'global r===',chk_endind=Msh%ninner)
-       print *, "B1"
       call preconditioner(sol=z,          &
                             A=A,          &
                           rhs=r,          &
@@ -784,18 +789,16 @@ if (bugtrack)call Print_Glob_Vect(r,Msh,'global r===',chk_endind=Msh%ninner)
                     Restrict=Restrict,    &
                     refactor_=refactor,   &
                     bugtrack_=bugtrack)
+
       refactor=.false.
 if (bugtrack)call Print_Glob_Vect(z,Msh,'global bef comm z===',chk_endind=Msh%ninner)
-       print *, "B2"
       if (sctls%method/=0) then
         call Add_common_interf(z,A,Msh)
       endif
-       print *, "B3"
 !call Print_Glob_Vect(z,Msh,'global aft comm z===',chk_endind=Msh%ninner)
 !call Print_Glob_Vect(z,Msh,'global z===')
       ! compute current rho
       rho_curr = Vect_dot_product(r,z)
-       print *, "B3a"
 
       if (it == 1) then
          p = z
@@ -803,7 +806,6 @@ if (bugtrack)call Print_Glob_Vect(z,Msh,'global bef comm z===',chk_endind=Msh%ni
          beta(it) = rho_curr / rho_prev
          p = z + beta(it) * p
       end if
-       print *, "B4"
       call SpMtx_pmvm(q,A, p, Msh)
 if (bugtrack)call Print_Glob_Vect(q,Msh,'global q===')
       ! compute alpha
@@ -814,7 +816,6 @@ if (bugtrack)call Print_Glob_Vect(x,Msh,'global x===')
 if (bugtrack)call Print_Glob_Vect(r,Msh,'global r===')
       rho_prev = rho_curr
       ! check
-       print *, "B5"
       res_norm = Vect_dot_product(r,r)
       !write (stream,*) "Norm is", res_norm
       ratio_norm = res_norm / init_norm

@@ -165,6 +165,7 @@ AC_CONFIG_HEADERS([src/doug_config.h])
 AC_CONFIG_FILES([Makefile
         src/Makefile
         src/main/Makefile
+	src/ext/C/Makefile
         doc/Doxyfile
         doc/Makefile
         doc/pictures/Makefile

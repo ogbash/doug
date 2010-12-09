@@ -145,11 +145,13 @@ module Mesh_class
     !                  |/                         |/                         |
     !              actual freedoms                |     ghost freedoms       |
 
-
+     !> \addtogroup domain_decomp 
+     !! @{
      type(indlist),dimension(:),pointer :: ax_recvidx,ax_sendidx
      type(indlist),dimension(:),pointer :: ol_outer
      type(indlist),dimension(:),pointer :: ol_inner
      type(indlist),dimension(:),pointer :: ol_solve
+     !> @}
 
      !! Graph
      type(Graph) :: G
@@ -240,54 +242,6 @@ contains
 
   end function Mesh_newInit
 
-
-  !----------------------------------------------------------
-  !! Allocates Mesh's main data
-  !----------------------------------------------------------
-  subroutine Mesh_allocate(M, &
-       nfrelt,  &
-       mhead,   &
-       freemap, &
-       coords,  &
-       eptnmap, &
-       freemask)
-    implicit none
-
-    type(Mesh), intent(in out)         :: M
-    logical,    intent(in),   optional :: nfrelt, mhead, freemap
-    logical,    intent(in),   optional :: coords, eptnmap, freemask
-    logical                            :: all=.false.
-    if (.not.present(nfrelt)    .and.&
-         (.not.present(mhead))  .and.&
-         (.not.present(freemap)).and.&
-         (.not.present(coords)) .and.&
-         (.not.present(eptnmap)) .and.&
-         (.not.present(freemask))) then
-       if (.not.associated(M%nfrelt))   allocate(M%nfrelt(M%nell))
-       if (.not.associated(M%mhead))    allocate(M%mhead(M%mfrelt,M%nell))
-       if (.not.associated(M%freemap))  allocate(M%freemap(M%ngf))
-       if (.not.associated(M%coords))   allocate(M%coords(M%nsd,M%nnode))
-       if (.not.associated(M%eptnmap))  allocate(M%eptnmap(M%nell))
-       if (.not.associated(M%freemask)) allocate(M%freemask(M%ngf))
-       all = .true.
-    end if
-
-    if (present(nfrelt)  .and.(.not.all).and.&
-         (.not.associated(M%nfrelt)))   allocate(M%nfrelt(M%nell))
-    if (present(mhead)   .and.(.not.all).and.&
-         (.not.associated(M%mhead)))    allocate(M%mhead(M%mfrelt,M%nell))
-    if (present(freemap) .and.(.not.all).and.&
-         (.not.associated(M%freemap)))  allocate(M%freemap(M%ngf))
-    if (present(coords)  .and.(.not.all).and.&
-         (.not.associated(M%coords)))   allocate(M%coords(M%nsd,M%nnode))
-    if (present(eptnmap)  .and.(.not.all).and.&
-         (.not.associated(M%eptnmap)))  allocate(M%eptnmap(M%nell))
-    if (present(freemask).and.(.not.all).and.&
-         (.not.associated(M%freemask))) allocate(M%freemask(M%ngf))
-
-  end subroutine Mesh_allocate
-
-
   !-------------------------
   !! Destructor
   !-------------------------
@@ -310,7 +264,7 @@ contains
     if (associated(M%nfreesend_map)) deallocate(M%nfreesend_map)
     if (associated(M%partnelems)) deallocate(M%partnelems)
     if (associated(M%nghbrs))    deallocate(M%nghbrs)
-    if (associated(M%lcoords)) deallocate(M%lcoords)
+    if (.NOT.ismaster().AND.associated(M%lcoords)) deallocate(M%lcoords) ! for master it = coords
     if (associated(M%lfreemap)) deallocate(M%lfreemap)
     !if (associated(M%)) deallocate(M%)
 
@@ -384,7 +338,7 @@ contains
     mfrelt=4
     nnode=ngf
     call Mesh_Init(M, nell, ngf, nsd, mfrelt, nnode)
-    call Mesh_allocate(M,coords=.true.,freemap=.true.) ! needing the coords...
+    allocate(M%coords(M%nsd,M%nnode),M%freemap(M%ngf)) ! needing the coords...
     M%freemap= (/ (i,i=1,ngf) /)
     do j=1,n
       do i=1,n
@@ -1500,6 +1454,7 @@ contains
                   p, D_TAG_MESH_NFRELT, MPI_COMM_WORLD, request, ierr)
           end do
        else
+          if (.NOT.associated(M%nfrelt)) allocate(M%nfrelt(M%nell))
           call MPI_RECV(M%nfrelt, M%nell, MPI_INTEGER, &
                D_MASTER, D_TAG_MESH_NFRELT, MPI_COMM_WORLD, status, ierr)
        end if
@@ -1513,6 +1468,7 @@ contains
                   p, D_TAG_MESH_MHEAD, MPI_COMM_WORLD, request, ierr)
           end do
        else
+          if (.NOT.associated(M%mhead)) allocate(M%mhead(M%mfrelt,M%nell))
           call MPI_RECV(M%mhead, M%mfrelt*M%nell, MPI_INTEGER, &
                D_MASTER, D_TAG_MESH_MHEAD, MPI_COMM_WORLD, status, ierr)
        end if
@@ -1526,6 +1482,7 @@ contains
                   p, D_TAG_MESH_FREEMASK, MPI_COMM_WORLD, request, ierr)
           end do
        else
+          if (.not.associated(M%freemap)) allocate(M%freemap(M%ngf))
           call MPI_RECV(M%freemap, M%ngf, MPI_INTEGER, &
                D_MASTER, D_TAG_MESH_FREEMASK, MPI_COMM_WORLD, status, ierr)
        end if
@@ -1539,6 +1496,7 @@ contains
                   p, D_TAG_MESH_FREEMASK, MPI_COMM_WORLD, request, ierr)
           end do
        else
+          if (.not.associated(M%coords))   allocate(M%coords(M%nsd,M%nnode))
           call MPI_RECV(M%coords, M%nnode*M%nsd, MPI_xyzkind, &
                D_MASTER, D_TAG_MESH_FREEMASK, MPI_COMM_WORLD, status, ierr)
        end if
@@ -1546,14 +1504,19 @@ contains
 
     ! Send/recv 'eptnmap'
     if (present(eptnmap)) then
+       call MPI_BCAST(M%nparts, 1, MPI_INTEGER, &
+            D_MASTER, MPI_COMM_WORLD, ierr)
+
        if (ismaster()) then
           do p = 1,numprocs-1
              call MPI_ISEND(M%eptnmap, M%nell, MPI_INTEGER, &
                   p, D_TAG_MESH_EPTNMAP, MPI_COMM_WORLD, request, ierr)
           end do
        else
+          if (.not.associated(M%eptnmap))  allocate(M%eptnmap(M%nell))
           call MPI_RECV(M%eptnmap, M%nell, MPI_INTEGER, &
                D_MASTER, D_TAG_MESH_EPTNMAP, MPI_COMM_WORLD, status, ierr)
+          M%parted = .true.
        end if
     end if
 
@@ -1589,6 +1552,7 @@ contains
                   p, D_TAG_MESH_FREEMASK, MPI_COMM_WORLD, request, ierr)
           end do
        else
+          if (.not.associated(M%freemask)) allocate(M%freemask(M%ngf))
           call MPI_RECV(M%freemask, M%ngf, MPI_BYTE, &
                D_MASTER, D_TAG_MESH_FREEMASK, MPI_COMM_WORLD, status, ierr)
        end if
@@ -1682,6 +1646,35 @@ contains
   !
   !! Plotting routines
   !
+
+  !> Show a sequence of plots of the mesh.
+  subroutine Mesh_pl2D_mesh(Msh)
+    type(Mesh), intent(inout) :: Msh
+
+    call Mesh_pl2D_pointCloud(Msh,D_PLPLOT_INIT)
+    ! Plots mesh's dual graph
+    call Mesh_pl2D_plotGraphDual(Msh,D_PLPLOT_END)
+    ! Mesh & its Dual Graph
+    call Mesh_pl2D_plotMesh(Msh, D_PLPLOT_INIT)
+    call Mesh_pl2D_plotGraphDual(Msh, D_PLPLOT_END)
+  end subroutine Mesh_pl2D_mesh
+
+  !> Show plots of the mesh partitions.
+  subroutine Mesh_pl2D_partitions(Msh)
+    type(Mesh), intent(inout) :: Msh
+
+    ! Draw colored partitoined graph
+    call Mesh_pl2D_plotGraphParted(Msh)
+
+    ! Plot partitions of the mesh
+    ! NB: Check for multivariable case! TODO
+    call Mesh_pl2D_Partition(Msh)
+    ! Partition with Dual Graph upon it
+    call Mesh_pl2D_Partition(Msh, D_PLPLOT_INIT)
+    call Mesh_pl2D_plotGraphDual(Msh, D_PLPLOT_CONT)
+    call Mesh_pl2D_pointCloud(Msh,D_PLPLOT_END)
+  end subroutine Mesh_pl2D_partitions
+
   !------------------------------------------------
   !! Plot cloud field
   !------------------------------------------------
@@ -2521,7 +2514,10 @@ contains
           ind_coords(i) = M%freemap(M%mhead(i,e))
        end do
 
-       if (M%nfrelt(e) == 1) then ! 1-node boundary element
+       if (M%nfrelt(e) == 0) then
+          cycle
+
+       else if (M%nfrelt(e) == 1) then ! 1-node boundary element
 
           ! Fake centre of 1-node element by simply assigning to
           ! it coordinates of the node itself

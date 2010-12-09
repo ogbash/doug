@@ -87,41 +87,35 @@ contains
     integer, dimension(6), intent(in) :: part_opts !< partition options (see METIS manual)
     type(SpMtx),intent(in out),optional :: A_interf !< matrix at interface
 
+    if (ismaster()) then ! MASTER
+       write(stream,*)
+       write(stream,*) 'master thread'
+       if (D_MSGLVL > 1) &
+            call MasterCtrlData_print()
+
+    else ! SLAVES
+       write(stream,'(a,i4,a)') 'slave [',myrank,'] thread'
+       if (D_MSGLVL > 1) &
+            call SharedCtrlData_print()
+    end if
+
     ! =======================
     ! Mesh and its Dual Graph
     ! =======================
     !
     ! Create Mesh object
+
     Msh = Mesh_New()
 
-    if (ismaster()) then ! MASTER
-       write(stream,*)
-       write(stream,*) 'master thread'
-
-       if (D_MSGLVL > 1) &
-            call MasterCtrlData_print()
-
+    if (ismaster()) then
        ! Initialise Mesh object
        call Mesh_initFromFile(Msh, trim(mctls%info_file))
-
-    else ! SLAVES
-       write(stream,'(a,i4,a)') 'slave [',myrank,'] thread'
-
-       if (D_MSGLVL > 1) &
-            call SharedCtrlData_print()
-    end if
+    endif
 
     ! Get from master Mesh's parameters: nell, ngf, mfrelt, nsd, nnode
     call Mesh_paramsMPIBCAST(Msh)
     if (D_MSGLVL > 1) &
          call Mesh_printInfo(Msh)
-
-    ! Allocate data arrays (nfrelt, mhead, freemap, eptnmap) for mesh
-    call Mesh_allocate(Msh, &
-         nfrelt  =.true.,   &
-         mhead   =.true.,   &
-         freemap =.true.,   &
-         eptnmap  =.true.)
 
     ! Master reads in from files: feedom lists, coordinates, freedom map
     if (ismaster()) then
@@ -140,7 +134,6 @@ contains
 
     ! For multi-variable problems which have more than one block
     if (sctls%number_of_blocks > 1) then
-       call Mesh_allocate(Msh, freemask=.true.)
        if (ismaster()) then
           call Mesh_readFromFile(Msh, &
                fnFreemask = trim(mctls%freedom_mask_file))
@@ -155,45 +148,16 @@ contains
 
     ! Partition mesh's dual graph
     if (ismaster()) then
-
-       !! Build dual graph (Graph object is a data field in Mesh class)
-       !call Mesh_buildGraphDual(Msh)
-
        if (sctls%plotting == D_PLOT_YES) then
-
-          call Mesh_pl2D_pointCloud(Msh,D_PLPLOT_INIT)
-          ! Plots mesh's dual graph
-          call Mesh_pl2D_plotGraphDual(Msh,D_PLPLOT_END)
-          ! Mesh & its Dual Graph
-          call Mesh_pl2D_plotMesh(Msh, D_PLPLOT_INIT)
-          call Mesh_pl2D_plotGraphDual(Msh, D_PLPLOT_END)
+          call Mesh_pl2D_mesh(Msh)
        end if
 
        ! Partition graph: D_PART_PMETIS, D_PART_KMETIS, D_PART_VKMETIS
        call Mesh_partitionDual(Msh, nparts, D_PART_VKMETIS, part_opts)
-
        if (sctls%plotting == D_PLOT_YES) then
-          ! Draw colored partitoined graph
-          call Mesh_pl2D_plotGraphParted(Msh)
-
-          ! Plot partitions of the mesh
-          ! NB: Check for multivariable case! TODO
-          call Mesh_pl2D_Partition(Msh)
-          ! Partition with Dual Graph upon it
-          call Mesh_pl2D_Partition(Msh, D_PLPLOT_INIT)
-          call Mesh_pl2D_plotGraphDual(Msh, D_PLPLOT_CONT)
-          call Mesh_pl2D_pointCloud(Msh,D_PLPLOT_END)
+          call Mesh_pl2D_partitions(Msh)
        end if
-
-       ! Destroy previously created graph (purely to save memory)
-       ! (If it is not killed here or somewere else Mesh_Destroy()
-       !  will kill it any way)
-       !call Mesh_destroyGraph(Msh)
-    else ! SLAVES
-       ! Number of partions the mesh was partitioned into
-       Msh%nparts = nparts
-       Msh%parted = .true.
-    end if
+    endif
 
     ! Distribute elements to partitons map among slaves
     call Mesh_dataMPIISENDRECV(Msh, eptnmap=.true.)

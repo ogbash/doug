@@ -38,6 +38,8 @@ _defaultConfig="""
 info-server:
 # DOUG svn version
 info-svn:
+# DOUG git version
+info-git:
 # fortran compiler
 info-fc:
 # MPI version
@@ -60,28 +62,41 @@ class TestFailure (ScriptException):
 class TestCase (unittest.TestCase):
 	failureException=TestFailure
 
+	resultConfig = property(lambda self: self.dougExecution.result)
+
 	def __init__(self, dougExecution, testname=None):
 		self.testname = testname
 		unittest.TestCase.__init__(self, '_test')
 		self.dougExecution = dougExecution
+		self.files = []
 
 	def setUp(self):
 		self.dougExecution.setUp()
+		self.dougExecution.acquire()
 
 	def tearDown(self):
-		self.dougExecution.tearDown()
+		try:
+			self.dougExecution.tearDown()
+		finally:
+			self.dougExecution.free()
 
+	def acquire(self):
+		"Increase count of usage for this test, so that files are not deleted immediatelly."
+		self.dougExecution.acquire()
+
+	def free(self):
+		self.dougExecution.free()
 
 	def _test(self):
 		try:
-			self.resultConfig = res = self.dougExecution.run()
+			res = self.dougExecution.run()
 			if res.has_option('doug-result', 'profilefile'):
 				res.add_section('doug-profile')
 				fname = res.getpath('doug-result', 'profilefile')
 				self._readProfileFile(fname, res)
 			self._assertSolution()
 		finally:
-			self.files = self.dougExecution.files
+			self.files.extend(self.dougExecution.files)
 
 	def _readProfileFile(self, filepath, conf):
 		f = open(filepath)
@@ -175,6 +190,20 @@ class CombinedTestResult(unittest.TestResult):
 		for testResult in self.testResults:
 			testResult.stopTest(test)
 
+	def startTestRun(self, test):
+		# python <2.7 does not have this method
+		#unittest.TestResult.startTestRun(self, test)
+		for testResult in self.testResults:
+			if hasattr(testResult, 'startTestRun'):
+				testResult.startTestRun(test)
+
+	def stopTestRun(self, test):
+		# python <2.7 does not have this method
+		#unittest.TestResult.stopTestRun(self, test)
+		for testResult in self.testResults:
+			if hasattr(testResult, 'stopTestRun'):
+				testResult.stopTestRun(test)
+
 	def addError(self, test, err):
 		unittest.TestResult.addError(self, test, err)
 		for testResult in self.testResults:
@@ -213,8 +242,11 @@ class TestRunner:
 		import time
 		result = CombinedTestResult(self.testResults)
 		
+		
 		startTime = time.time()
+		result.startTestRun(None)
 		test(result)			
+		result.stopTestRun(None)
 		stopTime = time.time()
 		
 		timeTaken = stopTime - startTime

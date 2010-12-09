@@ -43,6 +43,12 @@ class DOUGExecution:
         # output or other files, exception grabs it on exit
         self.files = []
 
+        # how many test results are using this test, files are deleted only after last free() call
+        self._inUse = 0
+        self.preserveOutput = self.config.getboolean("doug", "preserveOutput")
+        self.result = DOUGConfigParser(self.config.defaults(), basedir=self.workdir)
+        self.result.add_section('doug-result')
+
     def setUp(self):
         LOG.debug("Preparing testing environment")
         self.workdir = self.workdir
@@ -52,7 +58,7 @@ class DOUGExecution:
             self.workdirExisted = False
             os.mkdir(self.workdir)
             LOG.debug("Working directory %s created" % self.workdir)
-        self.preserveOutput = self.config.getboolean("doug", "preserveOutput")
+
         try:
             # create control file
             self.testctrlfname = os.path.abspath(os.path.join(self.workdir, 'DOUG-exec.ctl'))
@@ -95,15 +101,19 @@ class DOUGExecution:
                          % (mpihaltname, res, outfilename, errfilename))
         except Exception, e:
             LOG.warn("Exception running mpihalt: %s" % e)
-        
-        LOG.debug("Cleaning after test")
-        self._clean()
-
 
     def _clean(self):
-        if not self.preserveOutput and hasattr(self, 'tmpdir') and self.tmpdir:
-            # dangerous while developing -- os.system('rm -rf %s' % self.tmpdir)
-            LOG.debug("Temporary directory %s deleted" % self.tmpdir)
+        if not self.preserveOutput and not self.workdirExisted:
+            os.system('rm -rf %s' % self.workdir)
+            LOG.debug("Temporary directory %s deleted" % self.workdir)
+
+    def acquire(self):
+        self._inUse += 1
+
+    def free(self):
+        self._inUse -= 1
+        if self._inUse == 0:
+            self._clean()
 
     def run(self):
         return self.runDOUG()
@@ -116,15 +126,16 @@ class DOUGExecution:
         method = self.config.getint('doug-controls', 'method')
         LOG.info("solver=%d, method=%d, levels=%d, nproc=%d" % (solver, method, levels, nproc))
         mpirun = self.config.get("doug", "mpirun")
-        main = self.config.getpath("doug", "executable")
+        main = self.config.get("doug", "executable")
+        bindir = self.config.get("doug", "bindir")
+        main = os.path.join(bindir, main)
         errfname = self.config.getpath("doug", "errfilename")
         outfname = self.config.getpath("doug", "outfilename")
         solutionfname = self.config.getpath('doug-controls', 'solution_file')
 
         curdir = os.getcwd()
 
-        result = DOUGConfigParser(self.config.defaults(), basedir=self.workdir)
-        result.add_section('doug-result')
+        result = self.result
         try:
             LOG.debug("Changing directory to %s" % self.workdir)
             os.chdir(self.workdir)
@@ -132,7 +143,7 @@ class DOUGExecution:
             errf = open(errfname, "w")
             try:
                 args = [mpirun, "-np", "%d"%nproc, main, "-f", self.testctrlfname, "-p"]
-                LOG.debug("Running %s" % " ".join(args))
+                LOG.info("Running %s" % " ".join(args))
                 doug = subprocess.Popen(args, stdout=outf, stderr=errf)
                     
                 import time
@@ -165,13 +176,16 @@ class DOUGExecution:
                     result.setpath('doug-result', 'solutionfile', solutionfname)
                 if solutionfname and os.path.isfile('aggr1.txt'):
                     result.setpath('doug-result', 'fineaggrsfile', 'aggr1.txt')
+                    #self.files.append(("aggr1.txt", "Fine aggregates"))
                 if solutionfname and os.path.isfile('aggr2.txt'):
                     result.setpath('doug-result', 'coarseaggrsfile', 'aggr2.txt')
+                    #self.files.append(("aggr2.txt", "Coarse aggregates"))
                     
                 files = os.listdir(self.workdir)
-                files = filter(lambda name: name.startswith('prof.'), files)
+                files = filter(lambda name: name.startswith('prof.00'), files)
                 if files:
                     result.setpath('doug-result', 'profilefile', files[0])
+                    self.files.append((os.path.join(self.workdir, files[0]), "Profile info"))
                 
                 # compare answers
                 
