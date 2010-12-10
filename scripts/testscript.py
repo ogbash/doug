@@ -65,7 +65,7 @@ mysql-database:
 #  processors=1,4
 #  overlaps=-1
 #  smoothers=0,1
-#  executables=doug_main,doug_aggr
+#  executables=doug_geom,doug_aggr
 """
 
 logconfFileNames = []

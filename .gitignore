@@ -21,7 +21,7 @@ Makefile
 /src/Make.deps
 /src/main/Make.deps
 /src/main/doug_aggr
-/src/main/doug_main
-/src/main/doug_main-main_drivers.obj
+/src/main/doug_geom
+/src/main/doug_geom-main_drivers.obj
 /src/matrix_gen
 

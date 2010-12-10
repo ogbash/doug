@@ -21,7 +21,7 @@
 
 !> Main program for running DOUG with input files in elemental form.
 !> Running the code: (example)
-!>   <tt>mpirun -np 3 doug_main -f doug.ctl</tt>
+!>   <tt>mpirun -np 3 doug_geom -f doug.ctl</tt>
 !>     where \c doug.ctl may contain the following fields
 !!
 !! See \ref p_inputformat page for input description.
