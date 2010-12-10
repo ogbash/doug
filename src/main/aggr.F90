@@ -61,7 +61,7 @@
 !> plotting 1
 !> assembled_mtx_file Hetero32.txt
 !> \endcode
-program aggr
+program main_aggr
 
   use doug
   use main_drivers
@@ -426,4 +426,4 @@ program aggr
   call DOUG_Finalize()
 
 
-end program aggr
+end program main_aggr

@@ -1,16 +1,16 @@
 
 @MAKE_INCLUDE@ Make.deps
 
-# doug_main
-bin_PROGRAMS = doug_main doug_aggr
+# doug main executables
+bin_PROGRAMS = doug_geom doug_aggr
 
-doug_main_SOURCES = \
+doug_geom_SOURCES = \
 	main_drivers.F90 \
 	DOUG.f90 \
-	main.F90
+	geom.F90
 
-doug_main_FCFLAGS=-I.. @FCFLAGS_F95@
-doug_main_LDADD=../libdoug.la
+doug_geom_FCFLAGS=-I.. @FCFLAGS_F95@
+doug_geom_LDADD=../libdoug.la
 
 doug_aggr_SOURCES = \
 	main_drivers.F90 \

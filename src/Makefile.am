@@ -9,6 +9,7 @@ EXTRA_DIST=
 include utils/Makefile.am
 include datatypes/Makefile.am
 include solvers/Makefile.am
+include coarse/Makefile.am
 
 SUBDIRS = main
 

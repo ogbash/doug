@@ -26,7 +26,7 @@
 !!
 !! See \ref p_inputformat page for input description.
 
-program main
+program main_geom
 
   use doug
   use main_drivers
@@ -277,4 +277,4 @@ program main
 
   call DOUG_Finalize()
 
-end program main
+end program main_geom
