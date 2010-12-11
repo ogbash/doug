@@ -424,6 +424,12 @@ contains
     endif
     if (present(CoarseMtx_)) then !{
       if (.not.present(Restrict)) call DOUG_abort("Restriction matrix needs to be passed along with the coarse matrix!")
+
+      if (.not.associated(tmpsol)) then
+        !allocate(tmpsol(A%nrows))
+        allocate(tmpsol(size(rhs)))
+      endif
+
       if (cdat%active) then
         if (isFirstIter) then
           ! First iteration - send matrix
@@ -469,10 +475,6 @@ contains
           else
             allocate(crhs(CoarseMtx_%ncols))
             allocate(csol(CoarseMtx_%nrows))
-          endif
-          if (.not.associated(tmpsol)) then
-            !allocate(tmpsol(A%nrows))
-            allocate(tmpsol(size(rhs)))
           endif
           allocate(clrhs(Restrict%nrows)) ! allocate memory for vector
         end if
