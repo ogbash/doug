@@ -413,7 +413,7 @@ contains
       bugtrack=.false.
     endif
     ! ----------------------------
-    isFirstIter = .not.(present(refactor_).and.refactor_)
+    isFirstIter = present(refactor_).and.refactor_
     if (sctls%method==0) then
       sol=rhs
       return
@@ -457,16 +457,6 @@ contains
           CoarseMtx_%indj=CoarseMtx_%indj+1
         end if
 
-        ! Send coarse vector
-        call SpMtx_Ax(clrhs,Restrict,rhs,dozero=.true.) ! restrict <RA>
-        if (cdat_vec%active) then
-          call AllSendCoarseVector(clrhs,cdat_vec%nprocs,cdat_vec%cdisps,&
-               cdat_vec%send,useprev=isFirstIter)
-        else
-          call AllSendCoarseVector(clrhs,cdat%nprocs,cdat%cdisps,&
-               cdat%send,useprev=isFirstIter)
-        endif
-
         ! allocate coarse vectors
         if (isFirstIter) then
           if (associated(crhs)) then
@@ -484,7 +474,18 @@ contains
             !allocate(tmpsol(A%nrows))
             allocate(tmpsol(size(rhs)))
           endif
+          allocate(clrhs(Restrict%nrows)) ! allocate memory for vector
         end if
+
+        ! Send coarse vector
+        call SpMtx_Ax(clrhs,Restrict,rhs,dozero=.true.) ! restrict <RA>
+        if (cdat_vec%active) then
+          call AllSendCoarseVector(clrhs,cdat_vec%nprocs,cdat_vec%cdisps,&
+               cdat_vec%send,useprev=.not.isFirstIter)
+        else
+          call AllSendCoarseVector(clrhs,cdat%nprocs,cdat%cdisps,&
+               cdat%send,useprev=.not.isFirstIter)
+        endif
 
         ! first level prec
         if (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL.or.numprocs>1) then

@@ -260,7 +260,7 @@ contains
         logical, intent(in), optional :: useprev
 
 
-        if (.not.present(useprev)) then
+        if (.not.present(useprev).or..not.useprev) then
             ! Calc the size of my data
             send%ssize=cdisps(myrank+2)-cdisps(myrank+1)
             send%rsizes=cdisps(2:nproc+1)-cdisps(1:nproc)
