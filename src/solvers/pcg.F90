@@ -488,18 +488,18 @@ contains
           call AllSendCoarseVector(clrhs,cdat%nprocs,cdat%cdisps,&
                cdat%send,useprev=.not.isFirstIter)
         endif
+      end if ! cdat%active
 
-        ! first level prec
-        if (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL.or.numprocs>1) then
-          call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
+      ! first level prec
+      if (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL.or.numprocs>1) then
+        call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
                         A_interf_=A_interf_, &
                         refactor=refactor_) !fine solves 
-        else
-          call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
+      else
+        call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
                         A_interf_=A_interf_,AC=CoarseMtx_, &
                         refactor=refactor_,Restrict=Restrict) !fine solves 
-        endif
-      end if ! cdat%active
+      endif
 
       if (sctls%levels>1) then
         ol=max(sctls%overlap,sctls%smoothers)

@@ -1507,7 +1507,7 @@ contains
     integer,dimension(:),allocatable,save :: moreinds
     integer :: i,j,ii,jj
     logical,save :: alloc=.false.
-    type(indlist),dimension(:),pointer :: ind
+    type(indlist),dimension(:),pointer,save :: ind
     if (A%arrange_type/=D_SpMtx_ARRNG_ROWS) then
       call SpMtx_arrange(A,arrange_type=D_SpMtx_ARRNG_ROWS,sort=.true.)   !
       write(stream,*)'Arranged A to row storage'
