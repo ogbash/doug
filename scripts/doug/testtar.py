@@ -92,6 +92,7 @@ class DougTarTestResult(unittest.TestResult):
 
 	def addFailure(self, test, err):
 		unittest.TestResult.addFailure(self, test, err)
+		errtp, errval, errtb = err
 		self._addFiles(test.files)
 		self._addResult(test, 'failure')
 		self._addException(test, errval)
