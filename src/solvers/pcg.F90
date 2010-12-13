@@ -518,8 +518,10 @@ contains
             endif
           endif
         end if
+      end if
 
         !csol=0.0_rk
+      if (cdat%active) then
         ! Recieve the vector for solve
         if (cdat_vec%active) then
           call AllRecvCoarseVector(crhs,cdat_vec%nprocs,&
@@ -534,7 +536,9 @@ contains
         call sparse_singlesolve(CoarseMtx_%subsolve_ids(1),csol,crhs,nfreds=CoarseMtx_%nrows)
         write (stream,*) 'coarse factorisation done!',CoarseMtx_%subsolve_ids(1)
         if (bugtrack)write(stream,*) "(f) Coarse SOL is:",csol
+      end if
 
+      if (sctls%levels>1) then
         if (cdat_vec%active) then
           call Vect_remap(csol,clrhs,cdat_vec%gl_cfmap,dozero=.true.)
           call SpMtx_Ax(tmpsol,Restrict,clrhs,dozero=.true.,transp=.true.)
