@@ -425,6 +425,21 @@ contains
     if (present(CoarseMtx_)) then !{
       if (.not.present(Restrict)) call DOUG_abort("Restriction matrix needs to be passed along with the coarse matrix!")
 
+        ! allocate coarse vectors
+      if (isFirstIter.and.sctls%levels>1) then
+        if (associated(crhs)) then
+          if (size(crhs)/=CoarseMtx_%ncols) then
+            deallocate(csol)
+            deallocate(crhs)
+            allocate(crhs(CoarseMtx_%ncols))
+            allocate(csol(CoarseMtx_%nrows))
+          endif
+        else
+          allocate(crhs(CoarseMtx_%ncols))
+          allocate(csol(CoarseMtx_%nrows))
+        endif
+        allocate(clrhs(Restrict%nrows)) ! allocate memory for vector
+      end if
       if (.not.associated(tmpsol)) then
         !allocate(tmpsol(A%nrows))
         allocate(tmpsol(size(rhs)))
@@ -461,22 +476,6 @@ contains
                val=CoarseMtx_%val)
           CoarseMtx_%indi=CoarseMtx_%indi+1
           CoarseMtx_%indj=CoarseMtx_%indj+1
-        end if
-
-        ! allocate coarse vectors
-        if (isFirstIter) then
-          if (associated(crhs)) then
-            if (size(crhs)/=CoarseMtx_%ncols) then
-              deallocate(csol)
-              deallocate(crhs)
-              allocate(crhs(CoarseMtx_%ncols))
-              allocate(csol(CoarseMtx_%nrows))
-            endif
-          else
-            allocate(crhs(CoarseMtx_%ncols))
-            allocate(csol(CoarseMtx_%nrows))
-          endif
-          allocate(clrhs(Restrict%nrows)) ! allocate memory for vector
         end if
 
         ! Send coarse vector
