@@ -425,59 +425,59 @@ contains
     if (present(CoarseMtx_)) then !{
       if (.not.present(Restrict)) call DOUG_abort("Restriction matrix needs to be passed along with the coarse matrix!")
 
-        ! allocate coarse vectors
-      if (isFirstIter.and.sctls%levels>1) then
-        if (associated(crhs)) then
-          if (size(crhs)/=CoarseMtx_%ncols) then
-            deallocate(csol)
-            deallocate(crhs)
-            allocate(crhs(CoarseMtx_%ncols))
-            allocate(csol(CoarseMtx_%nrows))
-          endif
-        else
-          allocate(crhs(CoarseMtx_%ncols))
-          allocate(csol(CoarseMtx_%nrows))
+      if (isFirstIter.and.cdat%active) then
+        ! First iteration - send matrix
+        call prec2Level_exchangeMatrix(CoarseMtx_)
+
+        ! factorise coarse matrix
+        write (stream,*) &
+             'factorising coarse matrix of size',CoarseMtx_%nrows, &
+             ' and nnz:',CoarseMtx_%nnz
+        call free_spmtx_subsolves(CoarseMtx_)
+        allocate(CoarseMtx_%subsolve_ids(1))
+        CoarseMtx_%subsolve_ids=0
+        CoarseMtx_%nsubsolves=1
+
+        ! Factorise the matrix
+        if (sctls%verbose>2) then
+          write(stream,*)'Global coarse matrix is:---------'
+          do i=1,CoarseMtx_%nnz
+             write(stream,*) CoarseMtx_%indi(i),&
+                  CoarseMtx_%indj(i),CoarseMtx_%val(i)
+          enddo
+          write(stream,*)'---------------------------------'
         endif
-        allocate(clrhs(Restrict%nrows)) ! allocate memory for vector
-      end if
-      if (.not.associated(tmpsol)) then
-        !allocate(tmpsol(A%nrows))
-        allocate(tmpsol(size(rhs)))
-      endif
+        call factorise(CoarseMtx_%subsolve_ids(1), &
+             nfreds=CoarseMtx_%nrows,   &
+             nnz=CoarseMtx_%nnz,        &
+             indi=CoarseMtx_%indi,      &
+             indj=CoarseMtx_%indj,      &
+             val=CoarseMtx_%val)
+        CoarseMtx_%indi=CoarseMtx_%indi+1
+        CoarseMtx_%indj=CoarseMtx_%indj+1
+     end if
 
-      if (cdat%active) then
-        if (isFirstIter) then
-          ! First iteration - send matrix
-          call prec2Level_exchangeMatrix(CoarseMtx_)
+     ! after coarse matrix is received allocate coarse vectors
+     if (isFirstIter.and.sctls%levels>1) then
+       if (associated(crhs)) then
+         if (size(crhs)/=CoarseMtx_%ncols) then
+           deallocate(csol)
+           deallocate(crhs)
+           allocate(crhs(CoarseMtx_%ncols))
+           allocate(csol(CoarseMtx_%nrows))
+         endif
+       else
+         allocate(crhs(CoarseMtx_%ncols))
+         allocate(csol(CoarseMtx_%nrows))
+       endif
+       allocate(clrhs(Restrict%nrows)) ! allocate memory for vector
+     end if
+     if (.not.associated(tmpsol)) then
+       !allocate(tmpsol(A%nrows))
+       allocate(tmpsol(size(rhs)))
+     endif
 
-          ! factorise coarse matrix
-          write (stream,*) &
-            'factorising coarse matrix of size',CoarseMtx_%nrows, &
-            ' and nnz:',CoarseMtx_%nnz
-          call free_spmtx_subsolves(CoarseMtx_)
-          allocate(CoarseMtx_%subsolve_ids(1))
-          CoarseMtx_%subsolve_ids=0
-          CoarseMtx_%nsubsolves=1
-
-          ! Factorise the matrix
-          if (sctls%verbose>2) then
-            write(stream,*)'Global coarse matrix is:---------'
-            do i=1,CoarseMtx_%nnz
-               write(stream,*) CoarseMtx_%indi(i),&
-                     CoarseMtx_%indj(i),CoarseMtx_%val(i)
-            enddo
-            write(stream,*)'---------------------------------'
-          endif
-          call factorise(CoarseMtx_%subsolve_ids(1), &
-               nfreds=CoarseMtx_%nrows,   &
-               nnz=CoarseMtx_%nnz,        &
-               indi=CoarseMtx_%indi,      &
-               indj=CoarseMtx_%indj,      &
-               val=CoarseMtx_%val)
-          CoarseMtx_%indi=CoarseMtx_%indi+1
-          CoarseMtx_%indj=CoarseMtx_%indj+1
-        end if
-
+     if (cdat%active) then
         ! Send coarse vector
         call SpMtx_Ax(clrhs,Restrict,rhs,dozero=.true.) ! restrict <RA>
         if (cdat_vec%active) then
