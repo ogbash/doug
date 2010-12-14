@@ -413,7 +413,8 @@ contains
       bugtrack=.false.
     endif
     ! ----------------------------
-    isFirstIter = present(refactor_).and.refactor_
+    isFirstIter = .false.
+    if (present(refactor_)) isFirstIter = refactor_
     if (sctls%method==0) then
       sol=rhs
       return
@@ -423,6 +424,7 @@ contains
       allocate(res(size(rhs)))
     endif
     if (present(CoarseMtx_)) then !{
+      write(stream,*) "Coarse matrix is present in preconditioner"
       if (.not.present(Restrict)) call DOUG_abort("Restriction matrix needs to be passed along with the coarse matrix!")
 
       if (isFirstIter.and.cdat%active) then
@@ -452,6 +454,7 @@ contains
 
       if (cdat%active) then
         ! Send coarse vector
+        write(stream,*) "Send coarse vector!"
         call SpMtx_Ax(clrhs,Restrict,rhs,dozero=.true.) ! restrict <RA>
         if (cdat_vec%active) then
           call AllSendCoarseVector(clrhs,cdat_vec%nprocs,cdat_vec%cdisps,&
@@ -473,7 +476,6 @@ contains
                         refactor=refactor_,Restrict=Restrict) !fine solves 
       endif
 
-      ol=max(sctls%overlap,sctls%smoothers)
       if (sctls%levels>1.and..not.cdat%active) then ! 1 processor case
         if (sctls%smoothers==-1) then
           allocate(tmpsol2(A%nrows))
@@ -499,7 +501,7 @@ contains
           call AllRecvCoarseVector(crhs,cdat%nprocs,&
                cdat%cdisps,cdat%glg_cfmap,cdat%send)
         endif
-        !write(stream,*) "Got coarse vector!"
+        write(stream,*) "Got coarse vector!"
         !call MPI_BARRIER(MPI_COMM_WORLD,i)
       end if
 
@@ -514,6 +516,7 @@ contains
           CoarseMtx_%nsubsolves=1
         end if
 
+        write (stream,*) "Coarse solve"
         ! Coarse solve
         call sparse_singlesolve(CoarseMtx_%subsolve_ids(1),csol,crhs,&
              nfreds=CoarseMtx_%nrows, &
@@ -522,8 +525,10 @@ contains
              indj=CoarseMtx_%indj,      &
              val=CoarseMtx_%val)
         if (bugtrack)write(stream,*) "(f) Coarse SOL is:",csol
-        CoarseMtx_%indi=CoarseMtx_%indi+1
-        CoarseMtx_%indj=CoarseMtx_%indj+1
+        if (isFirstIter) then
+          CoarseMtx_%indi=CoarseMtx_%indi+1
+          CoarseMtx_%indj=CoarseMtx_%indj+1
+        end if
 
         if (cdat_vec%active) then
           call Vect_remap(csol,clrhs,cdat_vec%gl_cfmap,dozero=.true.)
@@ -551,6 +556,8 @@ contains
           endif
         endif
       endif !}
+
+      ol=max(sctls%overlap,sctls%smoothers)
       if (sctls%method==1) then
 !call Print_Glob_Vect(sol,M,'sol===',chk_endind=M%ninner)
         sol(1:A%nrows)=sol(1:A%nrows)+tmpsol(1:A%nrows)
@@ -582,7 +589,8 @@ contains
         sol(1:A%nrows)=sol(1:A%nrows)+tmpsol(1:A%nrows)
       endif
     else !}{
-       call preconditioner_1level(sol,A,rhs,M,res,A_interf_,refactor_)
+      write(stream,*) "Coarse matrix is not present in preconditioner"
+      call preconditioner_1level(sol,A,rhs,M,res,A_interf_,refactor_)
     endif !}
     if (sctls%method>1) then ! For multiplicative Schwarz method...:
       if (associated(res)) deallocate(res)

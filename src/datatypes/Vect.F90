@@ -221,7 +221,6 @@ contains
     end if
     
     if (sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED) then
-       print *, "vec dp"
       local_res=dot_product(x1(1:ninner),x2(1:ninner))
     else
       ! Interface freedoms defined in 'dot_intf_fmap' + local inner ones
@@ -234,10 +233,8 @@ contains
       !local_res = local_res + &
       !     dot_product(x1(intf_end+1:), x2(intf_end+1:))
     endif
-    print *, "vec dp, all red"
     call MPI_ALLREDUCE(local_res, res, 1, MPI_fkind, MPI_SUM, &
          MPI_COMM_WORLD, ierr)
-    print *, "vec dp, all red, end"
   end function Vect_dot_product
 
 
