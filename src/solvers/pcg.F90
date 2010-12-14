@@ -415,6 +415,8 @@ contains
     ! ----------------------------
     isFirstIter = .false.
     if (present(refactor_)) isFirstIter = refactor_
+    ol=max(sctls%overlap,sctls%smoothers)
+
     if (sctls%method==0) then
       sol=rhs
       return
@@ -546,32 +548,22 @@ contains
           endif
         endif
 
-        if (.not.(cdat_vec%active)) then
-          if (sctls%smoothers==-1) then
-            tmpsol2=0.0_rk
-            call exact_sparse_multismoother(tmpsol2,A,rhs)
-            call SpMtx_Ax(crhs,Restrict,tmpsol2,dozero=.true.) ! restriction
-          else
-            call SpMtx_Ax(crhs,Restrict,rhs,dozero=.true.) ! restriction
-          endif
+        if (sctls%method==1) then
+           !call Print_Glob_Vect(sol,M,'sol===',chk_endind=M%ninner)
+           sol(1:A%nrows)=sol(1:A%nrows)+tmpsol(1:A%nrows)
+        elseif (sctls%method==3) then ! fully multiplicative Schwarz
+           sol(1:A%nrows)=sol(1:A%nrows)+tmpsol(1:A%nrows)
+           ! calculate the residual:
+           call SpMtx_Ax(res,A,sol,dozero=.true.) ! 
+           res=rhs-res
+        elseif (sctls%method==2.and.ol>0) then ! fully multiplicative Schwarz
+           sol(1:A%nrows)=tmpsol(1:A%nrows)
+           ! calculate the residual:
+           call SpMtx_Ax(res,A,sol,dozero=.true.) ! 
+           res=rhs-res
         endif
       endif !}
 
-      ol=max(sctls%overlap,sctls%smoothers)
-      if (sctls%method==1) then
-!call Print_Glob_Vect(sol,M,'sol===',chk_endind=M%ninner)
-        sol(1:A%nrows)=sol(1:A%nrows)+tmpsol(1:A%nrows)
-      elseif (sctls%method==3) then ! fully multiplicative Schwarz
-        sol(1:A%nrows)=sol(1:A%nrows)+tmpsol(1:A%nrows)
-        ! calculate the residual:
-        call SpMtx_Ax(res,A,sol,dozero=.true.) ! 
-        res=rhs-res
-      elseif (sctls%method==2.and.ol>0) then ! fully multiplicative Schwarz
-        sol(1:A%nrows)=tmpsol(1:A%nrows)
-        ! calculate the residual:
-        call SpMtx_Ax(res,A,sol,dozero=.true.) ! 
-        res=rhs-res
-      endif
       if (sctls%method>1) then ! For multiplicative Schwarz method...:
         refactor_=.false.
         if (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL) then
