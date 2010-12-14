@@ -473,20 +473,18 @@ contains
                         refactor=refactor_,Restrict=Restrict) !fine solves 
       endif
 
-      if (sctls%levels>1) then
-        ol=max(sctls%overlap,sctls%smoothers)
-        if (isFirstIter.and..not.cdat%active) then ! 1 processor case
-          if (sctls%smoothers==-1) then
-            allocate(tmpsol2(A%nrows))
-            tmpsol2=0.0_rk
-            call exact_sparse_multismoother(tmpsol2,A,rhs)
-            call SpMtx_Ax(crhs,Restrict,tmpsol2,dozero=.true.) ! restriction
+      ol=max(sctls%overlap,sctls%smoothers)
+      if (sctls%levels>1.and..not.cdat%active) then ! 1 processor case
+        if (sctls%smoothers==-1) then
+          allocate(tmpsol2(A%nrows))
+          tmpsol2=0.0_rk
+          call exact_sparse_multismoother(tmpsol2,A,rhs)
+          call SpMtx_Ax(crhs,Restrict,tmpsol2,dozero=.true.) ! restriction
+        else
+          if (sctls%method>1.and.sctls%method/=5) then ! multiplicative Schwarz
+            call SpMtx_Ax(crhs,Restrict,res,dozero=.true.) ! restriction
           else
-            if (sctls%method>1.and.sctls%method/=5) then ! multiplicative Schwarz
-              call SpMtx_Ax(crhs,Restrict,res,dozero=.true.) ! restriction
-            else
-              call SpMtx_Ax(crhs,Restrict,rhs,dozero=.true.) ! restriction
-            endif
+            call SpMtx_Ax(crhs,Restrict,rhs,dozero=.true.) ! restriction
           endif
         endif
       end if
@@ -524,6 +522,8 @@ contains
              indj=CoarseMtx_%indj,      &
              val=CoarseMtx_%val)
         if (bugtrack)write(stream,*) "(f) Coarse SOL is:",csol
+        CoarseMtx_%indi=CoarseMtx_%indi+1
+        CoarseMtx_%indj=CoarseMtx_%indj+1
 
         if (cdat_vec%active) then
           call Vect_remap(csol,clrhs,cdat_vec%gl_cfmap,dozero=.true.)
