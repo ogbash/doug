@@ -26,6 +26,8 @@ module subsolvers
   use globals
   use DOUG_utils
   use Fact_class
+  use SpMtx_class
+  use SpMtx_arrangement
   implicit none
 
 #include<doug_config.h>
@@ -48,11 +50,12 @@ module subsolvers
 
 contains
 
-  subroutine sum_with_interf(nnz, val, indi, indj, &
-                             nnz_interf, val_interf, indi_interf, indj_interf, &
-                             snnz, sval, sindi, sindj)
+  subroutine sum_with_interf(nfreds, &
+       nnz, val, indi, indj, &
+       nnz_interf, val_interf, indi_interf, indj_interf, &
+       snnz, sval, sindi, sindj)
     implicit none
-    integer,intent(in) :: nnz
+    integer,intent(in) :: nnz, nfreds
     real(kind=rk),dimension(:) :: val
     integer,dimension(:) :: indi,indj
     integer,intent(in),optional :: nnz_interf
@@ -62,6 +65,7 @@ contains
     real(kind=rk),dimension(:) :: sval
     integer,dimension(:) :: sindi,sindj
     integer :: i, ii
+    type(SpMtx) :: TmpA ! temporary sparse matrix to sort the entries
 
     if (numprocs==1.or..not.present(nnz_interf)) then 
       snnz=0
@@ -72,6 +76,11 @@ contains
         sval(snnz)=val(i)
       enddo
     else
+      TmpA = SpMtx_newInit(nnz,nrows=nfreds,indi=indi(1:nnz),indj=indj(1:nnz),val=val(1:nnz))
+      call SpMtx_arrange(TmpA,sort=.true.)
+      indi(1:nnz) = TmpA%indi; indj(1:nnz) = TmpA%indj; val(1:nnz) = TmpA%val
+      call SpMtx_destroy(TmpA)
+      
       i=1;ii=1
       snnz=0
       do while (i<=nnz.or.ii<=nnz_interf)
@@ -973,9 +982,10 @@ contains
         enddo
       else !}{
         ! the case of a single subdomain per processor:
-        call sum_with_interf(nnz, val, indi, indj, &
-                             nnz_interf, val_interf, indi_interf, indj_interf, &
-                             snnz, sval, sindi, sindj)
+        call sum_with_interf(nfreds, &
+             nnz, val, indi, indj, &
+             nnz_interf, val_interf, indi_interf, indj_interf, &
+             snnz, sval, sindi, sindj)
         nselind=nfreds
         selind(1:nselind)=(/ (i,i=1,nselind) /)
         subrhs(1:nselind)=rhs(selind(1:nselind))
@@ -1360,9 +1370,10 @@ contains
           enddo
         else !-} {-
           ! the case of a single subdomain per processor:
-          call sum_with_interf(nnz, val, indi, indj, &
-                               nnz_interf, val_interf, indi_interf, indj_interf, &
-                               snnz, sval, sindi, sindj)
+          call sum_with_interf(nfreds, &
+               nnz, val, indi, indj, &
+               nnz_interf, val_interf, indi_interf, indj_interf, &
+               snnz, sval, sindi, sindj)
           nselind=nfreds
           selind(1:nselind)=(/ (i,i=1,nselind) /)
           subrhs(1:nselind)=rhs(selind(1:nselind))
