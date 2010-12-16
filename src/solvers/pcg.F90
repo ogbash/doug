@@ -268,12 +268,14 @@ contains
     call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
                A_interf_=A_interf_, &
                refactor=refactor_) !fine solves 
+
     if (sctls%method>1) then ! For multiplicative Schwarz method...:
-       refactor_=.false.
-       call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
-                  A_interf_=A_interf_, &
-                  refactor=refactor_) !fine solves 
+      if (numprocs>1) call DOUG_abort('multiplicative Schwarz only for numprocs==1 so far',-1)
+      call multiplicative_sparse_multisolve(sol,A,M,rhs,res,A_interf_,refactor=refactor_)
+      refactor_=.false.
+      call multiplicative_sparse_multisolve(sol,A,M,rhs,res,A_interf_,refactor=refactor_) !fine solves 
     endif
+
   end subroutine preconditioner_1level
 
   subroutine prec2Level_exchangeMatrix(CoarseMtx_)
@@ -386,14 +388,23 @@ contains
       end if ! cdat%active
 
       ! first level prec
-      if (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL.or.numprocs>1) then
-        call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
+      if (sctls%method>1) then
+        if (numprocs>1) call DOUG_abort('multiplicative Schwarz only for numprocs==1 so far',-1)
+        if (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL.or.numprocs>1) then
+          call multiplicative_sparse_multisolve(sol,A,M,rhs,res,A_interf_,refactor=refactor_)
+        else
+          call multiplicative_sparse_multisolve(sol,A,M,rhs,res,A_interf_,CoarseMtx_,refactor_,Restrict)
+        end if
+      else 
+        if (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL.or.numprocs>1) then
+          call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
                         A_interf_=A_interf_, &
                         refactor=refactor_) !fine solves 
-      else
-        call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
+        else
+          call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
                         A_interf_=A_interf_,AC=CoarseMtx_, &
                         refactor=refactor_,Restrict=Restrict) !fine solves 
+        end if
       endif
 
       if (sctls%levels>1.and..not.cdat%active) then ! 1 processor case
@@ -484,12 +495,14 @@ contains
 
       if (sctls%method>1) then ! For multiplicative Schwarz method...:
         refactor_=.false.
+        if (numprocs>1) call DOUG_abort('multiplicative Schwarz only for numprocs==1 so far',-1)
+
         if (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL) then
-            call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
+            call multiplicative_sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
                           A_interf_=A_interf_, &
                           refactor=refactor_) !fine solves 
         else
-            call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
+            call multiplicative_sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
                           A_interf_=A_interf_,AC=CoarseMtx_, &
                           refactor=refactor_,Restrict=Restrict) !fine solves 
         endif 

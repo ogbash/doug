@@ -180,13 +180,6 @@ contains
     logical :: dofactorise
     integer :: sd
 
-    if (sctls%method>1) then
-      if (numprocs>1) then
-        call DOUG_abort('multiplicative Schwarz only for numprocs==1 so far',-1)
-      endif
-      call multiplicative_sparse_multisolve(sol,A,M,rhs,res,A_interf_,AC,refactor,Restrict)
-      return
-    endif
     if (present(refactor)) then
       if (refactor) then
         dofactorise=.true.
