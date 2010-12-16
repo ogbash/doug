@@ -2,6 +2,7 @@
 libdoug_la_SOURCES += \
 	datatypes/Aggregate_mod.F90 \
 	datatypes/Graph.f90 \
+	datatypes/Decomposition.f90 \
 	datatypes/Points2D.F90 \
 	datatypes/Polygon.F90 \
 	datatypes/Mesh.F90 \

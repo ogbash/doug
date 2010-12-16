@@ -29,6 +29,7 @@ module SpMtx_class
   use globals
   use DOUG_utils
   use Aggregate_mod
+  use decomposition_mod
 
   implicit none
 
@@ -151,14 +152,7 @@ module SpMtx_class
     type(Aggrs) :: expandedaggr !< aggr + neighbours' on overlap
     !> @}
 
-    !> \name Data associated with subsolves
-    !! @{
-
-    integer                          :: nsubsolves
-    !> \ingroup subsolve_ids
-    integer, dimension(:), pointer   :: subsolve_ids !< numeric object handles
-    type(indlist),dimension(:),pointer :: subd !< gives subdomain indeces for each subdomain
-    !> @}
+    type(Decomposition) :: DD !< domain decomposition for the space of the matrix
  end type SpMtx
 
 contains
@@ -199,9 +193,6 @@ contains
     ! arrange type
     M%arrange_type = D_SpMtx_ARRNG_NO
     M%M_bound => NULL()
-    M%nsubsolves = 0
-    M%subsolve_ids => NULL()
-    M%subd => NULL()
 
     ! permutation map
     M%perm_map => NULL()
@@ -213,6 +204,8 @@ contains
     M%strong_rowstart => NULL()
     M%strong_colnrs => NULL()
     M%diag => NULL()
+
+    M%DD = Decomposition_New()
   end function SpMtx_New
 
 !> \code
@@ -699,9 +692,10 @@ contains
     endif
     if (associated(M%M_bound)) deallocate(M%M_bound)
     M%arrange_type=0
-    if (associated(M%subsolve_ids)) deallocate(M%subsolve_ids)
-    if (associated(M%subd))    deallocate(M%subd)
+
+    call Decomposition_Destroy(M%DD)
   End Subroutine SpMtx_Destroy
+
 !> Function for coping sparse matrix
   Function SpMtx_Copy(IM) result(FM)
     Implicit None

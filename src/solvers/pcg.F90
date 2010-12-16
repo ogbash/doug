@@ -442,14 +442,14 @@ contains
                'factorising coarse matrix of size',CoarseMtx_%nrows, &
                ' and nnz:',CoarseMtx_%nnz
           call free_spmtx_subsolves(CoarseMtx_)
-          allocate(CoarseMtx_%subsolve_ids(1))
-          CoarseMtx_%subsolve_ids=0
-          CoarseMtx_%nsubsolves=1
+          allocate(CoarseMtx_%DD%subsolve_ids(1))
+          CoarseMtx_%DD%subsolve_ids=0
+          CoarseMtx_%DD%nsubsolves=1
         end if
 
         write (stream,*) "Coarse solve"
         ! Coarse solve
-        call sparse_singlesolve(CoarseMtx_%subsolve_ids(1),csol,crhs,&
+        call sparse_singlesolve(CoarseMtx_%DD%subsolve_ids(1),csol,crhs,&
              nfreds=CoarseMtx_%nrows, &
              nnz=CoarseMtx_%nnz,        &
              indi=CoarseMtx_%indi,      &

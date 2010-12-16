@@ -153,16 +153,16 @@ contains
     type(SpMtx) :: A
     integer :: sd
 
-    do sd=A%nsubsolves,1,-1
-      call Fact_Destroy(fakts(A%subsolve_ids(sd)))
-      if (associated(A%subd)) then
-        if (A%subd(sd)%ninds>0) A%subd(sd)%ninds=0
-        if (associated(A%subd(sd)%inds)) deallocate(A%subd(sd)%inds)
+    do sd=A%DD%nsubsolves,1,-1
+      call Fact_Destroy(fakts(A%DD%subsolve_ids(sd)))
+      if (associated(A%DD%subd)) then
+        if (A%DD%subd(sd)%ninds>0) A%DD%subd(sd)%ninds=0
+        if (associated(A%DD%subd(sd)%inds)) deallocate(A%DD%subd(sd)%inds)
       endif
     enddo
-    if (associated(A%subd)) deallocate(A%subd)
-    if (associated(A%subsolve_ids)) deallocate(A%subsolve_ids)
-    A%nsubsolves=0
+    if (associated(A%DD%subd)) deallocate(A%DD%subd)
+    if (associated(A%DD%subsolve_ids)) deallocate(A%DD%subsolve_ids)
+    A%DD%nsubsolves=0
   end subroutine free_spmtx_subsolves
 
   subroutine sparse_multisolve(sol,A,M,rhs,res,A_interf_,AC,refactor,Restrict)
@@ -196,20 +196,20 @@ contains
         if (factorised) then
           call free_spmtx_subsolves(A)
         endif
-        allocate(A%subsolve_ids(AC%fullaggr%nagr))
-        A%subsolve_ids=0
-        allocate(A%subd(AC%fullaggr%nagr+1))
+        allocate(A%DD%subsolve_ids(AC%fullaggr%nagr))
+        A%DD%subsolve_ids=0
+        allocate(A%DD%subd(AC%fullaggr%nagr+1))
         if (sctls%overlap<0) then ! autom. overlap from Restriction
           if (Restrict%arrange_type/=D_SpMtx_ARRNG_ROWS) then
             write (stream,*) 'Arranging Restrict to row storage format!'
             call SpMtx_arrange(Restrict,D_SpMtx_ARRNG_ROWS,sort=.false.)
           endif
           call multi_subsolve(               &
-                 nids=A%nsubsolves,          &
-                 ids=A%subsolve_ids,         &
+                 nids=A%DD%nsubsolves,          &
+                 ids=A%DD%subsolve_ids,         &
                  sol=sol,                    &
                  rhs=rhs,                    &
-                 subd=A%subd,                &
+                 subd=A%DD%subd,                &
                  nfreds=A%nrows,             &
                  nnz=A%nnz,                  &
                  indi=A%indi,                &
@@ -225,11 +225,11 @@ contains
                  nodes3=Restrict%indj)
         else
           call multi_subsolve(               &
-                 nids=A%nsubsolves,          &
-                 ids=A%subsolve_ids,         &
+                 nids=A%DD%nsubsolves,          &
+                 ids=A%DD%subsolve_ids,         &
                  sol=sol,                    &
                  rhs=rhs,                    &
-                 subd=A%subd,                &
+                 subd=A%DD%subd,                &
                  nfreds=A%nrows,             &
                  nnz=A%nnz,                  &
                  indi=A%indi,                &
@@ -244,16 +244,16 @@ contains
         endif
       else !}{ no coarse solves:
         A%fullaggr%nagr=1
-        A%nsubsolves=1
-        allocate(A%subsolve_ids(A%fullaggr%nagr))
-        A%subsolve_ids=0
-        allocate(A%subd(A%fullaggr%nagr+1))
+        A%DD%nsubsolves=1
+        allocate(A%DD%subsolve_ids(A%fullaggr%nagr))
+        A%DD%subsolve_ids=0
+        allocate(A%DD%subd(A%fullaggr%nagr+1))
         call multi_subsolve(               &
-                 nids=A%nsubsolves,          &
-                 ids=A%subsolve_ids,         &
+                 nids=A%DD%nsubsolves,          &
+                 ids=A%DD%subsolve_ids,         &
                  sol=sol,                    &
                  rhs=rhs,                    &
-                 subd=A%subd,                &
+                 subd=A%DD%subd,                &
                  nfreds=max(A%nrows,A_interf_%nrows),&
                  nnz=A%mtx_bbe(2,2),         &
                  indi=A%indi,                &
@@ -267,11 +267,11 @@ contains
       factorised=.true.
     else
       call multi_subsolve(           &
-             nids=A%nsubsolves,      &
-             ids=A%subsolve_ids,     &
+             nids=A%DD%nsubsolves,      &
+             ids=A%DD%subsolve_ids,     &
              sol=sol,                &
              rhs=rhs,                &
-             subd=A%subd)
+             subd=A%DD%subd)
     endif
   end subroutine sparse_multisolve
 
@@ -306,9 +306,9 @@ contains
         if (factorised) then
           call free_spmtx_subsolves(A)
         endif
-        allocate(A%subsolve_ids(AC%fullaggr%nagr))
-        A%subsolve_ids=0
-        allocate(A%subd(AC%fullaggr%nagr+1))
+        allocate(A%DD%subsolve_ids(AC%fullaggr%nagr))
+        A%DD%subsolve_ids=0
+        allocate(A%DD%subd(AC%fullaggr%nagr+1))
         if (sctls%overlap<0) then ! autom. overlap from Restriction
           if (Restrict%arrange_type/=D_SpMtx_ARRNG_ROWS) then
             write (stream,*) 'Arranging Restrict to row storage format!'
@@ -316,11 +316,11 @@ contains
           endif
           call multiplicative_multi_subsolve(&
                  A=A,M=M,                    &
-                 ids=A%subsolve_ids,         &
+                 ids=A%DD%subsolve_ids,         &
                  sol=sol,                    &
                  rhs=rhs,                    &
                  res=res,                    &
-                 subd=A%subd,                &
+                 subd=A%DD%subd,                &
                  nfreds=A%nrows,             &
                  nnz=A%nnz,                  &
                  indi=A%indi,                &
@@ -337,11 +337,11 @@ contains
         else
           call multiplicative_multi_subsolve(&
                  A=A,M=M,                    &
-                 ids=A%subsolve_ids,         &
+                 ids=A%DD%subsolve_ids,         &
                  sol=sol,                    &
                  rhs=rhs,                    &
                  res=res,                    &
-                 subd=A%subd,                &
+                 subd=A%DD%subd,                &
                  nfreds=A%nrows,             &
                  nnz=A%nnz,                  &
                  indi=A%indi,                &
@@ -357,11 +357,11 @@ contains
       else !}{ no coarse solves:
 !       if (present(A_interf_).or.sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED) then
         A%fullaggr%nagr=1
-        A%nsubsolves=1
+        A%DD%nsubsolves=1
 !       endif
-        allocate(A%subsolve_ids(A%fullaggr%nagr))
-        A%subsolve_ids=0
-        allocate(A%subd(A%fullaggr%nagr+1))
+        allocate(A%DD%subsolve_ids(A%fullaggr%nagr))
+        A%DD%subsolve_ids=0
+        allocate(A%DD%subd(A%fullaggr%nagr+1))
         if (present(A_interf_).and.A_interf_%nnz>0) then
           if (A%arrange_type/=D_SpMtx_ARRNG_ROWS) then
             write (stream,*) 'Arranging A to row storage format!'
@@ -376,11 +376,11 @@ contains
           endif
           call multiplicative_multi_subsolve(&
                  A=A,M=M,                    &
-                 ids=A%subsolve_ids,         &
+                 ids=A%DD%subsolve_ids,         &
                  sol=sol,                    &
                  rhs=rhs,                    &
                  res=res,                    &
-                 subd=A%subd,                &
+                 subd=A%DD%subd,                &
                  nfreds=max(A%nrows,A_interf_%nrows),&
                  nnz=A%nnz,                  &
                  indi=A%indi,                &
@@ -394,11 +394,11 @@ contains
           if (A%arrange_type==D_SpMtx_ARRNG_ROWS) then
             call multiplicative_multi_subsolve(&
                    A=A,M=M,                    &
-                   ids=A%subsolve_ids,         &
+                   ids=A%DD%subsolve_ids,         &
                    sol=sol,                    &
                    rhs=rhs,                    &
                    res=res,                    &
-                   subd=A%subd,                &
+                   subd=A%DD%subd,                &
                    nfreds=A%nrows,             &
                    nnz=A%mtx_bbe(2,2),         &
                    indi=A%indi,                &
@@ -407,11 +407,11 @@ contains
           else
             call multiplicative_multi_subsolve(&
                    A=A,M=M,                    &
-                   ids=A%subsolve_ids,         &
+                   ids=A%DD%subsolve_ids,         &
                    sol=sol,                    &
                    rhs=rhs,                    &
                    res=res,                    &
-                   subd=A%subd,                &
+                   subd=A%DD%subd,                &
                    nfreds=A%nrows,             &
                    nnz=A%mtx_bbe(2,2),         &
                    indi=A%indi,                &
@@ -427,11 +427,11 @@ contains
     else
       call multiplicative_multi_subsolve(&
              A=A,M=M,                    &
-             ids=A%subsolve_ids,         &
+             ids=A%DD%subsolve_ids,         &
              sol=sol,                    &
              rhs=rhs,                    &
              res=res,                    &
-             subd=A%subd)
+             subd=A%DD%subd)
     endif
   end subroutIne multiplicative_sparse_multisolve
 
@@ -1076,16 +1076,16 @@ contains
         !-----------------------------------------
         if (present(nagr2)) then ! Need still to collect together fine aggregates
           nids=nagr2
-          A%nsubsolves=nids
+          A%DD%nsubsolves=nids
           if (.not.present(nagr1)) then
             call DOUG_abort('[multi_subsolve] agr1 must be present!',-1)
           endif
         elseif (present(nagr1)) then ! form subdomains based on fine aggregates
           nids=nagr1
-          A%nsubsolves=nids
+          A%DD%nsubsolves=nids
         elseif (present(nnz_interf)) then ! form subdomains based on fine aggregates
           nids=1
-          A%nsubsolves=nids
+          A%DD%nsubsolves=nids
         endif
         if (.not.associated(subrhs)) then
           allocate(subrhs(nfreds)) ! todo: could be somewhat economised...
@@ -1390,7 +1390,7 @@ contains
         setuptime=setuptime+(MPI_WTIME()-t1) ! switchoff clock
       else ! perform backsolves:
         res=rhs
-        nids=A%nsubsolves
+        nids=A%DD%nsubsolves
         sol=0.0_rk
         if (.not.associated(subrhs)) then
           allocate(subrhs(maxval(subd(1:nids)%ninds)))
@@ -1418,14 +1418,14 @@ contains
       endif
       upward=.false. ! next time downward
     else
-      nids=A%nsubsolves
+      nids=A%DD%nsubsolves
       if (.not.associated(subrhs)) then
         allocate(subrhs(maxval(subd(1:nids)%ninds)))
       endif
       if (.not.associated(subsol)) then
         allocate(subsol(maxval(subd(1:nids)%ninds)))
       endif
-      nids=A%nsubsolves
+      nids=A%DD%nsubsolves
       ! now the other-way-round for symmetry:
       do sd=nids,1,-1
         n=subd(sd)%ninds
