@@ -28,6 +28,7 @@ module subsolvers
   use Fact_class
   use SpMtx_class
   use SpMtx_arrangement
+  use Decomposition_mod
   implicit none
 
 #include<doug_config.h>
@@ -242,6 +243,7 @@ contains
                  starts2=AC%fullaggr%starts, &
                  nodes2=AC%fullaggr%nodes)   
         endif
+
       else !}{ no coarse solves:
         A%fullaggr%nagr=1
         A%DD%nsubsolves=1
@@ -707,68 +709,10 @@ contains
       endif
       if (present(nagr2)) then !{
         if (present(starts3)) then !{
+          
           do agr2=1,nagr2 ! loop over Restriction TODO here!
-            floc=0
-            nselind=0
-            do agr1=starts2(agr2),starts2(agr2+1)-1 ! look through fine agrs.
-              nod2=nodes2(agr1) ! actual aggregate numbers
-              !do i=starts1(nod2),starts1(nod2+1)-1 ! loop over nodes in aggr.
-              do i=starts3(nod2),starts3(nod2+1)-1 ! loop over nodes in aggr.
-                nod1=nodes3(i) ! node number
-                if (floc(nod1)==0) then
-                  nselind=nselind+1
-                  floc(nod1)=nselind
-                  selind(nselind)=nod1
-                endif
-              enddo
-            enddo
-            ! now we have gathered information for subd agr2...
-            snnz=0
-            do i=1,nnz
-              ! todo:
-              !   need to be avoided going it all through again and again?
-              ! idea: to use linked-list arrays as in old DOUG
-              if (floc(indi(i))>0) then ! wheather in the subdomain?
-                if (floc(indj(i))>0) then
-                  snnz=snnz+1
-                  sindi(snnz)=floc(indi(i))
-                  sindj(snnz)=floc(indj(i))
-                  sval(snnz)=val(i)
-                elseif (sctls%overlap>1) then ! connection to the overlap
-                  snnz=snnz+1
-                  sindi(snnz)=floc(indi(i))
-                  if (floc(indj(i))==0) then ! at the overlap node the 1st time
-                    nselind=nselind+1
-                    selind(nselind)=indj(i)
-                    sindj(snnz)=nselind
-                    floc(indj(i))=-nselind
-                  else ! node already added to the overlap
-                    sindj(snnz)=-floc(indj(i))
-                  endif
-                  sval(snnz)=val(i)
-                !elseif (sctls%overlap==1) then
-                endif
-              endif
-            enddo
-            ! Overlap comes naturally here -- no special care
-            !                                           needed...
-            !!if (sctls%overlap>1) then ! connections from nodes on overlap
-            !!  do i=1,nnz
-            !!    if (floc(indi(i))<0) then ! from overlap
-            !!      if(floc(indj(i))>0) then ! to inner
-            !!        snnz=snnz+1
-            !!        sindi(snnz)=-floc(indi(i))
-            !!        sindj(snnz)=floc(indj(i))
-            !!        sval(snnz)=val(i)
-            !!      elseif(floc(indj(i))<0) then ! to overlap
-            !!        snnz=snnz+1
-            !!        sindi(snnz)=-floc(indi(i))
-            !!        sindj(snnz)=-floc(indj(i))
-            !!        sval(snnz)=val(i)
-            !!      endif
-            !!    endif
-            !!  enddo
-            !!endif
+            call Extract_from_aggregates(agr2, nselind, selind, snnz, sindi, sindj, sval, &
+                 nfreds, nnz, indi, indj, val, starts2, nodes2, starts3, nodes3)
             subrhs(1:nselind)=rhs(selind(1:nselind))
             if (nnz_est==0) then
               nnz_per_fred=snnz/nselind+1
