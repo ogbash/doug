@@ -181,6 +181,11 @@ contains
     logical :: dofactorise
     integer :: sd
 
+    integer,allocatable :: nodes(:)
+    real(kind=rk),pointer :: subrhs(:),subsol(:)
+    integer :: nnodes, nnodes_exp, cAggr
+    double precision :: t1
+
     if (present(refactor)) then
       if (refactor) then
         dofactorise=.true.
@@ -193,10 +198,14 @@ contains
       dofactorise=.false.
     endif
     if (dofactorise) then
+      setuptime=0.0_rk
+      factorisation_time=0.0_rk
+      t1 = MPI_WTime()
       if (present(AC)) then !{
         if (factorised) then
           call free_spmtx_subsolves(A)
         endif
+        A%DD%nsubsolves=AC%fullaggr%nagr
         allocate(A%DD%subsolve_ids(AC%fullaggr%nagr))
         A%DD%subsolve_ids=0
         allocate(A%DD%subd(AC%fullaggr%nagr+1))
@@ -225,23 +234,29 @@ contains
                  starts3=Restrict%M_bound,   &
                  nodes3=Restrict%indj)
         else
-          call multi_subsolve(               &
-                 nids=A%DD%nsubsolves,          &
-                 ids=A%DD%subsolve_ids,         &
-                 sol=sol,                    &
-                 rhs=rhs,                    &
-                 subd=A%DD%subd,                &
-                 nfreds=A%nrows,             &
-                 nnz=A%nnz,                  &
-                 indi=A%indi,                &
-                 indj=A%indj,                &
-                 val=A%val,                  &
-                 nagr1=A%fullaggr%nagr,      &
-                 starts1=A%fullaggr%starts,  &
-                 nodes1=A%fullaggr%nodes,    & 
-                 nagr2=AC%fullaggr%nagr,     &
-                 starts2=AC%fullaggr%starts, &
-                 nodes2=AC%fullaggr%nodes)   
+          call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS,sort=.false.)
+          allocate(nodes(A%nrows))
+          allocate(subrhs(A%nrows),subsol(A%nrows))
+          sol = 0
+          do cAggr=1,AC%fullaggr%nagr ! loop over coarse aggregates
+            call Get_aggregate_nodes(cAggr,AC%fullaggr,A%fullaggr,A%nrows,nodes,nnodes)
+            call Add_layers(A%m_bound,A%indj,nodes,nnodes,sctls%overlap,nnodes_exp)
+
+            setuptime=setuptime+(MPI_WTIME()-t1) ! switchoff clock
+            call Factorise_subdomain(A,nodes(1:nnodes_exp),A%DD%subsolve_ids(cAggr))
+            t1 = MPI_WTIME() ! switchon clock
+
+            ! keep indlist:
+            allocate(A%DD%subd(cAggr)%inds(nnodes_exp))
+            A%DD%subd(cAggr)%ninds=nnodes_exp
+            A%DD%subd(cAggr)%inds(1:nnodes_exp)=nodes(1:nnodes_exp)
+
+            subrhs(1:nnodes_exp)=rhs(nodes(1:nnodes_exp))
+            call Fact_solve(fakts(A%DD%subsolve_ids(cAggr)),subrhs,subsol)
+            sol(nodes(1:nnodes_exp))=sol(nodes(1:nnodes_exp))+subsol(1:nnodes_exp)
+            setuptime=setuptime+(MPI_WTIME()-t1) ! switchoff clock
+          enddo
+          deallocate(subrhs,subsol)
         endif
 
       else !}{ no coarse solves:
@@ -276,6 +291,41 @@ contains
              subd=A%DD%subd)
     endif
   end subroutine sparse_multisolve
+
+  subroutine factorise_subdomain(A,nodes,id)
+    type(SpMtx),intent(in) :: A !< matrix
+    integer,intent(in) :: nodes(:) !< subdomain nodes
+    integer,intent(out) :: id
+    
+    integer :: snnz,i,node
+    integer,dimension(:),allocatable :: floc,sindi,sindj
+    real(kind=rk),dimension(:),allocatable :: sval
+
+    ! create global 2 local array for the subdomain
+    allocate(floc(A%nrows))
+    floc=0
+    do i=1,size(nodes)
+      node=nodes(i) ! node number
+      floc(node)=i
+    enddo
+
+    ! now we have gathered information for subdomain
+    allocate(sindi(A%nnz),sindj(A%nnz),sval(A%nnz))
+    snnz=0
+    do i=1,A%nnz
+      ! todo:
+      !   need to be avoided going it all through again and again?
+      ! idea: to use linked-list arrays as in old DOUG
+      if (floc(A%indi(i))>0.and.floc(A%indj(i))>0) then ! wheather in the subdomain?
+        snnz=snnz+1
+        sindi(snnz)=floc(A%indi(i))
+        sindj(snnz)=floc(A%indj(i))
+        sval(snnz)=A%val(i)
+      endif
+    enddo
+
+    call factorise(id,size(nodes),snnz,sindi,sindj,sval)
+  end subroutine factorise_subdomain
 
   subroutine multiplicative_sparse_multisolve(sol,A,M,rhs,res,A_interf_,AC,refactor,Restrict)
     use SpMtx_class
@@ -623,7 +673,7 @@ contains
     nnz_interf,indi_interf,indj_interf,val_interf, &
     nagr1,starts1,nodes1, & ! fine level aggregate list
     nagr2,starts2,nodes2, & ! coarse level aggregate list
-    starts3,nodes3)         ! restrict op. starts & nodelist
+    starts3,nodes3)        ! restrict op. starts & nodelist
     !use SpMtx_class, only: indlist
 !chk use SpMtx_util
     implicit none
@@ -659,7 +709,7 @@ contains
     !chk integer,dimension(:),allocatable,save :: vsindi,vsindj ! selected indeces
     
     if (present(nagr1).or.present(nagr2).or.&
-        present(val).or.present(nnz_interf)) then
+         present(val).or.present(nnz_interf)) then
       dofactorise=.true.
     else
       dofactorise=.false.
@@ -733,99 +783,6 @@ contains
             subd(agr2)%inds(1:nselind)=selind(1:nselind)
           enddo
         else !}{
-          do agr2=1,nagr2 ! loop over coarse aggregates
-            floc=0
-            nselind=0
-            do agr1=starts2(agr2),starts2(agr2+1)-1 ! look through fine agrs.
-              nod2=nodes2(agr1) ! actual aggregate numbers
-              do i=starts1(nod2),starts1(nod2+1)-1 ! loop over nodes in aggr.
-                nod1=nodes1(i) ! node number
-                if (floc(nod1)==0) then
-                  nselind=nselind+1
-                  floc(nod1)=nselind
-                  selind(nselind)=nod1
-                endif
-              enddo
-            enddo
-            ! now we have gathered information for subd agr2...
-            snnz=0
-            do i=1,nnz
-              ! todo:
-              !   need to be avoided going it all through again and again?
-              ! idea: to use linked-list arrays as in old DOUG
-              if (floc(indi(i))>0) then ! wheather in the subdomain?
-                if (floc(indj(i))>0) then
-                  snnz=snnz+1
-                  sindi(snnz)=floc(indi(i))
-                  sindj(snnz)=floc(indj(i))
-                  sval(snnz)=val(i)
-                elseif (sctls%overlap>1) then ! connection to the overlap
-                  snnz=snnz+1
-                  sindi(snnz)=floc(indi(i))
-                  if (floc(indj(i))==0) then ! at the overlap node the 1st time
-                    nselind=nselind+1
-                    selind(nselind)=indj(i)
-                    sindj(snnz)=nselind
-                    floc(indj(i))=-nselind
-                  else ! node already added to the overlap
-                    sindj(snnz)=-floc(indj(i))
-                  endif
-                  sval(snnz)=val(i)
-                !elseif (sctls%overlap==1) then
-                endif
-              endif
-            enddo
-            if (sctls%overlap>1) then ! connections from nodes on overlap
-              do i=1,nnz
-                if (floc(indi(i))<0) then ! from overlap
-                  if(floc(indj(i))>0) then ! to inner
-                    snnz=snnz+1
-                    sindi(snnz)=-floc(indi(i))
-                    sindj(snnz)=floc(indj(i))
-                    sval(snnz)=val(i)
-                  elseif(floc(indj(i))<0) then ! to overlap
-                    snnz=snnz+1
-                    sindi(snnz)=-floc(indi(i))
-                    sindj(snnz)=-floc(indj(i))
-                    sval(snnz)=val(i)
-                  endif
-                endif
-              enddo
-            endif
-            !do i=1,nselind
-            !  subrhs(i)=rhs(selind(i))
-            !enddo 
-            subrhs(1:nselind)=rhs(selind(1:nselind))
-            !print *,agr2,'sindi=',sindi(1:snnz)
-            !print *,agr2,'sindj=',sindj(1:snnz)
-            !print *,agr2,'sval=',sval(1:snnz)
-            if (nnz_est==0) then
-              nnz_per_fred=snnz/nselind+1
-              nnz_est=nfreds*nnz_per_fred
-            endif
-            if (agr2<10.or.agr2>nagr2-10) then
-              write(stream,*)'Subd.',agr2,' size,nnz:',nselind,snnz,&
-                ' #fine_aggrs:',starts2(agr2+1)-starts2(agr2)
-            endif
-            setuptime=setuptime+(MPI_WTIME()-t1) ! switchoff clock
-
-            call factorise_and_solve(ids(agr2),subsol,subrhs,nselind,snnz,sindi,sindj,sval)
-
-            t1 = MPI_WTIME() ! switch on clock
-            !do i=1,nselind
-            !  j=selind(i)
-            !  sol(j)=sol(j)+subsol(i)
-            !enddo 
-            !sol(selind(1:nselind))=subsol(1:nselind)
-            sol(selind(1:nselind))=sol(selind(1:nselind))+subsol(1:nselind)
-            ! keep indlist:
-            !allocate(subd(ids(agr2))%inds(nselind))
-            !subd(ids(agr2))%ninds=nselind
-            !subd(ids(agr2))%inds(1:nselind)=selind(1:nselind)
-            allocate(subd(agr2)%inds(nselind))
-            subd(agr2)%ninds=nselind
-            subd(agr2)%inds(1:nselind)=selind(1:nselind)
-          enddo
         endif !}
       elseif (present(nagr1).and.associated(starts1)) then !}{
         do agr1=1,nagr1 ! look through fine agrs.
