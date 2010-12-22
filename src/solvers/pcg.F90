@@ -28,6 +28,8 @@ module pcg_mod
   use SpMtx_mods
   use Mesh_class
   use globals
+  use subsolvers
+  use subsolvers_mult
 
   implicit none
 
@@ -243,7 +245,6 @@ contains
   end subroutine pcg
 
   subroutine preconditioner_1level(sol,A,rhs,M,res,A_interf_,refactor_)
-    use subsolvers
     implicit none
     real(kind=rk),dimension(:),pointer :: sol !< solution
     type(SpMtx)                        :: A   !< sparse system matrix
@@ -302,7 +303,6 @@ contains
   !-------------------------------
   subroutine preconditioner(sol,A,rhs,M, &
                A_interf_,CoarseMtx_,Restrict,refactor_,bugtrack_)
-    use subsolvers
     use CoarseMtx_mod
     use CoarseAllgathers
     use Vect_mod
