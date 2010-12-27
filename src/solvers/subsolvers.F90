@@ -253,7 +253,7 @@ contains
     integer,dimension(:),allocatable :: floc,sindi,sindj
     real(kind=rk),dimension(:),allocatable :: sval
 
-    ! create global 2 local array for the subdomain
+    ! create global to local array for the subdomain
     allocate(floc(A%nrows))
     floc=0
     do i=1,size(nodes)
