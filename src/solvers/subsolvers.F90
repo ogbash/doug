@@ -160,7 +160,7 @@ contains
     logical,intent(in),optional :: refactor
     ! ----- local: ------
     logical :: dofactorise
-    integer :: sd
+    integer :: sd,n,i
 
     integer,allocatable :: nodes(:)
     real(kind=rk),pointer :: subrhs(:),subsol(:)
@@ -178,6 +178,9 @@ contains
       setuptime=0.0_rk
       factorisation_time=0.0_rk
       t1 = MPI_WTime()
+      allocate(nodes(A%nrows))
+      allocate(subrhs(A%nrows),subsol(A%nrows))
+
       if (present(AC)) then !{
         A%DD%nsubsolves=AC%fullaggr%nagr
         allocate(A%DD%subsolve_ids(AC%fullaggr%nagr))
@@ -189,8 +192,6 @@ contains
           ol = sctls%overlap
         endif
         call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS,sort=.false.)
-        allocate(nodes(A%nrows))
-        allocate(subrhs(A%nrows),subsol(A%nrows))
         sol = 0
         do cAggr=1,AC%fullaggr%nagr ! loop over coarse aggregates
           call Get_aggregate_nodes(cAggr,AC%fullaggr,A%fullaggr,A%nrows,nodes,nnodes)
@@ -213,69 +214,209 @@ contains
         deallocate(subrhs,subsol)
 
       else !}{ no coarse solves:
+        nnodes_exp = max(A%nrows,A_interf_%nrows)
         A%fullaggr%nagr=1
         A%DD%nsubsolves=1
         allocate(A%DD%subsolve_ids(A%fullaggr%nagr))
         A%DD%subsolve_ids=0
         allocate(A%DD%subd(A%fullaggr%nagr+1))
-        call multi_subsolve(               &
-                 nids=A%DD%nsubsolves,          &
-                 ids=A%DD%subsolve_ids,         &
-                 sol=sol,                    &
-                 rhs=rhs,                    &
-                 subd=A%DD%subd,                &
-                 nfreds=max(A%nrows,A_interf_%nrows),&
-                 nnz=A%mtx_bbe(2,2),         &
-                 indi=A%indi,                &
-                 indj=A%indj,                &
-                 val=A%val,                  &
-                 nnz_interf=A_interf_%nnz,   &
-                 indi_interf=A_interf_%indi, &
-                 indj_interf=A_interf_%indj, &
-                 val_interf=A_interf_%val)
+        nodes(1:nnodes_exp)=(/ (i,i=1,nnodes_exp) /)
+
+        setuptime=setuptime+(MPI_WTIME()-t1) ! switchoff clock
+        call Factorise_subdomain(A,nodes(1:nnodes_exp),A%DD%subsolve_ids(1),A_interf_)
+        t1 = MPI_WTIME() ! switchon clock
+
+        ! keep indlist:
+        allocate(A%DD%subd(1)%inds(nnodes_exp))
+        A%DD%subd(1)%ninds=nnodes_exp
+        A%DD%subd(1)%inds(1:nnodes_exp)=nodes(1:nnodes_exp)
+        
+        allocate(subrhs(maxval(A%DD%subd(1:A%DD%nsubsolves)%ninds)))
+        allocate(subsol(maxval(A%DD%subd(1:A%DD%nsubsolves)%ninds)))
+        subrhs(1:nnodes_exp)=rhs(nodes(1:nnodes_exp))
+        call Fact_solve(fakts(A%DD%subsolve_ids(1)),subrhs,subsol)
+        sol(nodes(1:nnodes_exp))=sol(nodes(1:nnodes_exp))+subsol(1:nnodes_exp)
+        setuptime=setuptime+(MPI_WTIME()-t1) ! switchoff clock
       endif !}
     else
-      call multi_subsolve(           &
-             nids=A%DD%nsubsolves,      &
-             ids=A%DD%subsolve_ids,     &
-             sol=sol,                &
-             rhs=rhs,                &
-             subd=A%DD%subd)
+      allocate(subrhs(maxval(A%DD%subd(1:A%DD%nsubsolves)%ninds)))
+      allocate(subsol(maxval(A%DD%subd(1:A%DD%nsubsolves)%ninds)))
+      do sd=1,A%DD%nsubsolves
+        n=A%DD%subd(sd)%ninds
+        subrhs(1:n)=rhs(A%DD%subd(sd)%inds(1:n))
+        call factorise_and_solve(A%DD%subsolve_ids(sd),subsol,subrhs,n)
+        sol(A%DD%subd(sd)%inds(1:n))=sol(A%DD%subd(sd)%inds(1:n))+subsol(1:n)
+      enddo
+      deallocate(subrhs,subsol)
     endif
   end subroutine sparse_multisolve
 
-  subroutine factorise_subdomain(A,nodes,id)
+  subroutine multi_subsolve(nids,ids,sol,rhs,subd,nfreds,nnz,indi,indj,val, &
+    nnz_interf,indi_interf,indj_interf,val_interf)
+    !use SpMtx_class, only: indlist
+!chk use SpMtx_util
+    implicit none
+    integer,intent(inout) :: nids
+    integer,dimension(:),pointer :: ids
+    real(kind=rk),dimension(:),pointer :: sol,rhs
+    type(indlist),dimension(:),pointer :: subd
+    integer,intent(in),optional :: nfreds
+    integer,intent(in),optional :: nnz
+    integer,dimension(:),intent(in),optional :: indi,indj
+    real(kind=rk),dimension(:),optional :: val
+    integer,intent(in),optional :: nnz_interf
+    integer,dimension(:),intent(in),optional :: indi_interf,indj_interf
+    real(kind=rk),dimension(:),optional :: val_interf
+    ! ----- local: ------
+    integer :: i,ii,n,nod1,nod2,sd,agr1,agr2,snnz,nnz_per_fred
+    integer,save :: nnz_est=0
+    integer :: nselind ! number of selected indeces
+    integer,dimension(:),allocatable :: floc ! freedom location in selind array
+    integer,dimension(:),allocatable :: selind ! selected indeces
+    integer,dimension(:),allocatable :: sindi,sindj ! selected indeces
+    real(kind=rk),dimension(:),allocatable :: sval ! selected values
+    real(kind=rk),dimension(:),pointer :: subrhs,subsol
+    real(kind=rk) :: t1
+    logical :: dofactorise
+
+
+    !chk real(kind=rk),dimension(:),pointer,save :: vmp,vsval
+    !chk integer,dimension(:),allocatable,save :: vsindi,vsindj ! selected indeces
+    
+    if (present(val).or.present(nnz_interf)) then
+      dofactorise=.true.
+    else
+      dofactorise=.false.
+    endif
+    if (dofactorise) then
+      if (present(nnz_interf)) then ! form subdomains based on fine aggregates
+        !maxnfacts=1
+        nids=1
+      endif
+      !allocate(subd(maxnfacts))
+      if (.not.associated(subrhs)) then
+        allocate(subrhs(nfreds)) ! todo: could be somewhat economised...
+      endif
+      if (.not.associated(subsol)) then
+        allocate(subsol(nfreds))
+      endif
+      setuptime=0.0_rk
+      factorisation_time=0.0_rk
+      t1 = MPI_WTIME()
+      nselind=0
+      if (.not.present(nfreds)) then
+        call DOUG_abort('[multi_subsolve] nfreds must be present!',-1)
+      endif
+      allocate(floc(nfreds))
+      allocate(selind(nfreds))
+      if (present(nnz_interf)) then
+        allocate(sindi(nnz+nnz_interf)) ! todo: this is in most cases far too much
+        allocate(sindj(nnz+nnz_interf))
+        allocate(sval(nnz+nnz_interf))
+      else
+        allocate(sindi(nnz)) ! todo: this is in most cases far too much
+        allocate(sindj(nnz))
+        allocate(sval(nnz))
+      endif
+      ! the case of a single subdomain per processor:
+      call sum_with_interf(nfreds, &
+           nnz, val, indi, indj, &
+           nnz_interf, val_interf, indi_interf, indj_interf, &
+           snnz, sval, sindi, sindj)
+      nselind=nfreds
+      selind(1:nselind)=(/ (i,i=1,nselind) /)
+      subrhs(1:nselind)=rhs(selind(1:nselind))
+      setuptime=setuptime+(MPI_WTIME()-t1) ! switchoff clock
+      call factorise_and_solve(ids(1),subsol,subrhs,nselind,snnz,sindi,sindj,sval)
+      t1 = MPI_WTIME() ! switch on clock
+      sol(selind(1:nselind))=sol(selind(1:nselind))+subsol(1:nselind)
+      ! keep indlist:
+      allocate(subd(1)%inds(nselind))
+      subd(1)%ninds=nselind
+      subd(1)%inds(1:nselind)=selind(1:nselind)
+      deallocate(sval)
+      deallocate(sindj)
+      deallocate(sindi)
+      deallocate(selind)
+      deallocate(floc)
+      setuptime=setuptime+(MPI_WTIME()-t1) ! switchoff clock
+    else ! perform backsolves:
+      if (.not.associated(subrhs)) then
+        allocate(subrhs(maxval(subd(1:nids)%ninds)))
+      endif
+      if (.not.associated(subsol)) then
+        allocate(subsol(maxval(subd(1:nids)%ninds)))
+      endif
+      do sd=1,nids
+        n=subd(sd)%ninds
+        subrhs(1:n)=rhs(subd(sd)%inds(1:n))
+
+        call factorise_and_solve(ids(sd),subsol,subrhs,n)
+
+        !sol(subd(sd)%inds(1:n))=subsol(1:n)
+        sol(subd(sd)%inds(1:n))=sol(subd(sd)%inds(1:n))+subsol(1:n)
+      enddo
+    endif
+    if (associated(subsol)) deallocate(subsol)
+    if (associated(subrhs)) deallocate(subrhs)
+  end subroutine multi_subsolve
+
+  subroutine factorise_subdomain(A,nodes,id,A_ghost)
     type(SpMtx),intent(in) :: A !< matrix
     integer,intent(in) :: nodes(:) !< subdomain nodes
     integer,intent(out) :: id
+    type(SpMtx),intent(in),optional :: A_ghost !< ghost matrix values
     
-    integer :: snnz,i,node
+    integer :: snnz,i,node,nnz,nnodes
     integer,dimension(:),allocatable :: floc,sindi,sindj
     real(kind=rk),dimension(:),allocatable :: sval
 
+    if(present(A_ghost)) then
+      allocate(floc(max(A%nrows,A_ghost%nrows)))
+      nnz = A%nnz+A_ghost%nnz
+    else 
+      allocate(floc(A%nrows))
+      nnz = A%nnz
+    endif
+    nnodes = size(nodes)
+
     ! create global to local array for the subdomain
-    allocate(floc(A%nrows))
     floc=0
-    do i=1,size(nodes)
+    do i=1,nnodes
       node=nodes(i) ! node number
       floc(node)=i
     enddo
 
     ! now we have gathered information for subdomain
-    allocate(sindi(A%nnz),sindj(A%nnz),sval(A%nnz))
+    allocate(sindi(nnz),sindj(nnz),sval(nnz))
     snnz=0
     do i=1,A%nnz
       ! todo:
       !   need to be avoided going it all through again and again?
       ! idea: to use linked-list arrays as in old DOUG
-      if (floc(A%indi(i))>0.and.floc(A%indj(i))>0) then ! wheather in the subdomain?
-        snnz=snnz+1
-        sindi(snnz)=floc(A%indi(i))
-        sindj(snnz)=floc(A%indj(i))
-        sval(snnz)=A%val(i)
+      if (A%indi(i)<=nnodes.and.A%indj(i)<=nnodes) then
+        if (floc(A%indi(i))>0.and.floc(A%indj(i))>0) then ! wheather in the subdomain?
+          snnz=snnz+1
+          sindi(snnz)=floc(A%indi(i))
+          sindj(snnz)=floc(A%indj(i))
+          sval(snnz)=A%val(i)
+        endif
       endif
     enddo
 
+    ! do the same for the ghost matrix
+    if(present(A_ghost)) then
+      do i=1,A_ghost%nnz
+        if (floc(A_ghost%indi(i))>0.and.floc(A_ghost%indj(i))>0) then ! wheather in the subdomain?
+          snnz=snnz+1
+          sindi(snnz)=floc(A_ghost%indi(i))
+          sindj(snnz)=floc(A_ghost%indj(i))
+          sval(snnz)=A_ghost%val(i)
+        endif
+      enddo
+    end if
+
+    ! factorise
     call factorise(id,size(nodes),snnz,sindi,sindj,sval)
   end subroutine factorise_subdomain
 
@@ -460,116 +601,6 @@ contains
       enddo
     endif
   end subroutine exact_multi_subsmooth
-
-  subroutine multi_subsolve(nids,ids,sol,rhs,subd,nfreds,nnz,indi,indj,val, &
-    nnz_interf,indi_interf,indj_interf,val_interf)
-    !use SpMtx_class, only: indlist
-!chk use SpMtx_util
-    implicit none
-    integer,intent(inout) :: nids
-    integer,dimension(:),pointer :: ids
-    real(kind=rk),dimension(:),pointer :: sol,rhs
-    type(indlist),dimension(:),pointer :: subd
-    integer,intent(in),optional :: nfreds
-    integer,intent(in),optional :: nnz
-    integer,dimension(:),intent(in),optional :: indi,indj
-    real(kind=rk),dimension(:),optional :: val
-    integer,intent(in),optional :: nnz_interf
-    integer,dimension(:),intent(in),optional :: indi_interf,indj_interf
-    real(kind=rk),dimension(:),optional :: val_interf
-    ! ----- local: ------
-    integer :: i,ii,n,nod1,nod2,sd,agr1,agr2,snnz,nnz_per_fred
-    integer,save :: nnz_est=0
-    integer :: nselind ! number of selected indeces
-    integer,dimension(:),allocatable :: floc ! freedom location in selind array
-    integer,dimension(:),allocatable :: selind ! selected indeces
-    integer,dimension(:),allocatable :: sindi,sindj ! selected indeces
-    real(kind=rk),dimension(:),allocatable :: sval ! selected values
-    real(kind=rk),dimension(:),pointer :: subrhs,subsol
-    real(kind=rk) :: t1
-    logical :: dofactorise
-
-
-    !chk real(kind=rk),dimension(:),pointer,save :: vmp,vsval
-    !chk integer,dimension(:),allocatable,save :: vsindi,vsindj ! selected indeces
-    
-    if (present(val).or.present(nnz_interf)) then
-      dofactorise=.true.
-    else
-      dofactorise=.false.
-    endif
-    if (dofactorise) then
-      if (present(nnz_interf)) then ! form subdomains based on fine aggregates
-        !maxnfacts=1
-        nids=1
-      endif
-      !allocate(subd(maxnfacts))
-      if (.not.associated(subrhs)) then
-        allocate(subrhs(nfreds)) ! todo: could be somewhat economised...
-      endif
-      if (.not.associated(subsol)) then
-        allocate(subsol(nfreds))
-      endif
-      setuptime=0.0_rk
-      factorisation_time=0.0_rk
-      t1 = MPI_WTIME()
-      nselind=0
-      if (.not.present(nfreds)) then
-        call DOUG_abort('[multi_subsolve] nfreds must be present!',-1)
-      endif
-      allocate(floc(nfreds))
-      allocate(selind(nfreds))
-      if (present(nnz_interf)) then
-        allocate(sindi(nnz+nnz_interf)) ! todo: this is in most cases far too much
-        allocate(sindj(nnz+nnz_interf))
-        allocate(sval(nnz+nnz_interf))
-      else
-        allocate(sindi(nnz)) ! todo: this is in most cases far too much
-        allocate(sindj(nnz))
-        allocate(sval(nnz))
-      endif
-      ! the case of a single subdomain per processor:
-      call sum_with_interf(nfreds, &
-           nnz, val, indi, indj, &
-           nnz_interf, val_interf, indi_interf, indj_interf, &
-           snnz, sval, sindi, sindj)
-      nselind=nfreds
-      selind(1:nselind)=(/ (i,i=1,nselind) /)
-      subrhs(1:nselind)=rhs(selind(1:nselind))
-      setuptime=setuptime+(MPI_WTIME()-t1) ! switchoff clock
-      call factorise_and_solve(ids(1),subsol,subrhs,nselind,snnz,sindi,sindj,sval)
-      t1 = MPI_WTIME() ! switch on clock
-      sol(selind(1:nselind))=sol(selind(1:nselind))+subsol(1:nselind)
-      ! keep indlist:
-      allocate(subd(1)%inds(nselind))
-      subd(1)%ninds=nselind
-      subd(1)%inds(1:nselind)=selind(1:nselind)
-      deallocate(sval)
-      deallocate(sindj)
-      deallocate(sindi)
-      deallocate(selind)
-      deallocate(floc)
-      setuptime=setuptime+(MPI_WTIME()-t1) ! switchoff clock
-    else ! perform backsolves:
-      if (.not.associated(subrhs)) then
-        allocate(subrhs(maxval(subd(1:nids)%ninds)))
-      endif
-      if (.not.associated(subsol)) then
-        allocate(subsol(maxval(subd(1:nids)%ninds)))
-      endif
-      do sd=1,nids
-        n=subd(sd)%ninds
-        subrhs(1:n)=rhs(subd(sd)%inds(1:n))
-
-        call factorise_and_solve(ids(sd),subsol,subrhs,n)
-
-        !sol(subd(sd)%inds(1:n))=subsol(1:n)
-        sol(subd(sd)%inds(1:n))=sol(subd(sd)%inds(1:n))+subsol(1:n)
-      enddo
-    endif
-    if (associated(subsol)) deallocate(subsol)
-    if (associated(subrhs)) deallocate(subrhs)
-  end subroutine multi_subsolve
 
   subroutine sparse_singlesolve(id,sol,rhs,nfreds,nnz,indi,indj,val,tot_nfreds,nnz_est)
     ! For adding a new factorised matrix id must be 0.
