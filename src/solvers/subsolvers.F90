@@ -51,103 +51,6 @@ module subsolvers
 
 contains
 
-  subroutine sum_with_interf(nfreds, &
-       nnz, val, indi, indj, &
-       nnz_interf, val_interf, indi_interf, indj_interf, &
-       snnz, sval, sindi, sindj)
-    implicit none
-    integer,intent(in) :: nnz, nfreds
-    real(kind=rk),dimension(:) :: val
-    integer,dimension(:) :: indi,indj
-    integer,intent(in),optional :: nnz_interf
-    real(kind=rk),dimension(:),optional :: val_interf
-    integer,dimension(:),optional :: indi_interf,indj_interf
-    integer,intent(out) :: snnz
-    real(kind=rk),dimension(:) :: sval
-    integer,dimension(:) :: sindi,sindj
-    integer :: i, ii
-    type(SpMtx) :: TmpA ! temporary sparse matrix to sort the entries
-
-    if (numprocs==1.or..not.present(nnz_interf)) then 
-      snnz=0
-      do i=1,nnz
-        snnz=snnz+1
-        sindi(snnz)=indi(i)
-        sindj(snnz)=indj(i)
-        sval(snnz)=val(i)
-      enddo
-    else
-      TmpA = SpMtx_newInit(nnz,nrows=nfreds,indi=indi(1:nnz),indj=indj(1:nnz),val=val(1:nnz))
-      call SpMtx_arrange(TmpA,sort=.true.)
-      indi(1:nnz) = TmpA%indi; indj(1:nnz) = TmpA%indj; val(1:nnz) = TmpA%val
-      call SpMtx_destroy(TmpA)
-      
-      i=1;ii=1
-      snnz=0
-      do while (i<=nnz.or.ii<=nnz_interf)
-        snnz=snnz+1
-        ! checking, that the entries are sorted...:
-        if (i>1.and.i<=nnz) then
-          if (indi(i-1)==indi(i)) then
-            if (indj(i-1)>indj(i)) then
-              write (stream,*)'indi__indj:',indi(i),indj(i)
-              call DOUG_abort('solvers/subsolvers.f90 -- order error A',-1)
-            endif
-          endif
-        endif
-        if (ii>1.and.ii<=nnz_interf) then
-          if (indi_interf(ii-1)==indi_interf(ii)) then
-            if (indj_interf(ii-1)>indj_interf(ii)) then
-              call DOUG_abort('solvers/subsolvers.f90 -- order error B',-1)
-            endif
-          endif
-        endif
-        ! ...checking the order...
-        if (i<=nnz.and.ii<=nnz_interf) then
-          if (indi(i)==indi_interf(ii)) then
-            if (indj(i)==indj_interf(ii)) then
-              sindi(snnz)=indi(i)
-              sindj(snnz)=indj(i)
-              sval(snnz)=val(i)+val_interf(ii)
-              i=i+1
-              ii=ii+1
-            elseif (indj(i)<indj_interf(ii)) then
-              sindi(snnz)=indi(i)
-              sindj(snnz)=indj(i)
-              sval(snnz)=val(i)
-              i=i+1
-            else !(indj(i)>indj_interf(ii))
-              sindi(snnz)=indi_interf(ii)
-              sindj(snnz)=indj_interf(ii)
-              sval(snnz)=val_interf(ii)
-              ii=ii+1
-            endif
-          elseif (indi(i)<indi_interf(ii)) then
-            sindi(snnz)=indi(i)
-            sindj(snnz)=indj(i)
-            sval(snnz)=val(i)
-            i=i+1
-          else !(indi(i)>indi_interf(ii))
-            sindi(snnz)=indi_interf(ii)
-            sindj(snnz)=indj_interf(ii)
-            sval(snnz)=val_interf(ii)
-            ii=ii+1
-          endif
-        elseif (i<=nnz) then ! continue until the end
-          sindi(snnz)=indi(i)
-          sindj(snnz)=indj(i)
-          sval(snnz)=val(i)
-          i=i+1
-        else !(ii<=nnz_interf) ! continue until the end
-          sindi(snnz)=indi_interf(ii)
-          sindj(snnz)=indj_interf(ii)
-          sval(snnz)=val_interf(ii)
-          ii=ii+1
-        endif
-      enddo
-    endif
-  end subroutine sum_with_interf
-
   subroutine sparse_multisolve(sol,A,M,rhs,res,A_interf_,AC,refactor,Restrict)
     use SpMtx_class
     use SpMtx_arrangement
@@ -178,7 +81,12 @@ contains
       setuptime=0.0_rk
       factorisation_time=0.0_rk
       t1 = MPI_WTime()
-      allocate(nodes(A%nrows))
+      if (present(A_interf_)) then
+        nnodes = max(A%nrows, A_interf_%nrows)
+      else
+        nnodes = A%nrows
+      end if
+      allocate(nodes(nnodes))
       allocate(subrhs(A%nrows),subsol(A%nrows))
 
       if (present(AC)) then !{
@@ -214,7 +122,7 @@ contains
         deallocate(subrhs,subsol)
 
       else !}{ no coarse solves:
-        nnodes_exp = max(A%nrows,A_interf_%nrows)
+        nnodes_exp = nnodes
         A%fullaggr%nagr=1
         A%DD%nsubsolves=1
         allocate(A%DD%subsolve_ids(A%fullaggr%nagr))
@@ -250,116 +158,6 @@ contains
       deallocate(subrhs,subsol)
     endif
   end subroutine sparse_multisolve
-
-  subroutine multi_subsolve(nids,ids,sol,rhs,subd,nfreds,nnz,indi,indj,val, &
-    nnz_interf,indi_interf,indj_interf,val_interf)
-    !use SpMtx_class, only: indlist
-!chk use SpMtx_util
-    implicit none
-    integer,intent(inout) :: nids
-    integer,dimension(:),pointer :: ids
-    real(kind=rk),dimension(:),pointer :: sol,rhs
-    type(indlist),dimension(:),pointer :: subd
-    integer,intent(in),optional :: nfreds
-    integer,intent(in),optional :: nnz
-    integer,dimension(:),intent(in),optional :: indi,indj
-    real(kind=rk),dimension(:),optional :: val
-    integer,intent(in),optional :: nnz_interf
-    integer,dimension(:),intent(in),optional :: indi_interf,indj_interf
-    real(kind=rk),dimension(:),optional :: val_interf
-    ! ----- local: ------
-    integer :: i,ii,n,nod1,nod2,sd,agr1,agr2,snnz,nnz_per_fred
-    integer,save :: nnz_est=0
-    integer :: nselind ! number of selected indeces
-    integer,dimension(:),allocatable :: floc ! freedom location in selind array
-    integer,dimension(:),allocatable :: selind ! selected indeces
-    integer,dimension(:),allocatable :: sindi,sindj ! selected indeces
-    real(kind=rk),dimension(:),allocatable :: sval ! selected values
-    real(kind=rk),dimension(:),pointer :: subrhs,subsol
-    real(kind=rk) :: t1
-    logical :: dofactorise
-
-
-    !chk real(kind=rk),dimension(:),pointer,save :: vmp,vsval
-    !chk integer,dimension(:),allocatable,save :: vsindi,vsindj ! selected indeces
-    
-    if (present(val).or.present(nnz_interf)) then
-      dofactorise=.true.
-    else
-      dofactorise=.false.
-    endif
-    if (dofactorise) then
-      if (present(nnz_interf)) then ! form subdomains based on fine aggregates
-        !maxnfacts=1
-        nids=1
-      endif
-      !allocate(subd(maxnfacts))
-      if (.not.associated(subrhs)) then
-        allocate(subrhs(nfreds)) ! todo: could be somewhat economised...
-      endif
-      if (.not.associated(subsol)) then
-        allocate(subsol(nfreds))
-      endif
-      setuptime=0.0_rk
-      factorisation_time=0.0_rk
-      t1 = MPI_WTIME()
-      nselind=0
-      if (.not.present(nfreds)) then
-        call DOUG_abort('[multi_subsolve] nfreds must be present!',-1)
-      endif
-      allocate(floc(nfreds))
-      allocate(selind(nfreds))
-      if (present(nnz_interf)) then
-        allocate(sindi(nnz+nnz_interf)) ! todo: this is in most cases far too much
-        allocate(sindj(nnz+nnz_interf))
-        allocate(sval(nnz+nnz_interf))
-      else
-        allocate(sindi(nnz)) ! todo: this is in most cases far too much
-        allocate(sindj(nnz))
-        allocate(sval(nnz))
-      endif
-      ! the case of a single subdomain per processor:
-      call sum_with_interf(nfreds, &
-           nnz, val, indi, indj, &
-           nnz_interf, val_interf, indi_interf, indj_interf, &
-           snnz, sval, sindi, sindj)
-      nselind=nfreds
-      selind(1:nselind)=(/ (i,i=1,nselind) /)
-      subrhs(1:nselind)=rhs(selind(1:nselind))
-      setuptime=setuptime+(MPI_WTIME()-t1) ! switchoff clock
-      call factorise_and_solve(ids(1),subsol,subrhs,nselind,snnz,sindi,sindj,sval)
-      t1 = MPI_WTIME() ! switch on clock
-      sol(selind(1:nselind))=sol(selind(1:nselind))+subsol(1:nselind)
-      ! keep indlist:
-      allocate(subd(1)%inds(nselind))
-      subd(1)%ninds=nselind
-      subd(1)%inds(1:nselind)=selind(1:nselind)
-      deallocate(sval)
-      deallocate(sindj)
-      deallocate(sindi)
-      deallocate(selind)
-      deallocate(floc)
-      setuptime=setuptime+(MPI_WTIME()-t1) ! switchoff clock
-    else ! perform backsolves:
-      if (.not.associated(subrhs)) then
-        allocate(subrhs(maxval(subd(1:nids)%ninds)))
-      endif
-      if (.not.associated(subsol)) then
-        allocate(subsol(maxval(subd(1:nids)%ninds)))
-      endif
-      do sd=1,nids
-        n=subd(sd)%ninds
-        subrhs(1:n)=rhs(subd(sd)%inds(1:n))
-
-        call factorise_and_solve(ids(sd),subsol,subrhs,n)
-
-        !sol(subd(sd)%inds(1:n))=subsol(1:n)
-        sol(subd(sd)%inds(1:n))=sol(subd(sd)%inds(1:n))+subsol(1:n)
-      enddo
-    endif
-    if (associated(subsol)) deallocate(subsol)
-    if (associated(subrhs)) deallocate(subrhs)
-  end subroutine multi_subsolve
 
   subroutine factorise_subdomain(A,nodes,id,A_ghost)
     type(SpMtx),intent(in) :: A !< matrix

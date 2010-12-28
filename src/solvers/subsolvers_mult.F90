@@ -2,6 +2,103 @@ module subsolvers_mult
   use subsolvers
   implicit none
 contains
+  subroutine sum_with_interf(nfreds, &
+       nnz, val, indi, indj, &
+       nnz_interf, val_interf, indi_interf, indj_interf, &
+       snnz, sval, sindi, sindj)
+    implicit none
+    integer,intent(in) :: nnz, nfreds
+    real(kind=rk),dimension(:) :: val
+    integer,dimension(:) :: indi,indj
+    integer,intent(in),optional :: nnz_interf
+    real(kind=rk),dimension(:),optional :: val_interf
+    integer,dimension(:),optional :: indi_interf,indj_interf
+    integer,intent(out) :: snnz
+    real(kind=rk),dimension(:) :: sval
+    integer,dimension(:) :: sindi,sindj
+    integer :: i, ii
+    type(SpMtx) :: TmpA ! temporary sparse matrix to sort the entries
+
+    if (numprocs==1.or..not.present(nnz_interf)) then 
+      snnz=0
+      do i=1,nnz
+        snnz=snnz+1
+        sindi(snnz)=indi(i)
+        sindj(snnz)=indj(i)
+        sval(snnz)=val(i)
+      enddo
+    else
+      TmpA = SpMtx_newInit(nnz,nrows=nfreds,indi=indi(1:nnz),indj=indj(1:nnz),val=val(1:nnz))
+      call SpMtx_arrange(TmpA,sort=.true.)
+      indi(1:nnz) = TmpA%indi; indj(1:nnz) = TmpA%indj; val(1:nnz) = TmpA%val
+      call SpMtx_destroy(TmpA)
+      
+      i=1;ii=1
+      snnz=0
+      do while (i<=nnz.or.ii<=nnz_interf)
+        snnz=snnz+1
+        ! checking, that the entries are sorted...:
+        if (i>1.and.i<=nnz) then
+          if (indi(i-1)==indi(i)) then
+            if (indj(i-1)>indj(i)) then
+              write (stream,*)'indi__indj:',indi(i),indj(i)
+              call DOUG_abort('solvers/subsolvers.f90 -- order error A',-1)
+            endif
+          endif
+        endif
+        if (ii>1.and.ii<=nnz_interf) then
+          if (indi_interf(ii-1)==indi_interf(ii)) then
+            if (indj_interf(ii-1)>indj_interf(ii)) then
+              call DOUG_abort('solvers/subsolvers.f90 -- order error B',-1)
+            endif
+          endif
+        endif
+        ! ...checking the order...
+        if (i<=nnz.and.ii<=nnz_interf) then
+          if (indi(i)==indi_interf(ii)) then
+            if (indj(i)==indj_interf(ii)) then
+              sindi(snnz)=indi(i)
+              sindj(snnz)=indj(i)
+              sval(snnz)=val(i)+val_interf(ii)
+              i=i+1
+              ii=ii+1
+            elseif (indj(i)<indj_interf(ii)) then
+              sindi(snnz)=indi(i)
+              sindj(snnz)=indj(i)
+              sval(snnz)=val(i)
+              i=i+1
+            else !(indj(i)>indj_interf(ii))
+              sindi(snnz)=indi_interf(ii)
+              sindj(snnz)=indj_interf(ii)
+              sval(snnz)=val_interf(ii)
+              ii=ii+1
+            endif
+          elseif (indi(i)<indi_interf(ii)) then
+            sindi(snnz)=indi(i)
+            sindj(snnz)=indj(i)
+            sval(snnz)=val(i)
+            i=i+1
+          else !(indi(i)>indi_interf(ii))
+            sindi(snnz)=indi_interf(ii)
+            sindj(snnz)=indj_interf(ii)
+            sval(snnz)=val_interf(ii)
+            ii=ii+1
+          endif
+        elseif (i<=nnz) then ! continue until the end
+          sindi(snnz)=indi(i)
+          sindj(snnz)=indj(i)
+          sval(snnz)=val(i)
+          i=i+1
+        else !(ii<=nnz_interf) ! continue until the end
+          sindi(snnz)=indi_interf(ii)
+          sindj(snnz)=indj_interf(ii)
+          sval(snnz)=val_interf(ii)
+          ii=ii+1
+        endif
+      enddo
+    endif
+  end subroutine sum_with_interf
+
   subroutine free_spmtx_subsolves(A)
     use SpMtx_class
     implicit none
