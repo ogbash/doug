@@ -77,6 +77,7 @@ contains
         dofactorise=.false.
       endif
     endif
+    sol = 0
     if (dofactorise) then
       setuptime=0.0_rk
       factorisation_time=0.0_rk
@@ -100,7 +101,6 @@ contains
           ol = sctls%overlap
         endif
         call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS,sort=.false.)
-        sol = 0
         do cAggr=1,AC%fullaggr%nagr ! loop over coarse aggregates
           call Get_aggregate_nodes(cAggr,AC%fullaggr,A%fullaggr,A%nrows,nodes,nnodes)
           call Add_layers(A%m_bound,A%indj,nodes,nnodes,ol,nnodes_exp)
@@ -165,15 +165,17 @@ contains
     integer,intent(out) :: id
     type(SpMtx),intent(in),optional :: A_ghost !< ghost matrix values
     
-    integer :: snnz,i,node,nnz,nnodes
+    integer :: snnz,i,node,nnz,nnodes,nallnodes
     integer,dimension(:),allocatable :: floc,sindi,sindj
     real(kind=rk),dimension(:),allocatable :: sval
 
     if(present(A_ghost)) then
-      allocate(floc(max(A%nrows,A_ghost%nrows)))
+      nallnodes = max(A%nrows,A_ghost%nrows)
+      allocate(floc(nallnodes))
       nnz = A%nnz+A_ghost%nnz
     else 
-      allocate(floc(A%nrows))
+      nallnodes = A%nrows
+      allocate(floc(nallnodes))
       nnz = A%nnz
     endif
     nnodes = size(nodes)
@@ -192,7 +194,7 @@ contains
       ! todo:
       !   need to be avoided going it all through again and again?
       ! idea: to use linked-list arrays as in old DOUG
-      if (A%indi(i)<=nnodes.and.A%indj(i)<=nnodes) then
+      if (A%indi(i)<=nallnodes.and.A%indj(i)<=nallnodes) then
         if (floc(A%indi(i))>0.and.floc(A%indj(i))>0) then ! wheather in the subdomain?
           snnz=snnz+1
           sindi(snnz)=floc(A%indi(i))
@@ -215,7 +217,7 @@ contains
     end if
 
     ! factorise
-    call factorise(id,size(nodes),snnz,sindi,sindj,sval)
+    call factorise(id,nnodes,snnz,sindi,sindj,sval)
   end subroutine factorise_subdomain
 
   subroutine exact_sparse_multismoother(sol,A,rhs)
