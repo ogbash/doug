@@ -27,12 +27,36 @@ contains
     if (associated(DD%subd))    deallocate(DD%subd)
   end subroutine Decomposition_Destroy
 
+  !> Get node numbers of a domain.
+  subroutine Get_nodes(iDomain, eptnmap, nodes, nnodes)
+    integer, intent(in) :: iDomain !< domain number
+    integer, dimension(:), intent(in) :: eptnmap !< element to partition map
+    integer,intent(inout) :: nodes(:)
+    integer,intent(out) :: nnodes
+    
+    integer i, inode
+
+    ! count number of nodes in the domain
+    nnodes = count(eptnmap==iDomain)
+    write(stream,*)  "...",nnodes
+
+    inode = 0
+    do i=1,size(eptnmap)
+      if (eptnmap(i)==iDomain) then
+         inode = inode+1
+         nodes(inode) = i
+      end if
+    end do
+    
+  end subroutine Get_nodes
+
+  !> Get coarse aggregate node numbers (which are also domain node numbers).
   subroutine Get_aggregate_nodes(cAggr, cAggrs, fAggrs, maxnodes, nodes, nnodes)
     integer,intent(in) :: cAggr
     type(Aggrs),intent(in) :: cAggrs
     type(Aggrs),intent(in) :: fAggrs
     integer,intent(in) :: maxnodes
-    integer,intent(out) :: nodes(:)
+    integer,intent(inout) :: nodes(:)
     integer,intent(out) :: nnodes
 
     integer,dimension(:),allocatable :: nodeLoc ! node location in nodes array
