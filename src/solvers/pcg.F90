@@ -279,83 +279,55 @@ contains
 
   end subroutine preconditioner_1level
 
-  subroutine prec2Level_exchangeMatrix(CoarseMtx_)
+  subroutine prec2Level(prepare,A,sol,rhs,res,CoarseMtx_,Restrict,isFirstIter)
     use CoarseAllgathers
-    type(SpMtx) :: CoarseMtx_ !< Coarse matrix
-    integer :: ol
-    logical :: add
 
-    ol=max(sctls%overlap,sctls%smoothers)
-    if (ol==0) then
-      add=.false.
-    else
-      add=.true.
-    endif
-
-    call AllSendCoarseMtx(cdat%LAC,CoarseMtx_,cdat%lg_cfmap,&
-         cdat%ngfc,cdat%nprocs,cdat%send)
-    call AllRecvCoarseMtx(CoarseMtx_,cdat%send,add=add) ! Recieve it
-
-  end subroutine prec2Level_exchangeMatrix
-
-  !-------------------------------
-  !> Make preconditioner
-  !-------------------------------
-  subroutine preconditioner(sol,A,rhs,M, &
-               A_interf_,CoarseMtx_,Restrict,refactor_,bugtrack_)
-    use CoarseMtx_mod
-    use CoarseAllgathers
-    use Vect_mod
-    implicit none
+    logical, intent(in) :: prepare
+    type(SpMtx)  :: A   !< sparse system matrix
     real(kind=rk),dimension(:),pointer :: sol !< solution
-    type(SpMtx)                        :: A   !< sparse system matrix
     real(kind=rk),dimension(:),pointer :: rhs !< right hand side
-    type(Mesh),intent(in)              :: M   !< Mesh
-    real(kind=rk),dimension(:),pointer :: res !< residual vector, allocated
-                                              !! here for multiplicative Schwarz
-    type(SpMtx),optional               :: A_interf_  !< matr@interf.
-    type(SpMtx),optional               :: CoarseMtx_ !< Coarse matrix
-    type(SpMtx),optional               :: Restrict   !< Restriction matrix
-    logical,intent(inout),optional :: refactor_
-    logical,optional                   :: bugtrack_
-    ! ----- local: ------
-    real(kind=rk),dimension(:),pointer,save :: csol,crhs,tmpsol,tmpsol2,clrhs
-    integer :: i,ol
-    logical :: add,bugtrack
-    real(kind=rk) :: t1
+    real(kind=rk),dimension(:),pointer :: res !< residual vector
+    type(SpMtx) :: CoarseMtx_ !< Coarse matrix
+    type(SpMtx) :: Restrict   !< Restriction matrix
     logical :: isFirstIter
 
-    t1 = MPI_WTime()
+    real(kind=rk),dimension(:),pointer,save :: csol,crhs,clrhs,tmpsol2,tmpsol
+    integer :: ol
 
-    if (present(bugtrack_)) then
-      bugtrack=bugtrack_
-    else
-      bugtrack=.false.
-    endif
-    ! ----------------------------
-    isFirstIter = .false.
-    if (present(refactor_)) isFirstIter = refactor_
     ol=max(sctls%overlap,sctls%smoothers)
 
-    if (sctls%method==0) then
-      sol=rhs
-      return
-    endif
-    sol=0.0_rk
-    if (sctls%method>1) then ! For multiplicative Schwarz method...:
-      allocate(res(size(rhs)))
-    endif
-    if (present(CoarseMtx_)) then !{
-      write(stream,*) "Coarse matrix is present in preconditioner"
-      if (.not.present(Restrict)) call DOUG_abort("Restriction matrix needs to be passed along with the coarse matrix!")
+    if (prepare) then
+      call prec2Level_prepare()
+    else
+      call prec2Level_solve()
+    end if
+  
+  contains
+    subroutine prec2Level_exchangeMatrix()
+      integer :: ol
+      logical :: add
 
-      if (isFirstIter.and.cdat%active) then
-        ! First iteration - send matrix
-        call prec2Level_exchangeMatrix(CoarseMtx_)
-      end if
+      ol=max(sctls%overlap,sctls%smoothers)
+      if (ol==0) then
+        add=.false.
+      else
+        add=.true.
+      endif
 
-      ! after coarse matrix is received allocate coarse vectors
-      if (isFirstIter.and.sctls%levels>1) then
+      call AllSendCoarseMtx(cdat%LAC,CoarseMtx_,cdat%lg_cfmap,&
+           cdat%ngfc,cdat%nprocs,cdat%send)
+      call AllRecvCoarseMtx(CoarseMtx_,cdat%send,add=add) ! Recieve it
+
+    end subroutine prec2Level_exchangeMatrix
+
+    subroutine prec2Level_prepare()
+      if (isFirstIter) then
+        if (cdat%active) then
+          ! First iteration - send matrix
+          call prec2Level_exchangeMatrix()
+        end if
+
+        ! after coarse matrix is received allocate coarse vectors
         if (associated(crhs)) then
           if (size(crhs)/=CoarseMtx_%ncols) then
             deallocate(csol)
@@ -369,6 +341,7 @@ contains
         endif
         allocate(clrhs(Restrict%nrows)) ! allocate memory for vector
       end if
+
       if (.not.associated(tmpsol)) then
         !allocate(tmpsol(A%nrows))
         allocate(tmpsol(size(rhs)))
@@ -386,27 +359,10 @@ contains
                cdat%send,useprev=.not.isFirstIter)
         endif
       end if ! cdat%active
+    end subroutine prec2Level_prepare
 
-      ! first level prec
-      if (sctls%method>1) then
-        if (numprocs>1) call DOUG_abort('multiplicative Schwarz only for numprocs==1 so far',-1)
-        if (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL.or.numprocs>1) then
-          call multiplicative_sparse_multisolve(sol,A,M,rhs,res,A_interf_,refactor=refactor_)
-        else
-          call multiplicative_sparse_multisolve(sol,A,M,rhs,res,A_interf_,CoarseMtx_,refactor_,Restrict)
-        end if
-      else 
-        if (isFirstIter) then
-          if (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL.or.numprocs>1) then
-            call Factorise_subdomains(A,A_interf_)
-          else
-            call Factorise_subdomains(A,AC=CoarseMtx_)
-          end if
-        end if
-        call solve_subdomains(sol,A,rhs)
-      endif
-
-      if (sctls%levels>1.and..not.cdat%active) then ! 1 processor case
+    subroutine prec2Level_solve()
+      if (.not.cdat%active) then ! 1 processor case
         if (sctls%smoothers==-1) then
           allocate(tmpsol2(A%nrows))
           tmpsol2=0.0_rk
@@ -435,62 +391,142 @@ contains
         !call MPI_BARRIER(MPI_COMM_WORLD,i)
       end if
 
-      if (sctls%levels>1) then
-        if (isFirstIter) then
-          write (stream,*) &
-               'factorising coarse matrix of size',CoarseMtx_%nrows, &
-               ' and nnz:',CoarseMtx_%nnz
-          call free_spmtx_subsolves(CoarseMtx_)
-          allocate(CoarseMtx_%DD%subsolve_ids(1))
-          CoarseMtx_%DD%subsolve_ids=0
-          CoarseMtx_%DD%nsubsolves=1
-        end if
+      if (isFirstIter) then
+        write (stream,*) &
+             'factorising coarse matrix of size',CoarseMtx_%nrows, &
+             ' and nnz:',CoarseMtx_%nnz
+        call free_spmtx_subsolves(CoarseMtx_)
+        allocate(CoarseMtx_%DD%subsolve_ids(1))
+        CoarseMtx_%DD%subsolve_ids=0
+        CoarseMtx_%DD%nsubsolves=1
+      end if
 
-        write (stream,*) "Coarse solve"
-        ! Coarse solve
-        call sparse_singlesolve(CoarseMtx_%DD%subsolve_ids(1),csol,crhs,&
-             nfreds=CoarseMtx_%nrows, &
-             nnz=CoarseMtx_%nnz,        &
-             indi=CoarseMtx_%indi,      &
-             indj=CoarseMtx_%indj,      &
-             val=CoarseMtx_%val)
-        if (bugtrack)write(stream,*) "(f) Coarse SOL is:",csol
-        if (isFirstIter) then
-          CoarseMtx_%indi=CoarseMtx_%indi+1
-          CoarseMtx_%indj=CoarseMtx_%indj+1
-        end if
+      write (stream,*) "Coarse solve"
+      ! Coarse solve
+      call sparse_singlesolve(CoarseMtx_%DD%subsolve_ids(1),csol,crhs,&
+           nfreds=CoarseMtx_%nrows, &
+           nnz=CoarseMtx_%nnz,        &
+           indi=CoarseMtx_%indi,      &
+           indj=CoarseMtx_%indj,      &
+           val=CoarseMtx_%val)
+      if (isFirstIter) then
+        CoarseMtx_%indi=CoarseMtx_%indi+1
+        CoarseMtx_%indj=CoarseMtx_%indj+1
+      end if
 
-        if (cdat_vec%active) then
-          call Vect_remap(csol,clrhs,cdat_vec%gl_cfmap,dozero=.true.)
-          call SpMtx_Ax(tmpsol,Restrict,clrhs,dozero=.true.,transp=.true.)
-        elseif (cdat%active) then
-          call Vect_remap(csol,clrhs,cdat%gl_cfmap,dozero=.true.)
-          call SpMtx_Ax(tmpsol,Restrict,clrhs,dozero=.true.,transp=.true.)
+      if (cdat_vec%active) then
+        call Vect_remap(csol,clrhs,cdat_vec%gl_cfmap,dozero=.true.)
+        call SpMtx_Ax(tmpsol,Restrict,clrhs,dozero=.true.,transp=.true.)
+      elseif (cdat%active) then
+        call Vect_remap(csol,clrhs,cdat%gl_cfmap,dozero=.true.)
+        call SpMtx_Ax(tmpsol,Restrict,clrhs,dozero=.true.,transp=.true.)
+      else
+        if (sctls%smoothers==-1) then
+          call SpMtx_Ax(tmpsol2,Restrict,csol,dozero=.true.,transp=.true.) ! interpolation
+          tmpsol=0.0_rk
+          call exact_sparse_multismoother(tmpsol,A,tmpsol2)
         else
-          if (sctls%smoothers==-1) then
-            call SpMtx_Ax(tmpsol2,Restrict,csol,dozero=.true.,transp=.true.) ! interpolation
-            tmpsol=0.0_rk
-            call exact_sparse_multismoother(tmpsol,A,tmpsol2)
-          else
-            call SpMtx_Ax(tmpsol,Restrict,csol,dozero=.true.,transp=.true.) ! interpolation
-          endif
+          call SpMtx_Ax(tmpsol,Restrict,csol,dozero=.true.,transp=.true.) ! interpolation
         endif
+      endif
 
-        if (sctls%method==1) then
-           !call Print_Glob_Vect(sol,M,'sol===',chk_endind=M%ninner)
-           sol(1:A%nrows)=sol(1:A%nrows)+tmpsol(1:A%nrows)
-        elseif (sctls%method==3) then ! fully multiplicative Schwarz
-           sol(1:A%nrows)=sol(1:A%nrows)+tmpsol(1:A%nrows)
-           ! calculate the residual:
-           call SpMtx_Ax(res,A,sol,dozero=.true.) ! 
-           res=rhs-res
-        elseif (sctls%method==2.and.ol>0) then ! fully multiplicative Schwarz
-           sol(1:A%nrows)=tmpsol(1:A%nrows)
-           ! calculate the residual:
-           call SpMtx_Ax(res,A,sol,dozero=.true.) ! 
-           res=rhs-res
-        endif
-      endif !}
+      if (sctls%method==1) then
+        !call Print_Glob_Vect(sol,M,'sol===',chk_endind=M%ninner)
+        sol(1:A%nrows)=sol(1:A%nrows)+tmpsol(1:A%nrows)
+      elseif (sctls%method==3) then ! fully multiplicative Schwarz
+        sol(1:A%nrows)=sol(1:A%nrows)+tmpsol(1:A%nrows)
+        ! calculate the residual:
+        call SpMtx_Ax(res,A,sol,dozero=.true.) ! 
+        res=rhs-res
+      elseif (sctls%method==2.and.ol>0) then ! fully multiplicative Schwarz
+        sol(1:A%nrows)=tmpsol(1:A%nrows)
+        ! calculate the residual:
+        call SpMtx_Ax(res,A,sol,dozero=.true.) ! 
+        res=rhs-res
+      endif
+      if (((ol==0.and.sctls%method==2).or.sctls%method==5).and.sctls%levels>1) then 
+        ! multiplicative on fine level, additive with coarse level: 
+        sol(1:A%nrows)=sol(1:A%nrows)+tmpsol(1:A%nrows)
+      endif
+    end subroutine prec2Level_solve
+
+  end subroutine prec2Level
+
+  !-------------------------------
+  !> Make preconditioner
+  !-------------------------------
+  subroutine preconditioner(sol,A,rhs,M, &
+               A_interf_,CoarseMtx_,Restrict,refactor_,bugtrack_)
+    use CoarseAllgathers
+    use CoarseMtx_mod
+    use Vect_mod
+    implicit none
+    real(kind=rk),dimension(:),pointer :: sol !< solution
+    type(SpMtx)                        :: A   !< sparse system matrix
+    real(kind=rk),dimension(:),pointer :: rhs !< right hand side
+    type(Mesh),intent(in)              :: M   !< Mesh
+    real(kind=rk),dimension(:),pointer :: res !< residual vector, allocated
+                                              !! here for multiplicative Schwarz
+    type(SpMtx),optional               :: A_interf_  !< matr@interf.
+    type(SpMtx),optional               :: CoarseMtx_ !< Coarse matrix
+    type(SpMtx),optional               :: Restrict   !< Restriction matrix
+    logical,intent(inout),optional :: refactor_
+    logical,optional                   :: bugtrack_
+    ! ----- local: ------
+    integer :: i
+    logical :: add,bugtrack
+    real(kind=rk) :: t1
+    logical :: isFirstIter
+
+    t1 = MPI_WTime()
+
+    if (present(bugtrack_)) then
+      bugtrack=bugtrack_
+    else
+      bugtrack=.false.
+    endif
+    ! ----------------------------
+    isFirstIter = .false.
+    if (present(refactor_)) isFirstIter = refactor_
+
+    if (sctls%method==0) then
+      sol=rhs
+      return
+    endif
+    sol=0.0_rk
+    if (sctls%method>1) then ! For multiplicative Schwarz method...:
+      allocate(res(size(rhs)))
+    endif
+    if (present(CoarseMtx_)) then !{
+      write(stream,*) "Coarse matrix is present in preconditioner"
+      if (.not.present(Restrict)) call DOUG_abort("Restriction matrix needs to be passed along with the coarse matrix!")
+      
+      if (sctls%levels>1) then
+        call prec2Level(.true.,A,sol,rhs,res,CoarseMtx_,Restrict,isFirstIter)
+      end if      
+
+      ! first level prec
+      if (sctls%method>1) then
+        if (numprocs>1) call DOUG_abort('multiplicative Schwarz only for numprocs==1 so far',-1)
+        if (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL.or.numprocs>1) then
+          call multiplicative_sparse_multisolve(sol,A,M,rhs,res,A_interf_,refactor=refactor_)
+        else
+          call multiplicative_sparse_multisolve(sol,A,M,rhs,res,A_interf_,CoarseMtx_,refactor_,Restrict)
+        end if
+      else 
+        if (isFirstIter) then
+          if (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL.or.numprocs>1) then
+            call Factorise_subdomains(A,A_interf_)
+          else
+            call Factorise_subdomains(A,AC=CoarseMtx_)
+          end if
+        end if
+        call solve_subdomains(sol,A,rhs)
+      endif
+
+      if (sctls%levels>1) then
+        call prec2Level(.false.,A,sol,rhs,res,CoarseMtx_,Restrict,isFirstIter)
+      end if      
 
       if (sctls%method>1) then ! For multiplicative Schwarz method...:
         refactor_=.false.
@@ -505,10 +541,6 @@ contains
                           A_interf_=A_interf_,AC=CoarseMtx_, &
                           refactor=refactor_,Restrict=Restrict) !fine solves 
         endif 
-      endif
-      if (((ol==0.and.sctls%method==2).or.sctls%method==5).and.sctls%levels>1) then 
-        ! multiplicative on fine level, additive with coarse level: 
-        sol(1:A%nrows)=sol(1:A%nrows)+tmpsol(1:A%nrows)
       endif
     else !}{
       write(stream,*) "Coarse matrix is not present in preconditioner"
