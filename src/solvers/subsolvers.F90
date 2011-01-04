@@ -51,33 +51,14 @@ module subsolvers
 
 contains
 
-  subroutine sparse_multisolve(sol,A,M,rhs,res,A_interf_,AC,refactor,Restrict)
-    use SpMtx_class
-    use SpMtx_arrangement
+  subroutine solve_subdomains(sol,A,rhs)
     type(SpMtx),intent(inout) :: A
-    type(Mesh),intent(in)              :: M ! Mesh
-    type(SpMtx),optional :: Restrict
-    real(kind=rk),dimension(:),pointer :: sol,rhs,res
-    type(SpMtx),optional :: A_interf_ ! 
-    type(SpMtx),optional :: AC ! is supplied to indicate coarse aggregates
-    logical,intent(in),optional :: refactor
+    real(kind=rk),dimension(:),pointer :: sol,rhs
     ! ----- local: ------
     logical :: dofactorise
     integer :: sd,n
 
     real(kind=rk),pointer :: subrhs(:),subsol(:)
-
-    if (present(refactor)) then
-      if (refactor) then
-        dofactorise=.true.
-      else
-        dofactorise=.false.
-      endif
-    endif
-    sol = 0
-    if (dofactorise) then
-      call Factorise_subdomains(A,A_interf_,AC)
-    endif
 
     ! solve
     allocate(subrhs(maxval(A%DD%subd(1:A%DD%nsubsolves)%ninds)))
@@ -85,12 +66,12 @@ contains
     do sd=1,A%DD%nsubsolves
       n=A%DD%subd(sd)%ninds
       subrhs(1:n)=rhs(A%DD%subd(sd)%inds(1:n))
-      call factorise_and_solve(A%DD%subsolve_ids(sd),subsol,subrhs,n)
+      call Fact_solve(fakts(A%DD%subsolve_ids(sd)),subrhs,subsol)
       sol(A%DD%subd(sd)%inds(1:n))=sol(A%DD%subd(sd)%inds(1:n))+subsol(1:n)
     enddo
     deallocate(subrhs,subsol)
 
-  end subroutine sparse_multisolve
+  end subroutine solve_subdomains
 
   subroutine factorise_subdomains(A,A_interf_,AC)
     type(SpMtx),intent(inout) :: A

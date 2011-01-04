@@ -265,10 +265,10 @@ contains
           call SpMtx_printRaw(A_interf_)
           !stop
        endif
+       call Factorise_subdomains(A,A_interf_)
+       refactor_=.false.
     end if
-    call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
-               A_interf_=A_interf_, &
-               refactor=refactor_) !fine solves 
+    call solve_subdomains(sol,A,rhs)
 
     if (sctls%method>1) then ! For multiplicative Schwarz method...:
       if (numprocs>1) call DOUG_abort('multiplicative Schwarz only for numprocs==1 so far',-1)
@@ -396,15 +396,14 @@ contains
           call multiplicative_sparse_multisolve(sol,A,M,rhs,res,A_interf_,CoarseMtx_,refactor_,Restrict)
         end if
       else 
-        if (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL.or.numprocs>1) then
-          call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
-                        A_interf_=A_interf_, &
-                        refactor=refactor_) !fine solves 
-        else
-          call sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
-                        A_interf_=A_interf_,AC=CoarseMtx_, &
-                        refactor=refactor_,Restrict=Restrict) !fine solves 
+        if (isFirstIter) then
+          if (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL.or.numprocs>1) then
+            call Factorise_subdomains(A,A_interf_)
+          else
+            call Factorise_subdomains(A,AC=CoarseMtx_)
+          end if
         end if
+        call solve_subdomains(sol,A,rhs)
       endif
 
       if (sctls%levels>1.and..not.cdat%active) then ! 1 processor case
