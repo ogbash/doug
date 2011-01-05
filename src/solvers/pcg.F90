@@ -244,7 +244,7 @@ contains
     if (associated(arr_copy)) deallocate(arr_copy)
   end subroutine pcg
 
-  subroutine preconditioner_1level(sol,A,rhs,M,res,A_interf_,refactor_)
+  subroutine prec1Level(sol,A,rhs,M,res,A_interf_,CoarseMtx_,Restrict,refactor_)
     implicit none
     real(kind=rk),dimension(:),pointer :: sol !< solution
     type(SpMtx)                        :: A   !< sparse system matrix
@@ -253,31 +253,39 @@ contains
     real(kind=rk),dimension(:),pointer :: res !< residual vector, allocated
                                               !! here for multiplicative Schwarz
     type(SpMtx),optional               :: A_interf_  !< matr@interf.
-    logical,intent(inout),optional :: refactor_
+    type(SpMtx),optional               :: CoarseMtx_ !< Coarse matrix
+    type(SpMtx),optional               :: Restrict   !< Restriction matrix
+     logical,intent(inout),optional :: refactor_
 
     type(SpMtx)                        :: A_tmp
 
-    if (refactor_) then!{
-       if (sctls%verbose>9) then
-          !call SpMtx_printMat(A)
-          call SpMtx_printRaw(A)
-          !call SpMtx_printMat(A_interf_)
-          call SpMtx_printRaw(A_interf_)
-          !stop
-       endif
-       call Factorise_subdomains(A,A_interf_)
-       refactor_=.false.
-    end if
-    call solve_subdomains(sol,A,rhs)
+    if(sctls%method==1) then
+      if (refactor_) then!{
+        if (.not.present(CoarseMtx_).or.sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL.or.numprocs>1) then
+          call Factorise_subdomains(A,A_interf_)
+        else
+          if (.not.present(Restrict)) call DOUG_abort("Restriction matrix needs to be passed along with the coarse matrix!")
+          call Factorise_subdomains(A,AC=CoarseMtx_)
+        end if
+        refactor_=.false.
+      end if
+      call solve_subdomains(sol,A,rhs)
 
-    if (sctls%method>1) then ! For multiplicative Schwarz method...:
+    else if (sctls%method>1) then ! For multiplicative Schwarz method...:
       if (numprocs>1) call DOUG_abort('multiplicative Schwarz only for numprocs==1 so far',-1)
-      call multiplicative_sparse_multisolve(sol,A,M,rhs,res,A_interf_,refactor=refactor_)
+      if (.not.present(CoarseMtx_).or.sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL) then
+        call multiplicative_sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
+                          A_interf_=A_interf_, &
+                          refactor=refactor_) !fine solves 
+      else
+        if (.not.present(Restrict)) call DOUG_abort("Restriction matrix needs to be passed along with the coarse matrix!")
+        call multiplicative_sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
+                          A_interf_=A_interf_,AC=CoarseMtx_, &
+                          refactor=refactor_,Restrict=Restrict) !fine solves
+      end if
       refactor_=.false.
-      call multiplicative_sparse_multisolve(sol,A,M,rhs,res,A_interf_,refactor=refactor_) !fine solves 
     endif
-
-  end subroutine preconditioner_1level
+  end subroutine prec1Level
 
   subroutine prec2Level(prepare,A,sol,rhs,res,CoarseMtx_,Restrict,isFirstIter)
     use CoarseAllgathers
@@ -493,60 +501,25 @@ contains
       sol=rhs
       return
     endif
+
     sol=0.0_rk
     if (sctls%method>1) then ! For multiplicative Schwarz method...:
       allocate(res(size(rhs)))
     endif
-    if (present(CoarseMtx_)) then !{
-      write(stream,*) "Coarse matrix is present in preconditioner"
-      if (.not.present(Restrict)) call DOUG_abort("Restriction matrix needs to be passed along with the coarse matrix!")
       
-      if (sctls%levels>1) then
-        call prec2Level(.true.,A,sol,rhs,res,CoarseMtx_,Restrict,isFirstIter)
-      end if      
+    if (sctls%levels>1) then
+      call prec2Level(.true.,A,sol,rhs,res,CoarseMtx_,Restrict,isFirstIter)
+    end if
 
-      ! first level prec
-      if (sctls%method>1) then
-        if (numprocs>1) call DOUG_abort('multiplicative Schwarz only for numprocs==1 so far',-1)
-        if (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL.or.numprocs>1) then
-          call multiplicative_sparse_multisolve(sol,A,M,rhs,res,A_interf_,refactor=refactor_)
-        else
-          call multiplicative_sparse_multisolve(sol,A,M,rhs,res,A_interf_,CoarseMtx_,refactor_,Restrict)
-        end if
-      else 
-        if (isFirstIter) then
-          if (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL.or.numprocs>1) then
-            call Factorise_subdomains(A,A_interf_)
-          else
-            call Factorise_subdomains(A,AC=CoarseMtx_)
-          end if
-        end if
-        call solve_subdomains(sol,A,rhs)
-      endif
+    ! first level prec
+    call prec1Level(sol,A,rhs,M,res,A_interf_,CoarseMtx_,Restrict,refactor_)
 
-      if (sctls%levels>1) then
-        call prec2Level(.false.,A,sol,rhs,res,CoarseMtx_,Restrict,isFirstIter)
-      end if      
+    if (sctls%levels>1) then
+      call prec2Level(.false.,A,sol,rhs,res,CoarseMtx_,Restrict,isFirstIter)
+    end if
 
-      if (sctls%method>1) then ! For multiplicative Schwarz method...:
-        refactor_=.false.
-        if (numprocs>1) call DOUG_abort('multiplicative Schwarz only for numprocs==1 so far',-1)
-
-        if (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL) then
-            call multiplicative_sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
-                          A_interf_=A_interf_, &
-                          refactor=refactor_) !fine solves 
-        else
-            call multiplicative_sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
-                          A_interf_=A_interf_,AC=CoarseMtx_, &
-                          refactor=refactor_,Restrict=Restrict) !fine solves 
-        endif 
-      endif
-    else !}{
-      write(stream,*) "Coarse matrix is not present in preconditioner"
-      call preconditioner_1level(sol,A,rhs,M,res,A_interf_,refactor_)
-    endif !}
     if (sctls%method>1) then ! For multiplicative Schwarz method...:
+      call prec1Level(sol,A,rhs,M,res,A_interf_,CoarseMtx_,Restrict,refactor_)
       if (associated(res)) deallocate(res)
     endif
 
