@@ -57,7 +57,7 @@ contains
     character*(*),intent(in)  :: filename
     integer      ,intent(out) :: fHandler
     integer      ,intent(in) :: n
-    real(kind=rk),intent(in), pointer :: x(:)
+    real(kind=rk), pointer :: x(:)
     
     integer :: ierr, i
     

@@ -881,12 +881,12 @@ contains
       call DOUG_abort('[Vect_ReadFromFile_Text] : No free IO-Unit', -1)
  
     open(iounit,FILE=trim(filename),STATUS='OLD',FORM='FORMATTED', ERR=444)
-    read(iounit, '(i6)', END=500) n
+    read(iounit, '(i9)', END=500) n
     if (n /= size(x)) &
       call DOUG_abort('[Vect_ReadFromFile_Text] : Number of vector elements in file is not as expected.', -1)
     
     do i=1,size(x)
-      read(iounit, '(e21.14)', END=500) x(i)
+      read(iounit, '(e23.16)', END=500) x(i)
     enddo
     return
     
