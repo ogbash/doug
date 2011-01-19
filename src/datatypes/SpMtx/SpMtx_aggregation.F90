@@ -80,12 +80,8 @@ CONTAINS
     integer :: minasize,maxasize,ngoodstarts,firstwocol,startnode,mindistance
     integer :: nouters,ok,next_start_layer,maxlayer
     integer,dimension(:),pointer :: nextgoodstart,layerlen
-    integer,dimension(:,:),pointer :: unaneigcols
-    !integer,dimension(:,:),pointer :: nunaneigcolconns
-    float(kind=rk),dimension(:,:),pointer :: nunaneigcolconns ! used inversion 3 only
     float(kind=rk) :: maxconnweightsum,fullmaxconnweightsum
-    integer,dimension(:),pointer :: nunaneigcols,structcol,fullstructcol
-    logical :: reduced,isloop
+    logical :: reduced
     float(kind=rk) :: beta=1.0E-5_rk
     logical :: track_print=.false.
     !logical :: track_print=.true.
@@ -97,15 +93,11 @@ CONTAINS
     integer :: nagrs_new,full_nagrs_new,naggregatednodes,maxasizelargest
     integer :: ntoosmall,neaten,noccupied
     integer,dimension(:),pointer :: aggrsize,colsaround
-    integer :: version=4
     integer,dimension(:,:),pointer :: structnodes
     integer :: cnt,col,thiscol
     integer,dimension(:),pointer :: owner
     integer :: plot
     
-    if (sctls%debug==-3) then
-      version=3
-    endif
     toosmall=.false.
     n=A%nrows
     if (present(plotting)) then
@@ -128,15 +120,8 @@ CONTAINS
     sn=sqrt(1.0*n)
     if (alpha>=0.or.sn**2/=n) then !{ else do Cartesian aggr...
       if (.not.associated(A%strong_rowstart)) then
-        if (version==1) then
-          call SpMtx_build_refs_symm(A,noffdels, &
-                   A%strong_rowstart,A%strong_colnrs)
-        elseif (version==2.or.version==3.or.version==4) then
-          call SpMtx_build_refs_symm(A,noffdels, &
-                   A%strong_rowstart,A%strong_colnrs,sortdown=.true.)
-        else
-          write (stream,*) 'no such aggregation version:',version
-        endif
+        call SpMtx_build_refs_symm(A,noffdels, &
+             A%strong_rowstart,A%strong_colnrs,sortdown=.true.)
       endif
       if (plot==1.or.plot==3) then
         if (present(Afine)) then
@@ -150,865 +135,194 @@ CONTAINS
       allocate(nodes(n))
       allocate(aggrneigs(n))
       aggrneigs=0
-      if (version==1) then ! { v 11111111111111111111111111111111111111111111
-        stat=0
-        do i=1,n
-          if (stat(i)==0) then
-            if (node_neighood_fits(i,neighood,nneigs,nodes,&
-                stat,A%strong_rowstart,A%strong_colnrs)) then
-              nagrs=nagrs+1
-              stat(i)=-2
-              aggrnum(i)=nagrs
-              do j=1,nneigs
-                node=abs(nodes(j))
-                if (stat(node)<=neighood) then
-                  stat(node)=-2 ! mark as aggregated
-                  aggrnum(node)=nagrs
-                else
-                  stat(node)=-1 ! mark as in neigbourhood; this helps to start far
-                             !enough from the current aggregate with next hood-search
-                  aggrneigs(node)=nagrs
-                endif
-              enddo
-            endif
-          endif
-        enddo
-        ! connect all strongly connected not yet aggregated nodes to some a.
-        unaggregated=0
-        do i=1,A%nrows
-          if (aggrnum(i)==0) then
-            if (aggrneigs(i)/=0) then
-              aggrnum(i)=aggrneigs(i)
-            else ! mark these nodes for later connection
-              unaggregated=unaggregated+1
-              nodes(unaggregated)=i
-            endif
-          endif
-        enddo
-        ! now go through still unaggregated nodes to connect them somewhere:
-        nisolated=0
-        do i=1,unaggregated
-          dist=neighood-1
-          !dist=neighood
-          if (.not.aggregate_to_neighbour(nodes(i),dist,aggrnum, &
-                  A%strong_rowstart,A%strong_colnrs)) then
-            nisolated=nisolated+1
-            nodes(nisolated)=nodes(i)
-            !write (stream,*) 'FOUND an isolated node? #',i
-          endif
-        enddo
-        if (nisolated>0) then
-          write (stream,*) '*********** # of isolated nodes:',nisolated
-          ! Look weather any neighbour aggregated:
-          call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS,sort=.false.)        
-          ni=nisolated
-          do i=1,nisolated
-            !j=nodes(i)
-            !do k=A%M_bound(j),A%M_bound(j+1)-1
-            !  kk=A%indj(k)
-            !  if (aggrnum(k)>0) then
-            !    aggrnum(j)=aggrnum(kk)
-            !    write (stream,*) 'isolated node ',j,' cleared'
-            !    ni=ni-1
-            !    exit
-            !  endif
-            !enddo
-            ! 2nd. possibility:
-            dist=neighood-1
-            if (.not.aggregate_to_neighbour(nodes(i),dist,aggrnum, &
-                  A%M_bound,A%indj)) then
-              write (stream,*) '### node remaining isolated:',nodes(i)
-            else
-              ni=ni-1
+      allocate(distance(n))
+      distance=0 !  0 -- free
+      ! >0 -- aggregated with distance DISTANCE-1 FROM SEED
+      stat=0 ! 0 -- free
+      !<0 -- -weight in case of finding rounders
+      ! D_AGGREGATED -- aggregated node
+      ! D_PENDING -- not fitting in large enough an aggregate here
+      !>0 -- shows LAYER_NUMBER+1
+      ! in general, if >0 then considered as in an aggregate
+      if (present(minaggrsize)) then
+        minasize=minaggrsize
+      else
+        minasize=neighood
+      endif
+      if (present(maxaggrsize)) then
+        maxasize=maxaggrsize
+      else
+        if (neighood==1) then
+          maxasize=9
+        else
+          maxasize=(2*neighood+1)**2
+        endif
+      endif
+      if (present(Afine)) then
+        !maxasizelargest=maxasize+32*(2*neighood)
+        maxasizelargest=3*maxasize
+      else
+        maxasizelargest=maxasize+4*(2*neighood)
+        !maxasizelargest=maxasize+8*(2*neighood)
+        !maxasizelargest=maxasize+2*(2*neighood)
+      endif
+      !beta=alpha
+      if (.not.present(Afine)) then
+        ! this seems to be problem-dependent:
+        beta=alpha/4.0_rk
+        !beta=alpha/2.0_rk
+        !beta=alpha/8.0_rk
+        !beta=alpha/5.0_rk
+        !beta=alpha/3.0_rk
+      endif
+      ngoodstarts=0
+      unaggregated=0
+      allocate(nextgoodstart(n)) ! todo: could be done much less
+      firstwocol=1
+      colo4:do while (firstwocol<=n)
+        ! if needed, take out holes from the nextgoodstart
+        if (ngoodstarts>0) then
+          j=0
+          do i=1,ngoodstarts
+            if (stat(nextgoodstart(i))<D_PENDING) then
+              j=j+1
+              if (j<i) then
+                nextgoodstart(j)=nextgoodstart(i)
+              endif
             endif
           enddo
-          if (ni>0) then
-            write (stream,*) '########### # nodes remaining in isol. :',ni
-          endif
+          ngoodstarts=j
         endif
-        write(stream,*) '#unaggregated bef.last step:',unaggregated
-      elseif (version==2) then ! }{v 22222222222222222222222222222222222222222
-        stat=0
-        if (present(minaggrsize)) then
-          minasize=minaggrsize
-        else
-          minasize=neighood
-        endif
-        if (present(maxaggrsize)) then
-          maxasize=maxaggrsize
-        else
-          if (neighood==1) then
-            maxasize=4
-          else
-            maxasize=neighood*neighood
-          endif
-        endif
-        ngoodstarts=0
-        allocate(nextgoodstart(n)) ! todo: could be done much less
-        firstwocol=1
-  outer:do while (firstwocol<=n)
-          ! try to start from last aggr neigh
- goodloop:do i=1,ngoodstarts ! try to add a new neighbouring aggr
-            startnode=nextgoodstart(i)
-            if (stat(startnode)/=-3) then !
-                         ! -3 meaning isolated too small cluster, dealed later 
-              exit goodloop
-            endif
-          enddo goodloop
-          if (i>ngoodstarts) then ! todo: try first some left-behind neighbour,
-                                  ! but how to efficiently keep such list?
-            ! start from somewhere else
-            ngoodstarts=0
-            do while(aggrnum(firstwocol)/=0.or.stat(firstwocol)==-3) 
-                           ! -3 meaning isolated too small cluster, dealed later 
-              firstwocol=firstwocol+1
-              if (firstwocol>n) exit outer ! => all done
-            enddo
-            startnode=firstwocol
-          endif
- !print *,'starting colouring:',startnode,ngoodstarts,nextgoodstart(1:ngoodstarts)
-          call lets_colour2(startnode,neighood,minasize,maxasize,nneigs,nodes,&
-              stat,A%strong_rowstart,A%strong_colnrs,aggrnum)
-          if (nneigs>=minasize) then ! we can add a new aggregate
-            nagrs=nagrs+1
-            ngoodstarts=0 ! also restart the neighbours
-            stat(startnode)=-2
-            aggrnum(startnode)=nagrs
-  !print *,'marking startnode ',startnode,' to aggr ',nagrs
-            do j=1,nneigs
-              node=abs(nodes(j))
-              if (stat(node)<=neighood.and.j<=maxasize) then
-                stat(node)=-2 ! mark as aggregated
-                aggrnum(node)=nagrs
-  !print *,'marking node ',node,' to aggr ',nagrs
-              else
-                stat(node)=-1 ! mark as in neigbourhood
-                aggrneigs(node)=nagrs
-                ngoodstarts=ngoodstarts+1
-                nextgoodstart(ngoodstarts)=node
-  !print *,'marking node ',node,' as neig to ',nagrs
-              endif
-            enddo
-          else ! Mark nodes with -3 (the bad case of isolated too
-               !                     small aggregate...)
-            stat(startnode)=-3
-  !print *,'marking startnode ',startnode,' as badcase'
-            do j=1,nneigs
-              node=abs(nodes(j))
-  !print *,'marking node ',node,' as badcase'
-              stat(node)=-3 ! mark as aggregated
-            enddo
-          endif
-        enddo outer
-        deallocate(nextgoodstart)
-        ! connect all strongly connected not yet aggregated nodes to some a.
-        unaggregated=0
-        do i=1,A%nrows
-          if (aggrnum(i)==0) then
-            if (aggrneigs(i)/=0) then
-              aggrnum(i)=aggrneigs(i)
-            else ! mark these nodes for later connection
-              unaggregated=unaggregated+1
-              nodes(unaggregated)=i
-            endif
-          endif
-        enddo
-        ! now go through still unaggregated nodes to connect them somewhere:
-        nisolated=0
-        do i=1,unaggregated
-          dist=neighood-1
-          !dist=neighood
-          if (.not.aggregate_to_neighbour(nodes(i),dist,aggrnum, &
-                  A%strong_rowstart,A%strong_colnrs)) then
-            nisolated=nisolated+1
-            nodes(nisolated)=nodes(i)
-            !write (stream,*) 'FOUND an isolated node? #',i
-          endif
-        enddo
-        if (nisolated>0) then
-          write (stream,*) '*********** # of isolated nodes:',nisolated
-          ! Look weather any neighbour aggregated:
-          call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS,sort=.false.)        
-          ni=nisolated
-          do i=1,nisolated
-            dist=neighood-1
-            if (.not.aggregate_to_neighbour(nodes(i),dist,aggrnum, &
-                  A%M_bound,A%indj)) then
-              write (stream,*) '### node remaining isolated:',nodes(i)
-            else
-              ni=ni-1
-            endif
+        if (ngoodstarts==0) then ! todo: try first some left-behind neighbour,
+          do while(stat(firstwocol)>=D_PENDING) 
+            firstwocol=firstwocol+1
+            if (firstwocol>n) exit colo4 ! => all done
           enddo
-          if (ni>0) then
-            write (stream,*) '########### # nodes remaining in isol. :',ni
-          endif
-        endif
-        !do i=1,A%nrows
-        !  write(stream,*) i,' in aggregate ',aggrnum(i),stat(i),nodes(i)
-        !enddo
-        write(stream,*) '#unaggregated bef.last step:',unaggregated
-      elseif (version==3) then ! }{v 33333333333333333333333333333333333333333
-        allocate(distance(n))
-        distance=0 !  0 -- free
-                   ! >0 -- aggregated with distance DISTANCE-1 FROM SEED
-        stat=0 ! 0 -- free
-               !<0 -- -weight in case of finding rounders
-               ! D_AGGREGATED -- aggregated node
-               ! D_PENDING -- not fitting in large enough an aggregate here
-               !>0 -- shows LAYER_NUMBER+1
-               ! in general, if >0 then considered as in an aggregate
-        if (present(minaggrsize)) then
-          minasize=minaggrsize
+          startnode=firstwocol
         else
-          minasize=neighood
-        endif
-        if (present(maxaggrsize)) then
-          maxasize=maxaggrsize
-        else
-          if (neighood==1) then
-            maxasize=9
-          else
-            maxasize=(2*neighood+1)**2
-          endif
-        endif
-        ngoodstarts=0
-        unaggregated=0
-        allocate(nextgoodstart(n)) ! todo: could be done much less
-        firstwocol=1
-  color:do while (firstwocol<=n)
-          ! if needed, take out holes from the nextgoodstart
-          if (ngoodstarts>0) then
-            j=0
-            do i=1,ngoodstarts
-              if (stat(nextgoodstart(i))<D_PENDING) then
-                j=j+1
-                if (j<i) then
-                  nextgoodstart(j)=nextgoodstart(i)
-                endif
+          !startnode=nextgoodstart(ngoodstarts)
+          !startnode=nextgoodstart(1)
+          !
+          ! let's look, if there are repeated goodstarts
+          startnode=0
+          ng4:do i=2,ngoodstarts
+            do j=1,i-1
+              if (nextgoodstart(i)==nextgoodstart(j)) then
+                startnode=nextgoodstart(i)
+                exit ng4
               endif
             enddo
-            ngoodstarts=j
-          endif
-          if (ngoodstarts==0) then ! todo: try first some left-behind neighbour,
-            do while(stat(firstwocol)>=D_PENDING) 
-              firstwocol=firstwocol+1
-              if (firstwocol>n) exit color ! => all done
-            enddo
-            startnode=firstwocol
-           !! Now, try to find more suitable starting seednode...
-           !! todo todo TODO TODO TODO TODO
-
-           !ok=lets_colour(startnode,neighood,minasize,maxasize,nneigs,nodes,&
-           !    stat,distance,A%strong_rowstart,A%strong_colnrs)
-           !do j=1,nneigs
-           !  node=nodes(j)
-           !  elseif (next_start_layer>neighood+1) then
-           !    ! find the smallest distance on the outer layer
-           !    if (stat(node)==next_start_layer) then 
-           !      if (distance(node)<mindistance) then
-           !        mindistance=distance(node)
-           !      endif
-           !      ! remember the outer layer:
-           !      nouters=nouters+1
-           !      nextgoodstart(n-nouters+1)=node ! using the tail of the arr.
-           !    !else ! => (ok==1)
-           !    !  if (stat(node)==neighood+2) then
-           !    !    aggrneigs(node)=nagrs
-           !    !  endif
-           !    endif
-           !  endif
-           !enddo
-           !if (ok==2) then
-           !  ! now find the nodes with minimal distance on the outer layer
-           !  do j=1,nouters
-           !    if (distance(nextgoodstart(n-j+1))==mindistance) then
-           !      ngoodstarts=ngoodstarts+1
-           !      nextgoodstart(ngoodstarts)=nextgoodstart(n-j+1)
-           !    endif
-           !  enddo
-           !endif
-          else
+          enddo ng4
+          if (startnode==0) then
+            startnode=nextgoodstart(1)
             !startnode=nextgoodstart(ngoodstarts)
-            !startnode=nextgoodstart(1)
-            !
-            ! let's look, if there are repeated goodstarts
-            startnode=0
-        ngs:do i=2,ngoodstarts
-              do j=1,i-1
-                if (nextgoodstart(i)==nextgoodstart(j)) then
-                  startnode=nextgoodstart(i)
-                  exit ngs
-                endif
-              enddo
-            enddo ngs
-            if (startnode==0) then
-              startnode=nextgoodstart(1)
-              !startnode=nextgoodstart(ngoodstarts)
-            endif
           endif
-          ok=lets_colour3(startnode,neighood,minasize,maxasize,nneigs,nodes,&
-              stat,distance,A%strong_rowstart,A%strong_colnrs)
-          mindistance=D_MAXINT
-          if (ok>0) then ! we can add the new aggregate {
-            nagrs=nagrs+1
-            nouters=0
-            if (ok==1) then
-              !next_start_layer=1
-              !do j=nneigs,1,-1
-              !  node=nodes(j)
-              !  if (next_start_layer>stat(node)) then
-              !    next_start_layer=stat(node)
-              !  endif
-              !enddo
-              next_start_layer=neighood+2
-            else ! then we know the outermost layer was: 2*neighood+1
-              !!next_start_layer=2*neighood+2 ! (stat holds layer+1)
-              ! find the _longest_ outer layer:
-              allocate(layerlen(2*neighood+2))
-              layerlen=0
-              maxlayer=0
-              do j=nneigs,1,-1
-                k=stat(nodes(j))
-                if (k>maxlayer) maxlayer=k
-                if (k<=neighood+1) exit
-                layerlen(k)=layerlen(k)+1
-              enddo
-              next_start_layer=neighood+2
-              k=layerlen(neighood+2)
-              do j=neighood+3,maxlayer
-                if (k<layerlen(j)) then
-                  k=layerlen(j)
-                  next_start_layer=j
-                endif
-              enddo
-if (track_print) then
-  if (present(Afine)) then
-    do i=1,A%nrows
-      if (aggrnum(i)>0) then
-        moviecols(i)=aggrnum(i)
-      else
-        moviecols(i)=stat(i)
-      endif
-    enddo
-    if (nagrs<=1) then
-      call color_print_aggrs(Afine%nrows,Afine%aggr%num,moviecols,overwrite=.false.)
-    else
-      call color_print_aggrs(Afine%nrows,Afine%aggr%num,moviecols,overwrite=.true.)
-    endif
-  else
-    do i=1,A%nrows
-      if (aggrnum(i)>0) then
-        moviecols(i)=aggrnum(i)
-      else
-        moviecols(i)=stat(i)
-      endif
-    enddo
-    !call cursor0()
-    if (nagrs<=1) then
-      call color_print_aggrs(A%nrows,moviecols,overwrite=.false.)
-    else
-      call color_print_aggrs(A%nrows,moviecols,overwrite=.true.)
-    endif
-  endif
-  !call color_print_aggrs(A%nrows,distance)
-endif
-              deallocate(layerlen)
+        endif
+        ok=lets_colour(startnode,neighood,minasize,maxasize,nneigs,nodes,&
+             stat,distance,A%strong_rowstart,A%strong_colnrs)
+        mindistance=D_MAXINT
+        if (ok>0) then ! we can add the new aggregate {
+          nagrs=nagrs+1
+          nouters=0
+          if (ok==3) then ! { then we know the outermost layer was: 2*neighood+1
+            allocate(layerlen(2*neighood+2))
+            layerlen=0
+            maxlayer=0
+            if (.not.toosmall.and.nneigs<minasize) then 
+              toosmall=.true.
             endif
-!print *,'AGGREGATES:'
-!call color_print_aggrs(A%nrows,aggrnum)
-            do j=1,nneigs
-              node=nodes(j)
-              if (stat(node)<=neighood+1.and.j<=maxasize) then
-                stat(node)=D_AGGREGATED ! mark as aggregated
-                aggrnum(node)=nagrs
-              elseif (next_start_layer>neighood+1) then
-                ! find the smallest distance on the outer layer
-                if (stat(node)==next_start_layer) then 
-                  if (distance(node)<mindistance) then
-                    mindistance=distance(node)
-                  endif
-                  ! remember the outer layer:
-                  nouters=nouters+1
-                  nextgoodstart(n-nouters+1)=node ! using the tail of the arr.
-                !else ! => (ok==1)
-                !  if (stat(node)==neighood+2) then
-                !    aggrneigs(node)=nagrs
-                !  endif
-                endif
+            do j=nneigs,1,-1
+              k=stat(nodes(j))
+              if (k>maxlayer) maxlayer=k
+              if (k<=neighood+1) exit
+              layerlen(k)=layerlen(k)+1
+            enddo
+            next_start_layer=neighood+2
+            k=layerlen(neighood+2)
+            do j=neighood+3,maxlayer
+              if (k<layerlen(j)) then
+                k=layerlen(j)
+                next_start_layer=j
               endif
             enddo
-            if (ok==2) then
-              ! now find the nodes with minimal distance on the outer layer
-              do j=1,nouters
-                if (distance(nextgoodstart(n-j+1))==mindistance) then
-                  ngoodstarts=ngoodstarts+1
-                  nextgoodstart(ngoodstarts)=nextgoodstart(n-j+1)
-                endif
-              enddo
-            endif
-!call color_print_aggrs(A%nrows,aggrnum)
-            ! need to clean up:
-            do j=1,nneigs
-              node=nodes(j)
-              if (stat(node)/=D_AGGREGATED) then ! could not aggregate
-                distance(node)=0
-                if (stat(node)/=D_PENDING) then
-                  stat(node)=0
-                endif
-              endif
-            enddo
-          else ! ok==0 }{
-            unaggregated=unaggregated+1
-            do j=1,nneigs
-              node=nodes(j)
-              stat(node)=D_PENDING+unaggregated
-              distance(node)=0
-            enddo 
-          endif !}
-        enddo color
-        deallocate(nextgoodstart)
-        deallocate(distance)
-        if (unaggregated>0) then
-          mnstructneigs=4*maxasize
-          call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS)
-          allocate(unaneigcols(mnstructneigs,unaggregated)) ! lists the colors
-             !   around unaggregated structure
-          allocate(nunaneigcolconns(mnstructneigs,unaggregated)) ! counts, how many
-             !  connections there are to the particular color from the structure
-             ! NB, this is now real value of weight sums to each colour!
-          allocate(nunaneigcols(unaggregated)) ! how many colors are there around
-          nunaneigcols=0
-          do i=1,A%nrows
-            if (aggrnum(i)==0) then
-              if (stat(i)>D_PENDING.and.stat(i)<=D_PENDING+unaggregated) then
-                kk=stat(i)-D_PENDING ! kk - the particular structure number
-                ! now look, if the node has coloured neighbours:
-                !rs=A%strong_rowstart(i)
-                !re=A%strong_rowstart(i+1)-1
-                ! we now look all connections, not only strong ones...:
-                rs=A%M_bound(i)
-                re=A%M_bound(i+1)-1
-                do j=rs,re
-                  !cn=A%strong_colnrs(j)
-                  cn=A%indj(j)
-                  if (cn<=n) then
-                    colr=aggrnum(cn)
-                    ! We count also strong conn.-s to other uncoloured structures
-                    !   to be possibly able to connect those together
-                    if (colr==0) then ! It's structure # with "-"
-                      colr=-(stat(cn)-D_PENDING)
-                    endif
-                    if (colr/=-kk) then ! not a node from the same structure
-            colsearch:do k=1,nunaneigcols(kk) ! (find where to put it)
-                        if (colr==unaneigcols(k,kk)) then ! that colour again!
-                          !nunaneigcolconns(k,kk)=nunaneigcolconns(k,kk)+1
-                          nunaneigcolconns(k,kk)=nunaneigcolconns(k,kk)+dabs(A%val(j))
-                          exit colsearch
-                        endif
-                      enddo colsearch
-                      if (k>nunaneigcols(kk)) then ! add the colour
-                        nunaneigcols(kk)=nunaneigcols(kk)+1
-                        if (nunaneigcols(kk)>mnstructneigs) then
-                          write(stream,*)'mnstructneigs too small'
-                          stop
-                        endif
-                        !nunaneigcolconns(k,kk)=1
-                        nunaneigcolconns(k,kk)=dabs(A%val(j))
-                        unaneigcols(k,kk)=colr
-                      endif
-                    endif
+            if (track_print) then
+              if (present(Afine)) then
+                do i=1,A%nrows
+                  if (aggrnum(i)>0) then
+                    moviecols(i)=aggrnum(i)
+                  else
+                    moviecols(i)=stat(i)
                   endif
                 enddo
-              else ! todo remove this
-                print *,'someething wroong...'
-                stop
-              endif
-            endif 
-          enddo
-          ! now find for each structure the best neighbour to possibly add it to:
-          nisolated=0
-          nisoneigs=0
-          nfullisoneigs=0
-          allocate(structcol(unaggregated))
-          allocate(fullstructcol(unaggregated))
-          do kk=1,unaggregated
-            if (nunaneigcols(kk)>0) then ! not an isolated structure!
-              ! todo:
-              !   is there F95 function to find argument, where max is achieved?
-              !k=0
-              maxconnweightsum=0.0_rk
-              fullmaxconnweightsum=0.0_rk
-              do i=1,nunaneigcols(kk)
-                ! first look for best coloured neighbour:
-                if (unaneigcols(i,kk)>0) then ! => connection to the coloured
-                                              !      structure only
-                  if (fullmaxconnweightsum<nunaneigcolconns(i,kk)) then
-                    fullmaxconnweightsum=nunaneigcolconns(i,kk)
-                    fullj=i ! remember the place to get the actual color!
-                  endif
+                if (nagrs<=1) then
+                  call color_print_aggrs(Afine%nrows,Afine%aggr%num,moviecols,overwrite=.false.)
+                else
+                  call color_print_aggrs(Afine%nrows,Afine%aggr%num,moviecols,overwrite=.true.)
                 endif
-                ! now look for whichever neighbouring structure:
-                if (maxconnweightsum<nunaneigcolconns(i,kk)) then
-                  maxconnweightsum=nunaneigcolconns(i,kk)
-                  j=i ! remember the place to get the actual color!
-                endif
-                !if (k<nunaneigcolconns(i,kk)) then
-                !  k=nunaneigcolconns(i,kk)
-                !  j=i ! remember the place to get the actual color!
-                !endif
-              enddo
-              !if (fullmaxconnweightsum>0.0_rk) then
-              if (fullmaxconnweightsum>beta) then
-                fullstructcol(kk)=unaneigcols(fullj,kk)
-                !print *,'filling full island ',kk,' colour ',fullstructcol(kk)
               else
-                fullstructcol(kk)=-kk
-                !print *,'full island ',kk,' is isolated '
-                nfullisoneigs=nfullisoneigs+1 ! todo: these probably will form a
-                                              !   structure by their own...
-              endif
-              !
-              if (fullmaxconnweightsum>=alpha) then ! todo: to get the best
-                                                    !   criteria:
-                structcol(kk)=unaneigcols(fullj,kk)
-              elseif (fullmaxconnweightsum>=beta) then
-                structcol(kk)=unaneigcols(fullj,kk)
-              elseif (maxconnweightsum>=beta) then
-                structcol(kk)=unaneigcols(j,kk)
-              else
-                structcol(kk)=-kk
-              endif
-              if (structcol(kk)<0) then
-                nisoneigs=nisoneigs+1
-              endif
-            else ! isolated stucture (or node)
-              nisolated=nisolated+1
-              structcol(kk)=-nisolated
-            endif
-          enddo
-          if (nfullisoneigs>0) then
-            write(stream,*)'############# #fullisoneigs:',nfullisoneigs, &
-             ' ##############'
-          endif
-          if (nisoneigs>0) then
-            write(stream,*)'############# #isoneigs:',nisoneigs, &
-             ' ##############'
-          endif
-          nisoneigs=0
-          ! look, if some of neighbour's neighbour have colour:
-          do kk=1,unaggregated
-            if (structcol(kk)<0) then
-              if (structcol(kk)/=-kk) then ! look for a loop
-                j=structcol(-structcol(kk))
-                isloop=.false.
-                k=0
-           loop:do while (j<0.and.j/=structcol(kk))
-                  if (j==structcol(-j)) then
-                    isloop=.true.
-                    exit loop
-                  endif
-                  j=structcol(-j)
-                  k=k+1
-                  if (k>3) then ! no need to look too far anyway...
-                    isloop=.true.
-                    exit loop
-                  endif
-                enddo loop
-                if (isloop.or.j==structcol(kk)) then ! we found a loop
-                  nisoneigs=nisoneigs+1
-                  ! print out the loop:
-                  j=structcol(-structcol(kk))
-                  write (stream,'(i5,a25,i5,i5)',advance='no') &
-                    kk,'Loop of isol. structures:',structcol(kk),j
-                  k=0
-            loop2:do while (j<0.and.j/=structcol(kk))
-                    if (j==structcol(-j)) exit loop2
-                    j=structcol(-j)
-                    write (stream,'(i5)',advance='no') j
-                    k=k+1
-                    if (k>3) exit loop2
-                  enddo loop2
-                  write (stream,*) ' '
-                elseif(.not.isloop) then ! we can colour the chain:
-                  colr=j
-                  j=structcol(-structcol(kk))
-                  structcol(kk)=colr
-                  do while (j<0)
-                    k=structcol(-j)
-                    structcol(-j)=colr
-                    j=k
-                  enddo
-                endif
-              else ! this remains as an isolated structure...
-              endif
-            endif
-          enddo
-          reduced=.true.
-     full:do while (nfullisoneigs>0.and.reduced)
-            reduced=.false.
-            do kk=1,unaggregated
-              if (fullstructcol(kk)<0) then
-                if (structcol(kk)>0) then
-                  fullstructcol(kk)=structcol(kk)
-                  nfullisoneigs=nfullisoneigs-1
-                  write(stream,*)'cleared FULLisland ',kk,' to colour ',fullstructcol(kk)
-                else ! again, look over the list, perhaps there might be some
-                     !   other isolated neighbour that it is connected to...
-                     !   ...and it may be that the other one has already got
-                     !      colour...
-                  maxconnweightsum=0.0_rk
-                  do i=1,nunaneigcols(kk)
-                    !   the colour of the neighbouring structure:
-                    if (unaneigcols(i,kk)>0) then
-                      if (maxconnweightsum<nunaneigcolconns(i,kk)) then
-                        maxconnweightsum=nunaneigcolconns(i,kk)
-                        j=i ! remember the place to get the actual color!
-                      endif
-                    elseif (fullstructcol(-unaneigcols(i,kk))>0) then 
-                      if (maxconnweightsum<nunaneigcolconns(i,kk)) then
-                        maxconnweightsum=nunaneigcolconns(i,kk)
-                        j=i ! remember the place to get the actual color!
-                      endif
-                    endif
-                  enddo
-                  if (maxconnweightsum>0.0_rk) then
-                    if (unaneigcols(j,kk)>0) then
-                      fullstructcol(kk)=unaneigcols(j,kk)
-                      write(stream,*)'assigning FULLisland ',kk,' +colour ',fullstructcol(kk)
-                      nfullisoneigs=nfullisoneigs-1
-                      reduced=.true.
-                    else
-                      fullstructcol(kk)=fullstructcol(-unaneigcols(j,kk))
-                      write(stream,*)'assigning FULLisland ',kk,' -colour ',fullstructcol(kk)
-                      nfullisoneigs=nfullisoneigs-1
-                      reduced=.true.
-                    endif
+                do i=1,A%nrows
+                  if (aggrnum(i)>0) then
+                    moviecols(i)=aggrnum(i)
                   else
-                    write(stream,*)'FULLisland ',kk,' remaining isolated '
+                    moviecols(i)=stat(i)
                   endif
+                enddo
+                !call cursor0()
+                if (nagrs<=1) then
+                  call color_print_aggrs(A%nrows,moviecols,overwrite=.false.)
+                else
+                  call color_print_aggrs(A%nrows,moviecols,overwrite=.true.)
                 endif
               endif
-            enddo
-            write(stream,*)'############# #fullisoneigs:',nfullisoneigs, &
-               ' remaining ##############'
-          enddo full
-          ! Now assign all the nodes their new colour:
-          do i=1,A%nrows
-            if (aggrnum(i)==0) then
-              aggrnum(i)=structcol(stat(i)-D_PENDING)
-              fullaggrnum(i)=fullstructcol(stat(i)-D_PENDING)
-            else
-              fullaggrnum(i)=aggrnum(i)
+              !call color_print_aggrs(A%nrows,distance)
+            endif
+            deallocate(layerlen)
+          elseif (ok==2) then ! }{
+            next_start_layer=neighood+2
+            if (.not.toosmall.and.nneigs<minasize) then 
+              toosmall=.true.
+            endif
+          else ! }{ (ok==1 or 0)
+            next_start_layer=0
+          endif ! } 
+          do j=1,nneigs
+            node=nodes(j)
+            if (stat(node)<=neighood+1.and.j<=maxasize) then
+              stat(node)=D_AGGREGATED ! mark as aggregated
+              aggrnum(node)=nagrs
+            elseif (next_start_layer>neighood+1) then
+              ! find the smallest distance on the outer layer
+              if (stat(node)==next_start_layer) then 
+                if (distance(node)<mindistance) then
+                  mindistance=distance(node)
+                endif
+                ! remember the outer layer:
+                nouters=nouters+1
+                nextgoodstart(n-nouters+1)=node ! using the tail of the arr.
+              endif
             endif
           enddo
-          deallocate(fullstructcol)
-          deallocate(structcol)
-          deallocate(nunaneigcols)
-          deallocate(nunaneigcolconns)
-          deallocate(unaneigcols)
-          if (nisoneigs>0) then
-            write(stream,*)'############# #isolated structure-loops:',nisoneigs, &
-             ' ##############'
-          endif
-          if (nisolated>0) then
-            write(stream,*)'############# #isol. structures:',nisolated, &
-             ' ##############'
-          endif
-          aggrarefull=.false.
-        else ! (version==3.and.unaggregated==0) then
-          fullaggrnum=aggrnum
-          aggrarefull=.true.
-        endif
-      elseif (version==4) then ! }{v 44444444444444444444444444444444444444444
-        allocate(distance(n))
-        distance=0 !  0 -- free
-                   ! >0 -- aggregated with distance DISTANCE-1 FROM SEED
-        stat=0 ! 0 -- free
-               !<0 -- -weight in case of finding rounders
-               ! D_AGGREGATED -- aggregated node
-               ! D_PENDING -- not fitting in large enough an aggregate here
-               !>0 -- shows LAYER_NUMBER+1
-               ! in general, if >0 then considered as in an aggregate
-        if (present(minaggrsize)) then
-          minasize=minaggrsize
-        else
-          minasize=neighood
-        endif
-        if (present(maxaggrsize)) then
-          maxasize=maxaggrsize
-        else
-          if (neighood==1) then
-            maxasize=9
-          else
-            maxasize=(2*neighood+1)**2
-          endif
-        endif
-        if (present(Afine)) then
-          !maxasizelargest=maxasize+32*(2*neighood)
-          maxasizelargest=3*maxasize
-        else
-          maxasizelargest=maxasize+4*(2*neighood)
-          !maxasizelargest=maxasize+8*(2*neighood)
-          !maxasizelargest=maxasize+2*(2*neighood)
-        endif
-        !beta=alpha
-        if (.not.present(Afine)) then
-          ! this seems to be problem-dependent:
-          beta=alpha/4.0_rk
-          !beta=alpha/2.0_rk
-          !beta=alpha/8.0_rk
-          !beta=alpha/5.0_rk
-          !beta=alpha/3.0_rk
-        endif
-        ngoodstarts=0
-        unaggregated=0
-        allocate(nextgoodstart(n)) ! todo: could be done much less
-        firstwocol=1
-  colo4:do while (firstwocol<=n)
-          ! if needed, take out holes from the nextgoodstart
-          if (ngoodstarts>0) then
-            j=0
-            do i=1,ngoodstarts
-              if (stat(nextgoodstart(i))<D_PENDING) then
-                j=j+1
-                if (j<i) then
-                  nextgoodstart(j)=nextgoodstart(i)
-                endif
-              endif
-            enddo
-            ngoodstarts=j
-          endif
-          if (ngoodstarts==0) then ! todo: try first some left-behind neighbour,
-            do while(stat(firstwocol)>=D_PENDING) 
-              firstwocol=firstwocol+1
-              if (firstwocol>n) exit colo4 ! => all done
-            enddo
-            startnode=firstwocol
-          else
-            !startnode=nextgoodstart(ngoodstarts)
-            !startnode=nextgoodstart(1)
-            !
-            ! let's look, if there are repeated goodstarts
-            startnode=0
-        ng4:do i=2,ngoodstarts
-              do j=1,i-1
-                if (nextgoodstart(i)==nextgoodstart(j)) then
-                  startnode=nextgoodstart(i)
-                  exit ng4
-                endif
-              enddo
-            enddo ng4
-            if (startnode==0) then
-              startnode=nextgoodstart(1)
-              !startnode=nextgoodstart(ngoodstarts)
+          ! now find the nodes with minimal distance on the outer layer
+          do j=1,nouters
+            if (distance(nextgoodstart(n-j+1))==mindistance) then
+              ngoodstarts=ngoodstarts+1
+              nextgoodstart(ngoodstarts)=nextgoodstart(n-j+1)
             endif
-          endif
-          ok=lets_colour(startnode,neighood,minasize,maxasize,nneigs,nodes,&
-              stat,distance,A%strong_rowstart,A%strong_colnrs)
-          mindistance=D_MAXINT
-          if (ok>0) then ! we can add the new aggregate {
-            nagrs=nagrs+1
-            nouters=0
-            if (ok==3) then ! { then we know the outermost layer was: 2*neighood+1
-              allocate(layerlen(2*neighood+2))
-              layerlen=0
-              maxlayer=0
-              if (.not.toosmall.and.nneigs<minasize) then 
-                toosmall=.true.
-              endif
-              do j=nneigs,1,-1
-                k=stat(nodes(j))
-                if (k>maxlayer) maxlayer=k
-                if (k<=neighood+1) exit
-                layerlen(k)=layerlen(k)+1
-              enddo
-              next_start_layer=neighood+2
-              k=layerlen(neighood+2)
-              do j=neighood+3,maxlayer
-                if (k<layerlen(j)) then
-                  k=layerlen(j)
-                  next_start_layer=j
-                endif
-              enddo
-if (track_print) then
-  if (present(Afine)) then
-    do i=1,A%nrows
-      if (aggrnum(i)>0) then
-        moviecols(i)=aggrnum(i)
-      else
-        moviecols(i)=stat(i)
-      endif
-    enddo
-    if (nagrs<=1) then
-      call color_print_aggrs(Afine%nrows,Afine%aggr%num,moviecols,overwrite=.false.)
-    else
-      call color_print_aggrs(Afine%nrows,Afine%aggr%num,moviecols,overwrite=.true.)
-    endif
-  else
-    do i=1,A%nrows
-      if (aggrnum(i)>0) then
-        moviecols(i)=aggrnum(i)
-      else
-        moviecols(i)=stat(i)
-      endif
-    enddo
-    !call cursor0()
-    if (nagrs<=1) then
-      call color_print_aggrs(A%nrows,moviecols,overwrite=.false.)
-    else
-      call color_print_aggrs(A%nrows,moviecols,overwrite=.true.)
-    endif
-  endif
-  !call color_print_aggrs(A%nrows,distance)
-endif
-              deallocate(layerlen)
-            elseif (ok==2) then ! }{
-              next_start_layer=neighood+2
-              if (.not.toosmall.and.nneigs<minasize) then 
-                toosmall=.true.
-              endif
-            else ! }{ (ok==1 or 0)
-              next_start_layer=0
-            endif ! } 
-            do j=1,nneigs
-              node=nodes(j)
-              if (stat(node)<=neighood+1.and.j<=maxasize) then
-                stat(node)=D_AGGREGATED ! mark as aggregated
-                aggrnum(node)=nagrs
-              elseif (next_start_layer>neighood+1) then
-                ! find the smallest distance on the outer layer
-                if (stat(node)==next_start_layer) then 
-                  if (distance(node)<mindistance) then
-                    mindistance=distance(node)
-                  endif
-                  ! remember the outer layer:
-                  nouters=nouters+1
-                  nextgoodstart(n-nouters+1)=node ! using the tail of the arr.
-                endif
-              endif
-            enddo
-            ! now find the nodes with minimal distance on the outer layer
-            do j=1,nouters
-              if (distance(nextgoodstart(n-j+1))==mindistance) then
-                ngoodstarts=ngoodstarts+1
-                nextgoodstart(ngoodstarts)=nextgoodstart(n-j+1)
-              endif
-            enddo
-            ! need to clean up:
-            do j=1,nneigs
-              node=nodes(j)
-              if (stat(node)/=D_AGGREGATED) then ! could not aggregate
-                distance(node)=0
-                stat(node)=0
-              endif
-            enddo
-          else ! ok==0 }{
-            print *,'something wrong!'
-          endif !}
-        enddo colo4
-        deallocate(nextgoodstart)
-        deallocate(distance)
-      endif ! } vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+          enddo
+          ! need to clean up:
+          do j=1,nneigs
+            node=nodes(j)
+            if (stat(node)/=D_AGGREGATED) then ! could not aggregate
+              distance(node)=0
+              stat(node)=0
+            endif
+          enddo
+        else ! ok==0 }{
+          print *,'something wrong!'
+        endif !}
+      enddo colo4
+      deallocate(nextgoodstart)
+      deallocate(distance)
       deallocate(aggrneigs)
       deallocate(nodes)
       deallocate(stat)
@@ -1045,18 +359,16 @@ endif
       fullaggrnum=aggrnum
       unaggregated=0
     endif
-    if (version<=3.or.(version.eq.4.and..not.toosmall)) then ! {
-      if (version==4) then ! in fullaggrnum we need only local aggrs
-        fullaggrnum=aggrnum(1:A%nrows)
-        full_nagrs_new=max(0, maxval(fullaggrnum))
-      endif
+    if (.not.toosmall) then ! {
+      fullaggrnum=aggrnum(1:A%nrows)
+      full_nagrs_new=max(0, maxval(fullaggrnum))
       call Form_Aggr(A%aggr,nagrs,n,neighood,nisolated,aggrnum)
       ! communicate the neighbours' aggregate numbers and renumber:
       if (numprocs>1) then 
         call setup_aggr_cdat(nagrs,n,aggrnum,M)
         call Form_Aggr(A%expandedaggr,nagrs,nn,neighood,nisolated,aggrnum)
       endif
-    elseif (version==4.and.toosmall) then ! }{
+    elseif (toosmall) then ! }{
       ! build the aggregate reference structure
       allocate(aggrsize(nagrs)) ! the initial aggr sizes
       aggrsize=0
