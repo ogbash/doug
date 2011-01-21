@@ -44,7 +44,71 @@ module CoarseMtx_mod
 
 !  Type(SpMtx), save :: Restrict !,Interp
 
+  !> Holds information about local coarse node supports
+  type CoarseSpace
+     integer :: nsupports !< number of nodes in the coarse space
+     integer,pointer :: support_nodes(:) !< fine node indices for the coarse supports
+     integer,pointer :: support_bounds(:) !< bounds for support_inds
+     integer,pointer :: esupport_nodes(:) !< expanded to the overlap: neighbour coarse nodes
+     integer,pointer :: esupport_bounds(:) !< bounds for esupport_nodes
+  end type CoarseSpace
+
 contains
+
+  !> Create new coarse space from computed restriction matrix.
+  !!
+  !! Currently assume Restrict contains excessive aggregates (because of refactoring process).
+  function CoarseSpace_Init(Restrict, nsupports) result(CS)
+    type(SpMtx), intent(in) :: Restrict
+    integer, intent(in) :: nsupports
+    type(CoarseSpace) :: CS
+
+    integer, allocatable :: nnodes(:), cnodes(:)
+    integer :: i, isupport
+
+    CS%nsupports = nsupports    
+
+    ! count the number of fine mesh nodes in each coarse node support
+    allocate(nnodes(CS%nsupports))
+    nnodes = 0
+    do i = 1,Restrict%nnz
+      isupport = Restrict%indi(i)
+      if (isupport<=CS%nsupports) then
+        nnodes(isupport) = nnodes(isupport)+1
+      end if
+    end do
+
+    ! scan-reduce to get bounds
+    allocate(CS%support_bounds(CS%nsupports+1))
+    CS%support_bounds(1) = 1
+    do i = 1,CS%nsupports
+      CS%support_bounds(i+1) = CS%support_bounds(i)+nnodes(i)
+    end do
+    write(stream,*) "CS%support_bounds", CS%support_bounds
+
+    ! store indices
+    allocate(CS%support_nodes(CS%support_bounds(CS%nsupports+1)-1))
+    allocate(cnodes(CS%nsupports))
+    cnodes = CS%support_bounds(1:CS%nsupports)
+    do i = 1,Restrict%nnz
+      isupport = Restrict%indi(i)
+      if (isupport<=CS%nsupports) then
+        CS%support_nodes(cnodes(isupport)) = Restrict%indj(i)
+        cnodes(isupport) = cnodes(isupport)+1
+      end if
+    end do
+
+    write(stream,*) "CS%support_nodes", CS%support_nodes
+  end function CoarseSpace_Init
+
+  !> Expand coarse space to the nodes and supports on the overlap.
+  !!
+  !! In parallel case prolongation must as well update nodes on the overlap from non-local coarse nodes.
+  subroutine CoarseSpace_Expand(CS)
+    type(CoarseSpace), intent(inout) :: CS
+
+    
+  end subroutine CoarseSpace_Expand
 
   !> Build the restriction matrix for the aggregation method.
   subroutine IntRestBuild(A,aggr,Restrict,A_ghost)
@@ -126,6 +190,7 @@ contains
       ! build Restrict:
       nz=aggr%starts(aggr%nagr+1)-1 ! is actually A%nrows-nisolated
       nagr=aggr%nagr
+      write(stream,*) "aggr%nagr", aggr%nagr
       allocate(indi(nz))
       do i=1,nagr
         j=aggr%starts(i)

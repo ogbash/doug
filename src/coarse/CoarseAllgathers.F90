@@ -518,7 +518,9 @@ contains
       cdat_vec%ngfc=sum(cdat_vec%send%rsizes)
       allocate(cdat_vec%gl_cfmap(cdat_vec%ngfc))
       cdat_vec%gl_cfmap=0
+      ! assign global numbers to all aggregates, numbering is ordered by rank
       lg_idx=sum(cdat_vec%send%rsizes(1:myrank))
+      write(stream,*) "nagrs", nagrs
       do i=1,nagrs
         lg_idx=lg_idx+1
         cdat_vec%lg_cfmap(i)=lg_idx

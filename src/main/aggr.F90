@@ -121,6 +121,7 @@ program main_aggr
   integer :: plotting
 
   type(RobustPreconditionMtx) :: C
+  type(CoarseSpace) :: CS
   ! Parallel coarse level
   !type(CoarseData) :: cdat -- moved into the module itself...
 
@@ -176,9 +177,9 @@ program main_aggr
        call Aggr_writeFile(A%aggr, 'aggr1.txt')
     end if
 
-    if (sctls%plotting>=2) then
-       call SpMtx_writeLogicalValues(A, A%strong, 'strong.txt')
-    end if
+    !if (sctls%plotting>=2) then
+    !   call SpMtx_writeLogicalValues(A, A%strong, 'strong.txt')
+    !end if
 
     call Mesh_printInfo(M)
     
@@ -197,11 +198,21 @@ program main_aggr
       !call IntRestBuild(A,A%expandedaggr,Rest_cmb,A_ghost)
       !call CoarseMtxBuild(A,cdat%LAC,Rest_cmb)
       !call IntRestBuild(A,A%aggr,Restrict)
+      write(stream,*) "A%aggr%nagr", A%aggr%nagr
+      write(stream,*) "A%fullaggr%nagr", A%fullaggr%nagr
+      write(stream,*) "A%expandedaggr%nagr", A%expandedaggr%nagr
       call IntRestBuild(A,A%expandedaggr,Restrict,A_ghost)
+      CS = CoarseSpace_Init(Restrict, A%aggr%nagr)
+      call CoarseSpace_Expand(CS)
+      write(stream,*) "Restrict%nrows", Restrict%nrows
 !write(stream,*)'Restrict expanded is:=================='
 !call SpMtx_printRaw(restrict)
       call CoarseMtxBuild(A,cdat%LAC,Restrict,A_ghost)
+      write(stream,*) "Restrict%nrows,ncols", Restrict%nrows, Restrict%ncols
+      write(stream,*) "Restrict%indi", Restrict%indi
+      write(stream,*) "A%aggr%num", A%aggr%num
       call KeepGivenRowIndeces(Restrict,A%aggr%num)
+      write(stream,*) "Restrict%nrows", Restrict%nrows
 !write(stream,*)'Restrict local is:=================='
 !call SpMtx_printRaw(Restrict)
       if (sctls%verbose>3.and.cdat%LAC%nnz<400) then
@@ -353,11 +364,11 @@ program main_aggr
        call pcg_weigs(A=A,b=b,x=xl,Msh=M,it=it,cond_num=cond_num, &
           CoarseMtx_=AC,Restrict=Restrict,refactor_=.true.)
      else
-       if (max(sctls%overlap,sctls%smoothers)>0) then
-         write(stream,*)'calling pcg_weigs /2/...'
-         call pcg_weigs(A=A,b=b,x=xl,Msh=M,it=it,cond_num=cond_num, &
-           A_interf_=A_ghost,refactor_=.true.)
-       else
+       !if (max(sctls%overlap,sctls%smoothers)>0) then
+       !  write(stream,*)'calling pcg_weigs /2/...'
+       !  call pcg_weigs(A=A,b=b,x=xl,Msh=M,it=it,cond_num=cond_num, &
+       !    A_interf_=A_ghost,refactor_=.true.)
+       !else
          if (sctls%levels==2) then
            write(stream,*)'calling pcg_weigs /3/...'
            call pcg_weigs(A=A,b=b,x=xl,Msh=M,it=it,cond_num=cond_num, &
@@ -369,7 +380,7 @@ program main_aggr
            call pcg_weigs(A, b, xl, M,it,cond_num, &
                 A_interf_=A_ghost, refactor_=.true.)
          endif
-       endif
+       !endif
      endif
      t=MPI_WTIME()-t1
      write(stream,*) 'time spent in pcg():',t

@@ -365,7 +365,9 @@ CONTAINS
       call Form_Aggr(A%aggr,nagrs,n,neighood,nisolated,aggrnum)
       ! communicate the neighbours' aggregate numbers and renumber:
       if (numprocs>1) then 
+        write(stream,*) "aggrnum", n, aggrnum
         call setup_aggr_cdat(nagrs,n,aggrnum,M)
+        write(stream,*) "aggrnum", nn, aggrnum
         call Form_Aggr(A%expandedaggr,nagrs,nn,neighood,nisolated,aggrnum)
       endif
     elseif (toosmall) then ! }{
