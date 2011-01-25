@@ -358,7 +358,6 @@ contains
 
       if (cdat%active) then
         ! Send coarse vector
-        write(stream,*) "Send coarse vector!"
         call SpMtx_Ax(clrhs,Restrict,rhs,dozero=.true.) ! restrict <RA>
         if (cdat_vec%active) then
           call AllSendCoarseVector(clrhs,cdat_vec%nprocs,cdat_vec%cdisps,&
@@ -396,7 +395,6 @@ contains
           call AllRecvCoarseVector(crhs,cdat%nprocs,&
                cdat%cdisps,cdat%glg_cfmap,cdat%send)
         endif
-        write(stream,*) "Got coarse vector!"
         !call MPI_BARRIER(MPI_COMM_WORLD,i)
       end if
 
@@ -410,7 +408,6 @@ contains
         CoarseMtx_%DD%nsubsolves=1
       end if
 
-      write (stream,*) "Coarse solve"
       ! Coarse solve
       call sparse_singlesolve(CoarseMtx_%DD%subsolve_ids(1),csol,crhs,&
            nfreds=CoarseMtx_%nrows, &
@@ -424,9 +421,7 @@ contains
       end if
 
       if (cdat_vec%active) then
-        write(stream,*) "clrhs", shape(clrhs), cdat_vec%gl_cfmap
         call Vect_remap(csol,clrhs,cdat_vec%gl_cfmap,dozero=.true.)
-        write(stream,*) "Restrict%nrows", Restrict%nrows
         call SpMtx_Ax(tmpsol,Restrict,clrhs,dozero=.true.,transp=.true.)
         !write(stream,*) "tmpsol", tmpsol
       elseif (cdat%active) then

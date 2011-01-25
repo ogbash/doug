@@ -64,6 +64,9 @@ module parameters
   integer :: D_TAG_ASSEMBLED_IDXS_I  = 702
   integer :: D_TAG_ASSEMBLED_IDXS_J  = 703
 
+  integer :: TAG_CREATE_PROLONG  = 720
+
+
   ! DOUG initialization
   integer, parameter :: D_INIT_PARALLEL = 1
   integer, parameter :: D_INIT_SERIAL   = 2

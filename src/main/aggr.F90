@@ -202,14 +202,13 @@ program main_aggr
       write(stream,*) "A%fullaggr%nagr", A%fullaggr%nagr
       write(stream,*) "A%expandedaggr%nagr", A%expandedaggr%nagr
       call IntRestBuild(A,A%expandedaggr,Restrict,A_ghost)
+      call SpMtx_printRaw(Restrict)
       CS = CoarseSpace_Init(Restrict, A%aggr%nagr)
-      call CoarseSpace_Expand(CS)
+      call CoarseSpace_Expand(CS,Restrict,M,cdat)
       write(stream,*) "Restrict%nrows", Restrict%nrows
 !write(stream,*)'Restrict expanded is:=================='
 !call SpMtx_printRaw(restrict)
       call CoarseMtxBuild(A,cdat%LAC,Restrict,A_ghost)
-      write(stream,*) "Restrict%nrows,ncols", Restrict%nrows, Restrict%ncols
-      write(stream,*) "Restrict%indi", Restrict%indi
       write(stream,*) "A%aggr%num", A%aggr%num
       call KeepGivenRowIndeces(Restrict,A%aggr%num)
       write(stream,*) "Restrict%nrows", Restrict%nrows

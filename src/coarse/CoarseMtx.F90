@@ -84,7 +84,7 @@ contains
     do i = 1,CS%nsupports
       CS%support_bounds(i+1) = CS%support_bounds(i)+nnodes(i)
     end do
-    write(stream,*) "CS%support_bounds", CS%support_bounds
+    !write(stream,*) "CS%support_bounds", CS%support_bounds
 
     ! store indices
     allocate(CS%support_nodes(CS%support_bounds(CS%nsupports+1)-1))
@@ -98,15 +98,169 @@ contains
       end if
     end do
 
-    write(stream,*) "CS%support_nodes", CS%support_nodes
+    !write(stream,*) "CS%support_nodes", CS%support_nodes
   end function CoarseSpace_Init
 
   !> Expand coarse space to the nodes and supports on the overlap.
   !!
   !! In parallel case prolongation must as well update nodes on the overlap from non-local coarse nodes.
-  subroutine CoarseSpace_Expand(CS)
+  subroutine CoarseSpace_Expand(CS,R,M,cdat)
+    use CoarseAllgathers, only: CoarseData
     type(CoarseSpace), intent(inout) :: CS
+    type(SpMtx), intent(in) :: R !< Restriction matrix
+    type(Mesh), intent(in) :: M
+    type(CoarseData), intent(in) :: cdat
 
+    integer,dimension(:), pointer :: indi, indj
+    real(kind=rk), pointer :: val(:)
+    integer :: nnz
+    type(SpMtx) :: extR
+
+    ! collect restrict values from external node to local coarse support
+    call collectRestrictValues(extR)
+    call SpMtx_printRaw(extR)
+
+  contains
+
+    !> Calculate buffer size for MPI operations
+    function calcBufferSize(ninds) result(bufferSize)
+      integer, intent(in) :: ninds
+      integer :: bufferSize
+      integer :: size, ierr
+      call MPI_Pack_size(ninds, MPI_INTEGER, MPI_COMM_WORLD, size, ierr)
+      bufferSize = 2*size
+      call MPI_Pack_size(ninds, MPI_fkind, MPI_COMM_WORLD, size, ierr)
+      bufferSize = bufferSize+size
+    end function calcBufferSize
+
+    subroutine collectRestrictValues(eR)
+      type(SpMtx),intent(out) :: eR
+
+      type(indlist), allocatable :: smooth_sends(:), smooth_recvs(:)
+      integer :: k, i, j, isupport, ptn, ngh, ierr, status(MPI_STATUS_SIZE)
+
+      integer, allocatable :: outreqs(:)
+      type Buffer
+         character, pointer :: data(:)       
+      end type Buffer
+      type(Buffer), allocatable :: outbuffers(:)
+      integer :: bufsize, bufpos
+      character, allocatable :: inbuffer(:)
+
+      integer :: ninds, nnz
+      integer, allocatable :: outstatuses(:,:)
+
+      ! first count
+      allocate(smooth_sends(M%nnghbrs), smooth_recvs(M%nnghbrs))
+      smooth_sends%ninds=0
+      do k=1,R%nnz
+         isupport = R%indi(k)
+         j = R%indj(k)
+         ptn = M%eptnmap(M%lg_fmap(j))
+         ! if local coarse node value to be prolonged to external fine node value
+         if (isupport<=CS%nsupports.and.ptn/=myrank+1) then
+            do i=1,M%nnghbrs
+               if (M%nghbrs(i)+1==ptn) then
+                  ngh = i
+                  exit
+               end if
+            end do
+            smooth_sends(ngh)%ninds = smooth_sends(ngh)%ninds+1
+         end if
+      end do
+
+      ! then collect
+      do i=1,M%nnghbrs
+         allocate(smooth_sends(i)%inds(smooth_sends(i)%ninds))
+      end do
+      smooth_sends%ninds = 0
+      do k=1,R%nnz
+         isupport = R%indi(k)
+         j = R%indj(k)
+         ptn = M%eptnmap(M%lg_fmap(j))
+         ! if local coarse node value to be prolonged to external fine node value
+         if (isupport<=CS%nsupports.and.ptn/=myrank+1) then
+            do i=1,M%nnghbrs
+               if (M%nghbrs(i)+1==ptn) then
+                  ngh = i
+                  exit
+               end if
+            end do
+            i = smooth_sends(ngh)%ninds
+            smooth_sends(ngh)%ninds = i+1
+            smooth_sends(ngh)%inds(i+1) = k
+         end if
+      end do
+
+      ! gather values
+      ! gather number of matrix elements each node has
+      do i=1,M%nnghbrs
+         ngh = M%nghbrs(i)
+         call MPI_Send(smooth_sends(i)%ninds, 1, MPI_INTEGER, ngh, &
+              TAG_CREATE_PROLONG, MPI_COMM_WORLD, ierr)
+      end do
+      do i=1,M%nnghbrs
+         ngh = M%nghbrs(i)
+         call MPI_Recv(smooth_recvs(i)%ninds, 1, MPI_INTEGER, ngh, &
+              TAG_CREATE_PROLONG, MPI_COMM_WORLD, status, ierr)
+      end do
+
+      ! gather matrix elements
+      ! non-blockingly send
+      allocate(outbuffers(M%nnghbrs))
+      allocate(outreqs(M%nnghbrs))
+      do i=1,M%nnghbrs
+         write(stream,*) "--", R%val(smooth_sends(i)%inds), smooth_sends(i)%inds
+         ! prepare and fill buffer
+         bufsize = calcBufferSize(smooth_sends(i)%ninds)
+         allocate(outbuffers(i)%data(bufsize))
+         bufpos = 0
+         call MPI_Pack(cdat%lg_cfmap(R%indi(smooth_sends(i)%inds)), smooth_sends(i)%ninds, MPI_INTEGER,&
+              outbuffers(i)%data, bufsize, bufpos, MPI_COMM_WORLD, ierr)
+         if (ierr/=0) call DOUG_abort("MPI Pack of matrix elements failed")
+         call MPI_Pack(M%lg_fmap(R%indj(smooth_sends(i)%inds)), smooth_sends(i)%ninds, MPI_INTEGER,&
+              outbuffers(i)%data, bufsize, bufpos, MPI_COMM_WORLD, ierr)
+         if (ierr/=0) call DOUG_abort("MPI Pack of matrix elements failed")
+         call MPI_Pack(R%val(smooth_sends(i)%inds), smooth_sends(i)%ninds, MPI_fkind,&
+              outbuffers(i)%data, bufsize, bufpos, MPI_COMM_WORLD, ierr)
+         if (ierr/=0) call DOUG_abort("MPI Pack of matrix elements failed")
+
+         ! start sending values
+         call MPI_ISend(outbuffers(i)%data, bufpos, MPI_CHARACTER, M%nghbrs(i),&
+              TAG_CREATE_PROLONG, MPI_COMM_WORLD, outreqs(i), ierr)
+      end do
+
+      ! receive values
+      allocate(inbuffer(calcBufferSize(maxval(smooth_recvs%ninds))))
+      nnz = sum(smooth_recvs%ninds)
+      eR = SpMtx_newInit(nnz)
+      nnz = 0
+      do i=1,M%nnghbrs
+         ! prepare and fill buffer
+         bufsize = calcBufferSize(smooth_recvs(i)%ninds)
+         call MPI_Recv(inbuffer, bufsize, MPI_CHARACTER, M%nghbrs(i),&
+              TAG_CREATE_PROLONG, MPI_COMM_WORLD, status, ierr)
+         ninds = smooth_recvs(i)%ninds
+         bufpos = 0
+         call MPI_Unpack(inbuffer, bufsize, bufpos, eR%indi(nnz+1), ninds,&
+              MPI_INTEGER, MPI_COMM_WORLD, ierr)
+         if (ierr/=0) call DOUG_abort("MPI Pack of matrix elements failed")
+         write(stream,*) "--", bufpos
+         call MPI_Unpack(inbuffer, bufsize, bufpos, eR%indj(nnz+1), ninds,&
+              MPI_INTEGER, MPI_COMM_WORLD, ierr)
+         if (ierr/=0) call DOUG_abort("MPI Pack of matrix elements failed")
+         write(stream,*) "--", bufpos
+         call MPI_Unpack(inbuffer, bufsize, bufpos, eR%val(nnz+1), ninds,&
+              MPI_fkind, MPI_COMM_WORLD, ierr)
+         if (ierr/=0) call DOUG_abort("MPI Pack of matrix elements failed")
+         nnz = nnz+ninds
+      end do
+
+      ! wait for all data to be sent
+      allocate(outstatuses(MPI_STATUS_SIZE, M%nnghbrs))
+      call MPI_Waitall(M%nnghbrs, outreqs, outstatuses, ierr)
+
+    end subroutine collectRestrictValues
     
   end subroutine CoarseSpace_Expand
 
@@ -190,7 +344,7 @@ contains
       ! build Restrict:
       nz=aggr%starts(aggr%nagr+1)-1 ! is actually A%nrows-nisolated
       nagr=aggr%nagr
-      write(stream,*) "aggr%nagr", aggr%nagr
+      write(stream,*) "IntRestBuild aggr%nagr", aggr%nagr
       allocate(indi(nz))
       do i=1,nagr
         j=aggr%starts(i)
@@ -212,6 +366,7 @@ contains
       T%val=1.0_rk
       deallocate(indi)
       ! Build smoother
+      call SpMtx_printRaw(A)
       allocate(diag(max(A%nrows,A%ncols)))
       diag=0.0;
       do i=1,A%nnz
