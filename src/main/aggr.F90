@@ -140,7 +140,7 @@ program main_aggr
     else
       strong_conn1=0.67_rk
     endif
-    call SpMtx_find_strong(A=A,alpha=strong_conn1,A_ghost=A_ghost)
+    call SpMtx_find_strong(A=A,alpha=strong_conn1,A_ghost=A_ghost,M=M)
     if (sctls%radius1>0) then
       aggr_radius1=sctls%radius1
     else

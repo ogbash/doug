@@ -385,12 +385,13 @@ CONTAINS
 !------------------------------------------------------
 ! Finding strong connections in matrix
 !------------------------------------------------------
-  subroutine SpMtx_find_strong(A,alpha,A_ghost,symmetrise)
+  subroutine SpMtx_find_strong(A,alpha,A_ghost,symmetrise,M)
     Implicit None
     Type(SpMtx),intent(in out) :: A
     float(kind=rk), intent(in) :: alpha
     Type(SpMtx),intent(in out),optional :: A_ghost
     logical,intent(in),optional :: symmetrise
+    type(Mesh),intent(in),optional :: M
     ! local:
     integer :: i,j,k,start,ending,nnz,ndiags
     logical :: did_scale
@@ -478,6 +479,7 @@ write(stream,*)'symmetrising to strong:',A%indi(i),A%indj(i)
         endif
       enddo
     endif
+    write(stream,*) "STRONG", A%strong
     if (mirror2ghost) then
       if (present(A_ghost).and.associated(A_ghost%indi)) then
         allocate(A_ghost%strong(A_ghost%nnz))
@@ -490,8 +492,37 @@ write(stream,*)'symmetrising to strong:',A%indi(i),A%indj(i)
             endif
           endif
         enddo
+        write(stream,*) "GHOST STRONG", A_ghost%strong
       endif
     endif
+
+  contains
+
+    subroutine exchange_strong()
+      integer :: k, neigh
+      integer,allocatable :: ninds(:)
+      type Buffer
+         character, pointer :: data(:)       
+      end type Buffer
+      type(Buffer),allocatable :: outbuffers(:)
+
+      allocate(ninds(M%nnghbrs))
+
+      ! report to the neighbours which elements we need
+      !! how many elements
+      ninds = 0
+      do k=1,A_ghost%nnz
+        neigh = M%eptnmap(A_ghost%indi(k))
+        if (neigh/=myrank+1) then
+          ninds(neigh) = ninds(neigh)+1
+        end if
+      end do
+      !! collect elements
+      !do neigh=1,M%nnghbrs
+      !  allocate(
+
+      deallocate(ninds)
+    end subroutine exchange_strong
   end subroutine SpMtx_find_strong
 
 !----------------------------------------------------------

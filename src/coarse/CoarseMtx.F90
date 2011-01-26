@@ -366,7 +366,6 @@ contains
       T%val=1.0_rk
       deallocate(indi)
       ! Build smoother
-      call SpMtx_printRaw(A)
       allocate(diag(max(A%nrows,A%ncols)))
       diag=0.0;
       do i=1,A%nnz
@@ -449,8 +448,8 @@ contains
         arrange_type=D_SpMtx_ARRNG_NO )
       deallocate(val,indj,indi)
       deallocate(diag)
-!write(stream,*)'Smoother matrix is:------------'
-!call SpMtx_printRaw(S)
+write(stream,*)'Smoother matrix is:------------'
+call SpMtx_printRaw(S)
       if (smoothers>=2) then
         ! Build smoother2
         allocate(diag(max(A%nrows,A%ncols)))
