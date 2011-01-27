@@ -159,19 +159,20 @@ contains
          ptn = M%eptnmap(M%lg_fmap(j))
          ! if local coarse node value to be prolonged to external fine node value
          if (isupport<=CS%nsupports.and.ptn/=myrank+1) then
-            do i=1,M%nnghbrs
-               if (M%nghbrs(i)+1==ptn) then
-                  ngh = i
-                  exit
-               end if
-            end do
-            smooth_sends(ngh)%ninds = smooth_sends(ngh)%ninds+1
+           ! find neighbour number
+           do i=1,M%nnghbrs
+             if (M%nghbrs(i)+1==ptn) then
+               ngh = i
+               exit
+             end if
+           end do
+           smooth_sends(ngh)%ninds = smooth_sends(ngh)%ninds+1
          end if
       end do
 
       ! then collect
       do i=1,M%nnghbrs
-         allocate(smooth_sends(i)%inds(smooth_sends(i)%ninds))
+        allocate(smooth_sends(i)%inds(smooth_sends(i)%ninds))
       end do
       smooth_sends%ninds = 0
       do k=1,R%nnz
@@ -244,15 +245,14 @@ contains
          bufpos = 0
          call MPI_Unpack(inbuffer, bufsize, bufpos, eR%indi(nnz+1), ninds,&
               MPI_INTEGER, MPI_COMM_WORLD, ierr)
-         if (ierr/=0) call DOUG_abort("MPI Pack of matrix elements failed")
+         if (ierr/=0) call DOUG_abort("MPI UnPack of matrix elements failed")
          write(stream,*) "--", bufpos
          call MPI_Unpack(inbuffer, bufsize, bufpos, eR%indj(nnz+1), ninds,&
               MPI_INTEGER, MPI_COMM_WORLD, ierr)
-         if (ierr/=0) call DOUG_abort("MPI Pack of matrix elements failed")
-         write(stream,*) "--", bufpos
+         if (ierr/=0) call DOUG_abort("MPI UnPack of matrix elements failed")
          call MPI_Unpack(inbuffer, bufsize, bufpos, eR%val(nnz+1), ninds,&
               MPI_fkind, MPI_COMM_WORLD, ierr)
-         if (ierr/=0) call DOUG_abort("MPI Pack of matrix elements failed")
+         if (ierr/=0) call DOUG_abort("MPI UnPack of matrix elements failed")
          nnz = nnz+ninds
       end do
 

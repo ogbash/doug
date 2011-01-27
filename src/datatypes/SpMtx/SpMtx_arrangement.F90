@@ -456,6 +456,10 @@ CONTAINS
     !if (did_scale) then
     !  call SpMtx_unscale(A)
     !endif
+    if (present(A_ghost).and.associated(A_ghost%indi)) then
+      ! this should only be called once, during local strong calculations
+      call exchange_strong()
+    end if
     if (present(symmetrise)) then
       symm=symmetrise
     endif
@@ -497,31 +501,138 @@ write(stream,*)'symmetrising to strong:',A%indi(i),A%indj(i)
     endif
 
   contains
+    function calcBufferSize(ninds) result(bufferSize)
+      integer, intent(in) :: ninds
+      integer :: bufferSize
+      integer :: size, ierr
+      call MPI_Pack_size(ninds, MPI_INTEGER, MPI_COMM_WORLD, size, ierr)
+      bufferSize = 2*size
+    end function calcBufferSize
 
     subroutine exchange_strong()
-      integer :: k, neigh
-      integer,allocatable :: ninds(:)
+      integer :: k, k2, neigh, ninds, bufsize, bufpos, ptn
+      type(indlist), allocatable :: strong_sends(:), strong_recvs(:)
       type Buffer
          character, pointer :: data(:)       
       end type Buffer
       type(Buffer),allocatable :: outbuffers(:)
+      integer, allocatable :: outreqs(:), outstatuses(:,:), indi(:), indj(:)
+      integer :: status(MPI_STATUS_SIZE), ierr
+      character, allocatable :: inbuffer(:)
+      logical, allocatable :: strong(:)
 
-      allocate(ninds(M%nnghbrs))
+      allocate(strong_sends(M%nnghbrs))
 
       ! report to the neighbours which elements we need
       !! how many elements
-      ninds = 0
+      strong_sends%ninds = 0
       do k=1,A_ghost%nnz
-        neigh = M%eptnmap(A_ghost%indi(k))
-        if (neigh/=myrank+1) then
-          ninds(neigh) = ninds(neigh)+1
+        ptn = M%eptnmap(M%lg_fmap(A_ghost%indi(k)))
+        if (ptn/=myrank+1) then
+          ! find neighbour number
+          do i=1,M%nnghbrs
+            if (M%nghbrs(i)+1==ptn) then
+              neigh = i
+              exit
+            end if
+          end do
+          strong_sends(neigh)%ninds = strong_sends(neigh)%ninds+1
         end if
       end do
       !! collect elements
-      !do neigh=1,M%nnghbrs
-      !  allocate(
+      !!! prepare indices
+      do neigh=1,M%nnghbrs
+        allocate(strong_sends(neigh)%inds(strong_sends(neigh)%ninds))
+      end do
+      strong_sends%ninds = 0 ! reset
+      do k=1,A_ghost%nnz
+        ptn = M%eptnmap(M%lg_fmap(A_ghost%indi(k)))
+        if (ptn/=myrank+1) then
+          ! find neighbour number
+          do i=1,M%nnghbrs
+            if (M%nghbrs(i)+1==ptn) then
+              neigh = i
+              exit
+            end if
+          end do
+          ninds = strong_sends(neigh)%ninds
+          strong_sends(neigh)%ninds = ninds+1
+          strong_sends(neigh)%inds(ninds+1) = k
+        end if
+      end do
 
-      deallocate(ninds)
+      ! gather number of matrix elements
+      allocate(strong_recvs(M%nnghbrs))
+      do i=1,M%nnghbrs
+         neigh = M%nghbrs(i)
+         call MPI_Send(strong_sends(i)%ninds, 1, MPI_INTEGER, neigh, &
+              TAG_EXCHANGE_STRONG, MPI_COMM_WORLD, ierr)
+      end do
+      do i=1,M%nnghbrs
+         neigh = M%nghbrs(i)
+         call MPI_Recv(strong_recvs(i)%ninds, 1, MPI_INTEGER, neigh, &
+              TAG_EXCHANGE_STRONG, MPI_COMM_WORLD, status, ierr)
+      end do
+
+      !!! pack and send index data
+      allocate(outbuffers(M%nnghbrs))
+      allocate(outreqs(M%nnghbrs))
+      do neigh=1,M%nnghbrs
+        bufsize = calcBufferSize(strong_sends(neigh)%ninds)
+        allocate(outbuffers(neigh)%data(bufsize))
+        bufpos = 0
+        write(stream,*) "send*", bufsize, M%lg_fmap(A_ghost%indi(strong_sends(neigh)%inds))
+        call MPI_Pack(M%lg_fmap(A_ghost%indi(strong_sends(neigh)%inds)), strong_sends(neigh)%ninds, MPI_INTEGER,&
+             outbuffers(neigh)%data, bufsize, bufpos, MPI_COMM_WORLD, ierr)
+        call MPI_Pack(M%lg_fmap(A_ghost%indj(strong_sends(neigh)%inds)), strong_sends(neigh)%ninds, MPI_INTEGER,&
+             outbuffers(neigh)%data, bufsize, bufpos, MPI_COMM_WORLD, ierr)
+        call MPI_ISend(outbuffers(neigh)%data, bufsize, MPI_CHARACTER, M%nghbrs(neigh), TAG_EXCHANGE_STRONG,&
+             MPI_COMM_WORLD, outreqs(neigh), ierr)
+      end do
+
+      !!! recv index data
+      allocate(inbuffer(calcBufferSize(maxval(strong_recvs%ninds))))
+      nnz = sum(strong_recvs%ninds)
+      allocate(indi(nnz),indj(nnz))
+      nnz = 0
+      do i=1,M%nnghbrs
+        bufsize = calcBufferSize(strong_recvs(i)%ninds)
+        call MPI_Recv(inbuffer, bufsize, MPI_CHARACTER, M%nghbrs(i),&
+             TAG_EXCHANGE_STRONG, MPI_COMM_WORLD, status, ierr)
+        ninds = strong_recvs(i)%ninds
+        bufpos = 0
+        call MPI_Unpack(inbuffer, bufsize, bufpos, indi(nnz+1), ninds,&
+             MPI_INTEGER, MPI_COMM_WORLD, ierr)
+        if (ierr/=0) call DOUG_abort("MPI UnPack of matrix elements failed")
+        call MPI_Unpack(inbuffer, bufsize, bufpos, indj(nnz+1), ninds,&
+             MPI_INTEGER, MPI_COMM_WORLD, ierr)
+        if (ierr/=0) call DOUG_abort("MPI UnPack of matrix elements failed")
+        nnz = nnz+ninds
+      end do
+
+      ! find strong values
+      allocate(strong(nnz))
+      do k=1,nnz
+        k2 = SpMtx_findElem(A, M%gl_fmap(indi(k)), M%gl_fmap(indj(k)))
+        if(k2<=0) call DOUG_abort("Matrix element not found during 'strong' exchange")
+        strong(nnz) = A%strong(k2)
+      end do
+
+      write(stream,*) "strong", strong
+
+      ! wait for all data to be sent
+      allocate(outstatuses(MPI_STATUS_SIZE, M%nnghbrs))
+      call MPI_Waitall(M%nnghbrs, outreqs, outstatuses, ierr)
+
+      ! send strong values back
+
+      ! free memory
+      do neigh=1,M%nnghbrs
+        deallocate(outbuffers(neigh)%data)
+        deallocate(strong_sends(neigh)%inds)
+      end do
+      deallocate(outbuffers)
+      deallocate(strong_sends, strong_recvs)
     end subroutine exchange_strong
   end subroutine SpMtx_find_strong
 
