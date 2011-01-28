@@ -754,11 +754,8 @@ write(stream,*)'symmetrising to strong:',A%indi(i),A%indj(i)
         endif
       enddo
     endif
-    write(stream,*) "STRONG", A%strong
     if (mirror2ghost) then
       if (present(A_ghost).and.associated(A_ghost%indi)) then
-        allocate(A_ghost%strong(A_ghost%nnz))
-        A_ghost%strong=.false.
         do i=1,A_ghost%nnz
           if(A_ghost%indi(i)/=A_ghost%indj(i)) then
             k=SpMtx_findElem(A,A_ghost%indi(i),A_ghost%indj(i))
@@ -767,7 +764,6 @@ write(stream,*)'symmetrising to strong:',A%indi(i),A%indj(i)
             endif
           endif
         enddo
-        write(stream,*) "GHOST STRONG", A_ghost%strong
       endif
     endif
 
@@ -791,6 +787,7 @@ write(stream,*)'symmetrising to strong:',A%indi(i),A%indj(i)
     subroutine exchange_strong()
       integer :: k, k2, neigh, ninds, bufsize, bufpos, ptn
       type(indlist), allocatable :: strong_sends(:), strong_recvs(:)
+      logical, allocatable :: strongval_recvs(:)
       type Buffer
          character, pointer :: data(:)       
       end type Buffer
@@ -860,7 +857,6 @@ write(stream,*)'symmetrising to strong:',A%indi(i),A%indj(i)
         bufsize = calcBufferSize(strong_sends(neigh)%ninds)
         allocate(outbuffers(neigh)%data(bufsize))
         bufpos = 0
-        write(stream,*) "send*", bufsize, M%lg_fmap(A_ghost%indi(strong_sends(neigh)%inds))
         call MPI_Pack(M%lg_fmap(A_ghost%indi(strong_sends(neigh)%inds)), strong_sends(neigh)%ninds, MPI_INTEGER,&
              outbuffers(neigh)%data, bufsize, bufpos, MPI_COMM_WORLD, ierr)
         call MPI_Pack(M%lg_fmap(A_ghost%indj(strong_sends(neigh)%inds)), strong_sends(neigh)%ninds, MPI_INTEGER,&
@@ -892,12 +888,12 @@ write(stream,*)'symmetrising to strong:',A%indi(i),A%indj(i)
       ! find strong values
       allocate(strong(nnz))
       do k=1,nnz
-        k2 = SpMtx_findElem(A, M%gl_fmap(indi(k)), M%gl_fmap(indj(k)))
+        i = M%gl_fmap(indi(k))
+        j = M%gl_fmap(indj(k))
+        k2 = SpMtx_findElem(A, i, j)
         if(k2<=0) call DOUG_abort("Matrix element not found during 'strong' exchange")
-        strong(nnz) = A%strong(k2)
+        strong(k) = A%strong(k2)
       end do
-
-      write(stream,*) "strong", strong
 
       ! wait for all data to be sent
       allocate(outstatuses(MPI_STATUS_SIZE, M%nnghbrs))
@@ -910,11 +906,26 @@ write(stream,*)'symmetrising to strong:',A%indi(i),A%indj(i)
         ninds = strong_recvs(i)%ninds
         call MPI_ISend(strong(nnz+1), ninds, MPI_LOGICAL, M%nghbrs(i), &
              TAG_EXCHANGE_STRONG, MPI_COMM_WORLD, outreqs(i), ierr)
-        !deallocate(outbuffers(i)%data)
-        !bufsize = calcBufferSize2(ninds)
-        !allocate(outbuffers(i)%data(bufsize))
-        !call MPI_Pack(strong(nnz+1), ninds, MPI_LOGICAL, &
-        !     outbuffers(i), bufsize, bufpos, MPI_COMM_WORLD, ierr)
+        nnz = nnz+ninds
+      end do
+
+      ! receive strong values (requested value indices are in strong_sends)
+      allocate(A_ghost%strong(A_ghost%nnz))
+      nnz = sum(strong_sends%ninds)
+      allocate(strongval_recvs(nnz))
+      nnz = 0
+      do i=1,M%nnghbrs
+        ninds = strong_sends(i)%ninds
+        call MPI_Recv(strongval_recvs(nnz+1), ninds, MPI_LOGICAL,M%nghbrs(i),&
+             TAG_EXCHANGE_STRONG, MPI_COMM_WORLD, status, ierr)
+        ! overwrite local strong value with remote
+        !write (stream,*) "----", strong_sends(i)%ninds, ninds, strong_sends(i)%inds, strongval_recvs(nnz+1:nnz+ninds)
+        do k=1,ninds
+          k2 = strong_sends(i)%inds(k)
+          !write(stream,*) "--k2", k2, strongval_recvs(nnz+k), size(A_ghost%strong)
+          A_ghost%strong(k2) = strongval_recvs(nnz+k)
+        end do
+
         nnz = nnz+ninds
       end do
 

@@ -246,7 +246,6 @@ contains
          call MPI_Unpack(inbuffer, bufsize, bufpos, eR%indi(nnz+1), ninds,&
               MPI_INTEGER, MPI_COMM_WORLD, ierr)
          if (ierr/=0) call DOUG_abort("MPI UnPack of matrix elements failed")
-         write(stream,*) "--", bufpos
          call MPI_Unpack(inbuffer, bufsize, bufpos, eR%indj(nnz+1), ninds,&
               MPI_INTEGER, MPI_COMM_WORLD, ierr)
          if (ierr/=0) call DOUG_abort("MPI UnPack of matrix elements failed")
@@ -344,7 +343,7 @@ contains
       ! build Restrict:
       nz=aggr%starts(aggr%nagr+1)-1 ! is actually A%nrows-nisolated
       nagr=aggr%nagr
-      write(stream,*) "IntRestBuild aggr%nagr", aggr%nagr
+      !write(stream,*) "IntRestBuild aggr%nagr", aggr%nagr
       allocate(indi(nz))
       do i=1,nagr
         j=aggr%starts(i)

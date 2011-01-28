@@ -198,20 +198,20 @@ program main_aggr
       !call IntRestBuild(A,A%expandedaggr,Rest_cmb,A_ghost)
       !call CoarseMtxBuild(A,cdat%LAC,Rest_cmb)
       !call IntRestBuild(A,A%aggr,Restrict)
-      write(stream,*) "A%aggr%nagr", A%aggr%nagr
-      write(stream,*) "A%fullaggr%nagr", A%fullaggr%nagr
-      write(stream,*) "A%expandedaggr%nagr", A%expandedaggr%nagr
+      !write(stream,*) "A%aggr%nagr", A%aggr%nagr
+      !write(stream,*) "A%fullaggr%nagr", A%fullaggr%nagr
+      !write(stream,*) "A%expandedaggr%nagr", A%expandedaggr%nagr
       call IntRestBuild(A,A%expandedaggr,Restrict,A_ghost)
       call SpMtx_printRaw(Restrict)
       CS = CoarseSpace_Init(Restrict, A%aggr%nagr)
       call CoarseSpace_Expand(CS,Restrict,M,cdat)
-      write(stream,*) "Restrict%nrows", Restrict%nrows
+      !write(stream,*) "Restrict%nrows", Restrict%nrows
 !write(stream,*)'Restrict expanded is:=================='
 !call SpMtx_printRaw(restrict)
       call CoarseMtxBuild(A,cdat%LAC,Restrict,A_ghost)
-      write(stream,*) "A%aggr%num", A%aggr%num
+      !write(stream,*) "A%aggr%num", A%aggr%num
       call KeepGivenRowIndeces(Restrict,A%aggr%num)
-      write(stream,*) "Restrict%nrows", Restrict%nrows
+      !write(stream,*) "Restrict%nrows", Restrict%nrows
 !write(stream,*)'Restrict local is:=================='
 !call SpMtx_printRaw(Restrict)
       if (sctls%verbose>3.and.cdat%LAC%nnz<400) then
