@@ -990,10 +990,10 @@ call MPI_Barrier(MPI_COMM_WORLD,ierr)!todo: remove
         allocate(inbufs(M%nnghbrs), outbufs(M%nnghbrs))
         do p = 1,M%nnghbrs
           mx=max(M%ax_recvidx(p)%ninds,&
-                 M%ol_inner(p)%ninds+M%ol_outer(p)%ninds)
+                 M%ol_solve(p)%ninds)
           allocate(inbufs(p)%arr(mx))
           mx=max(M%ax_sendidx(p)%ninds,&
-                 M%ol_inner(p)%ninds+M%ol_outer(p)%ninds)
+                 M%ol_solve(p)%ninds)
           allocate(outbufs(p)%arr(mx))
         enddo
         call Vect_buildDotMask(M)
