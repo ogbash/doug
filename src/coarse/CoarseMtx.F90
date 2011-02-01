@@ -84,7 +84,7 @@ contains
     do i = 1,CS%nsupports
       CS%support_bounds(i+1) = CS%support_bounds(i)+nnodes(i)
     end do
-    write(stream,*) "CS%support_bounds", CS%support_bounds
+    !write(stream,*) "CS%support_bounds", CS%support_bounds
 
     ! store indices
     allocate(CS%support_nodes(CS%support_bounds(CS%nsupports+1)-1))
@@ -98,7 +98,7 @@ contains
       end if
     end do
 
-    write(stream,*) "CS%support_nodes", CS%support_nodes
+    !write(stream,*) "CS%support_nodes", CS%support_nodes
   end function CoarseSpace_Init
 
   !> Expand coarse space to the nodes and supports on the overlap.

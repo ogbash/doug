@@ -424,9 +424,9 @@ contains
       end if
 
       if (cdat_vec%active) then
-        write(stream,*) "clrhs", shape(clrhs), cdat_vec%gl_cfmap
+        !write(stream,*) "clrhs", shape(clrhs), cdat_vec%gl_cfmap
         call Vect_remap(csol,clrhs,cdat_vec%gl_cfmap,dozero=.true.)
-        write(stream,*) "Restrict%nrows", Restrict%nrows
+        !write(stream,*) "Restrict%nrows", Restrict%nrows
         call SpMtx_Ax(tmpsol,Restrict,clrhs,dozero=.true.,transp=.true.)
         !write(stream,*) "tmpsol", tmpsol
       elseif (cdat%active) then

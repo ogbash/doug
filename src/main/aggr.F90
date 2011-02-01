@@ -209,8 +209,8 @@ program main_aggr
 !call SpMtx_printRaw(restrict)
       call CoarseMtxBuild(A,cdat%LAC,Restrict,A_ghost)
       write(stream,*) "Restrict%nrows,ncols", Restrict%nrows, Restrict%ncols
-      write(stream,*) "Restrict%indi", Restrict%indi
-      write(stream,*) "A%aggr%num", A%aggr%num
+      !write(stream,*) "Restrict%indi", Restrict%indi
+      !write(stream,*) "A%aggr%num", A%aggr%num
       call KeepGivenRowIndeces(Restrict,A%aggr%num)
       write(stream,*) "Restrict%nrows", Restrict%nrows
 !write(stream,*)'Restrict local is:=================='
