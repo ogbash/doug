@@ -424,7 +424,7 @@ contains
       end if
 
       if (cdat_vec%active) then
-        !write(stream,*) "clrhs", shape(clrhs), cdat_vec%gl_cfmap
+        write(stream,*) "clrhs", shape(clrhs), cdat_vec%gl_cfmap
         call Vect_remap(csol,clrhs,cdat_vec%gl_cfmap,dozero=.true.)
         !write(stream,*) "Restrict%nrows", Restrict%nrows
         call SpMtx_Ax(tmpsol,Restrict,clrhs,dozero=.true.,transp=.true.)
@@ -687,6 +687,7 @@ if (bugtrack)call Print_Glob_Vect(z,Msh,'global bef comm z===',chk_endind=Msh%ni
 !call Print_Glob_Vect(z,Msh,'global aft comm z===',chk_endind=Msh%ninner)
 !call Print_Glob_Vect(z,Msh,'global z===')
       ! compute current rho
+      write(stream,*) "R,P,Z", size(r), size(p), size(z)
       rho_curr = Vect_dot_product(r,z)
 
       if (it == 1) then

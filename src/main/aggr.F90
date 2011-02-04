@@ -76,6 +76,8 @@ program main_aggr
   use RobustCoarseMtx_mod
   use pcgRobust_mod
 
+  use aggr_util_mod
+
   implicit none
 
 #include<doug_config.h>
@@ -90,6 +92,7 @@ program main_aggr
 
   type(SpMtx)    :: A,A_interf,A_ghost  !< System matrix (parallel sparse matrix)
   type(SpMtx)    :: AC  !< coarse matrix
+  type(SpMtx)    :: LA  !< matrix without outer nodes
   type(SpMtx)    :: Restrict !< Restriction matrix (for operation)
   type(SumOfInversedSubMtx) :: B_RCS !< B matrix for the Robust Coarse Spaces
   !type(SpMtx)    :: Rest_cmb !< Restriction matrix (for coarse matrix build)
@@ -119,6 +122,7 @@ program main_aggr
   integer :: aver_subdsize,min_subdsize,max_subdsize
   integer :: start_radius1,start_radius2
   integer :: plotting
+  integer,allocatable :: nodes(:), inds(:)
 
   type(RobustPreconditionMtx) :: C
   type(CoarseSpace) :: CS
@@ -132,6 +136,8 @@ program main_aggr
   nparts = numprocs
 
   call parallelDistributeInput(sctls%input_type,M,A,b,nparts,part_opts,A_ghost)
+
+  LA = getLocal(A,M)
 
   if (sctls%levels>1.or.(numprocs==1.and.sctls%levels==1)) then !todo remove
     ! Testing aggregation: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA

@@ -337,6 +337,14 @@ contains
   End Function SpMtx_newInit
 
 
+  function SpMtx_newCopy(A) result(M)
+    type(SpMtx), intent(in) :: A
+    type(SpMtx) :: M
+
+    M = SpMtx_newInit(A%nnz,A%nblocks,A%nrows,A%ncols,&
+         indi=A%indi,indj=A%indj,val=A%val)
+  end function SpMtx_newCopy
+
 !!$  !--------------------------------------------
 !!$  ! Sets all blocks bounds
 !!$  !--------------------------------------------

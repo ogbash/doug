@@ -535,54 +535,6 @@ contains
     endif
   end subroutine IntRestBuild
 
-  subroutine KeepGivenRowIndeces(A,inds)
-    implicit none
-    Type(SpMtx),intent(inout) :: A ! the fine level matrix
-    integer,dimension(:),pointer :: inds
-    integer,dimension(:),pointer :: indi,indj
-    real(kind=rk),dimension(:),pointer :: val
-    logical,dimension(:),pointer :: isin
-    integer :: i,n,nz
-    allocate(isin(A%nrows))
-    isin=.false.
-    n=size(inds)
-    do i=1,n
-      isin(inds(i))=.true.
-    enddo
-    nz=0
-    do i=1,A%nnz
-      if (isin(A%indi(i))) then
-        nz=nz+1
-        A%indi(nz)=A%indi(i)
-        A%indj(nz)=A%indj(i)
-        A%val(nz)=A%val(i)
-      endif
-    enddo
-    deallocate(isin)
-    if (nz<A%nnz) then
-      allocate(indi(nz))
-      indi=A%indi(1:nz)
-      deallocate(A%indi)
-      allocate(A%indi(nz))
-      A%indi=indi
-      deallocate(indi)
-      allocate(indj(nz))
-      indj=A%indj(1:nz)
-      deallocate(A%indj)
-      allocate(A%indj(nz))
-      A%indj=indj
-      deallocate(indj)
-      allocate(val(nz))
-      val=A%val(1:nz)
-      deallocate(A%val)
-      allocate(A%val(nz))
-      A%val=val
-      deallocate(val)
-      A%nnz=nz
-      A%nrows=maxval(A%indi)
-    endif
-  end subroutine KeepGivenRowIndeces
-
   subroutine CoarseMtxBuild(A,AC,Restrict,A_ghost)
     Type(SpMtx),intent(inout) :: A ! the fine level matrix
     Type(SpMtx),intent(inout) :: AC ! coarse level matrix
