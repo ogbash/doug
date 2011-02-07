@@ -147,6 +147,8 @@ program main_aggr
       strong_conn1=0.67_rk
     endif
     call SpMtx_find_strong(A=A,alpha=strong_conn1,A_ghost=A_ghost)
+    call SpMtx_find_strong(A=LA,alpha=strong_conn1)
+    write(stream, *) "FIND STRONG LA", count(.not.A%strong), count(.not.LA%strong), A%nnz, LA%nnz
     if (sctls%radius1>0) then
       aggr_radius1=sctls%radius1
     else
@@ -169,19 +171,30 @@ program main_aggr
     else
       plotting=sctls%plotting
     endif
-    call SpMtx_aggregate(A,aggr_radius1, &
+    !call SpMtx_aggregate(A,aggr_radius1, &
+    !       minaggrsize=min_asize1,       &
+    !       maxaggrsize=max_asize1,       &
+    !       alpha=strong_conn1,           &
+    !       M=M,                          &
+    !       plotting=plotting)    
+    !call SpMtx_unscale(A)
+    ! todo: to be rewritten with aggr%starts and aggr%nodes...:
+
+    !if (sctls%plotting>=2) then
+    !   call Aggr_writeFile(A%aggr, 'aggr1.txt')
+    !end if
+
+    write(stream,*) "LA AGGREGATE"
+    call SpMtx_aggregate(LA,aggr_radius1, &
            minaggrsize=min_asize1,       &
            maxaggrsize=max_asize1,       &
            alpha=strong_conn1,           &
            M=M,                          &
            plotting=plotting)
-    
-    call SpMtx_unscale(A)
-    ! todo: to be rewritten with aggr%starts and aggr%nodes...:
-
-    if (sctls%plotting>=2) then
-       call Aggr_writeFile(A%aggr, 'aggr1.txt')
-    end if
+    call SpMtx_unscale(LA)
+    write(stream,*) "LA AGGREGATE FINISH"
+    !write(stream,*) "aggr", LA%aggr%nagr, LA%aggr%num
+    !write(stream,*) "expandedaggr", LA%expandedaggr%nagr, LA%expandedaggr%num
 
     !if (sctls%plotting>=2) then
     !   call SpMtx_writeLogicalValues(A, A%strong, 'strong.txt')
@@ -204,15 +217,17 @@ program main_aggr
       !call IntRestBuild(A,A%expandedaggr,Rest_cmb,A_ghost)
       !call CoarseMtxBuild(A,cdat%LAC,Rest_cmb)
       !call IntRestBuild(A,A%aggr,Restrict)
-      write(stream,*) "A%aggr%nagr", A%aggr%nagr
-      write(stream,*) "A%fullaggr%nagr", A%fullaggr%nagr
-      write(stream,*) "A%expandedaggr%nagr", A%expandedaggr%nagr
-      call IntRestBuild(A,A%expandedaggr,Restrict,A_ghost)
+      write(stream,*) "LA%aggr%nagr", LA%aggr%nagr
+      write(stream,*) "LA%fullaggr%nagr", LA%fullaggr%nagr
+      write(stream,*) "LA%expandedaggr%nagr", LA%expandedaggr%nagr
+      call IntRestBuild(A,LA%expandedaggr,Restrict,A_ghost)
+write(stream,*)'Restrict is:=================='
+call SpMtx_printRaw(restrict)
       CS = CoarseSpace_Init(Restrict, A%aggr%nagr)
       call CoarseSpace_Expand(CS)
       write(stream,*) "Restrict%nrows", Restrict%nrows
-!write(stream,*)'Restrict expanded is:=================='
-!call SpMtx_printRaw(restrict)
+write(stream,*)'Restrict expanded is:=================='
+call SpMtx_printRaw(restrict)
       call CoarseMtxBuild(A,cdat%LAC,Restrict,A_ghost)
       write(stream,*) "Restrict%nrows,ncols", Restrict%nrows, Restrict%ncols
       !write(stream,*) "Restrict%indi", Restrict%indi

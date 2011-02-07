@@ -31,6 +31,42 @@ Module SpMtx_util
   use DenseMtx_mod
 
 Contains
+  !> This is similar to KeepGivenRowIndeces() which does not change the matrix, 
+  !! but returns 3 arrays instead.
+  subroutine GetGivenRowsElements(A,nodes,indi,indj,val)
+    Type(SpMtx),intent(in) :: A ! the fine level matrix
+    integer,dimension(:),intent(in) :: nodes
+    integer,dimension(:),pointer :: indi,indj
+    real(kind=rk),dimension(:),pointer :: val
+    logical,dimension(:),pointer :: isin
+    integer :: i,n,nz
+    allocate(isin(A%nrows))
+    isin=.false.
+    n=size(nodes)
+    do i=1,n
+      isin(nodes(i))=.true.
+    enddo
+    ! count
+    nz=0
+    do i=1,A%nnz
+      if (isin(A%indi(i))) then
+        nz=nz+1
+      endif
+    enddo
+    ! copy
+    allocate(indi(nz),indj(nz),val(nz))
+    nz = 0
+    do i=1,A%nnz
+      if (isin(A%indi(i))) then
+        nz=nz+1
+        indi(nz)=A%indi(i)
+        indj(nz)=A%indj(i)
+        val(nz)=A%val(i)
+      endif
+    enddo
+    deallocate(isin)
+  end subroutine GetGivenRowsElements
+
   subroutine KeepGivenRowIndeces(A,inds)
     implicit none
     Type(SpMtx),intent(inout) :: A ! the fine level matrix
