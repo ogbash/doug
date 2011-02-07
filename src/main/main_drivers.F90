@@ -28,6 +28,7 @@ module main_drivers
   use SpMtx_mods
   use Vect_mod
   use DenseMtx_mod
+  use Distribution_mod
 
   implicit none
 

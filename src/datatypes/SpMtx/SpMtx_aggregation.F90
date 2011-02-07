@@ -654,6 +654,292 @@ print *,'    ========== aggregate ',i,' got removed node by node ============'
   end subroutine SpMtx_aggregate
 
 !------------------------------------------------------
+! Finding strong connections in matrix
+!------------------------------------------------------
+  subroutine SpMtx_find_strong(A,alpha,A_ghost,symmetrise,M)
+    Implicit None
+    Type(SpMtx),intent(in out) :: A
+    float(kind=rk), intent(in) :: alpha
+    Type(SpMtx),intent(in out),optional :: A_ghost
+    logical,intent(in),optional :: symmetrise
+    type(Mesh),intent(in),optional :: M
+    ! local:
+    integer :: i,j,k,start,ending,nnz,ndiags
+    logical :: did_scale
+    logical :: simple=.false.,symm=.false.,mirror2ghost=.true.
+    float(kind=rk) :: maxndiag,aa
+    did_scale=.false.
+    if (A%scaling==D_SpMtx_SCALE_NO.or.A%scaling==D_SpMtx_SCALE_UNDEF) then
+      call SpMtx_scale(A,A_ghost)
+      did_scale=.true.
+    endif
+    if (A%mtx_bbe(2,2)>0) then
+      nnz=A%mtx_bbe(2,2)
+    else
+      nnz=A%nnz
+    endif
+    if (.not.associated(A%strong)) then
+      allocate(A%strong(nnz))
+    endif
+    if (simple) then
+      do i=1,nnz
+        if (abs(A%val(i))>=alpha) then
+          A%strong(i)=.true.
+        else
+          A%strong(i)=.false.
+        endif
+      enddo
+    else ! not the simple case:
+      ndiags=max(A%nrows,A%ncols)
+      call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS,sort=.false.)        
+      do i=1,A%nrows
+        start=A%M_bound(i)
+        ending=A%M_bound(i+1)-1
+        maxndiag=-1.0e15
+        do j=start,ending
+          if (A%indj(j)/=i) then ! not on diagonal
+            aa=abs(A%val(j))
+            if (maxndiag<aa) then
+              maxndiag=aa
+            endif
+          endif
+        enddo
+        maxndiag=maxndiag*alpha
+        do j=start,ending
+          aa=abs(A%val(j))
+          if (A%indj(j)/=i) then ! not on diagonal
+            if (aa>maxndiag) then
+              A%strong(j)=.true.
+            else
+              A%strong(j)=.false.
+            endif
+          else
+            if (A%diag(i)>maxndiag) then
+              A%strong(j)=.true.
+            else
+              A%strong(j)=.false.
+            endif
+            !write(stream,*)'diag at i is:',i,A%diag(i),A%strong(j),maxndiag
+          endif
+        enddo
+      enddo
+    endif
+    !if (did_scale) then
+    !  call SpMtx_unscale(A)
+    !endif
+    if (present(A_ghost).and.associated(A_ghost%indi)) then
+      ! this should only be called once, during local strong calculations
+      call exchange_strong()
+    end if
+    if (present(symmetrise)) then
+      symm=symmetrise
+    endif
+    if (symm) then
+      do i=1,nnz
+        if (A%arrange_type == D_SpMtx_ARRNG_ROWS) then
+          k=SpMtx_findElem(A,A%indi(i),A%indj(i))
+        else 
+          k=SpMtx_findElem(A,A%indj(i),A%indi(i))
+        endif
+        if (k>0) then
+          if (A%strong(i).and..not.A%strong(k)) then
+            A%strong(k)=.true.
+write(stream,*)'symmetrising to strong:',A%indi(i),A%indj(i)
+          elseif (A%strong(k).and..not.A%strong(i)) then
+            A%strong(i)=.true.
+write(stream,*)'symmetrising to strong:',A%indi(i),A%indj(i)
+          endif
+        else
+          write(stream,*) 'Warning: matrix does not have symmetric structure!'
+        endif
+      enddo
+    endif
+    if (mirror2ghost) then
+      if (present(A_ghost).and.associated(A_ghost%indi)) then
+        do i=1,A_ghost%nnz
+          if(A_ghost%indi(i)/=A_ghost%indj(i)) then
+            k=SpMtx_findElem(A,A_ghost%indi(i),A_ghost%indj(i))
+            if (k>0) then
+              A_ghost%strong(i)=A%strong(k)
+            endif
+          endif
+        enddo
+      endif
+    endif
+
+  contains
+    function calcBufferSize(ninds) result(bufferSize)
+      integer, intent(in) :: ninds
+      integer :: bufferSize
+      integer :: size, ierr
+      call MPI_Pack_size(ninds, MPI_INTEGER, MPI_COMM_WORLD, size, ierr)
+      bufferSize = 2*size
+    end function calcBufferSize
+
+    function calcBufferSize2(ninds) result(bufferSize)
+      integer, intent(in) :: ninds
+      integer :: bufferSize
+      integer :: size, ierr
+      call MPI_Pack_size(ninds, MPI_LOGICAL, MPI_COMM_WORLD, size, ierr)
+      bufferSize = size
+    end function calcBufferSize2
+
+    subroutine exchange_strong()
+      integer :: k, k2, neigh, ninds, bufsize, bufpos, ptn
+      type(indlist), allocatable :: strong_sends(:), strong_recvs(:)
+      logical, allocatable :: strongval_recvs(:)
+      type Buffer
+         character, pointer :: data(:)       
+      end type Buffer
+      type(Buffer),allocatable :: outbuffers(:)
+      integer, allocatable :: outreqs(:), outstatuses(:,:), indi(:), indj(:)
+      integer :: status(MPI_STATUS_SIZE), ierr
+      character, allocatable :: inbuffer(:)
+      logical, allocatable :: strong(:)
+
+      allocate(strong_sends(M%nnghbrs))
+
+      ! report to the neighbours which elements we need
+      !! how many elements
+      strong_sends%ninds = 0
+      do k=1,A_ghost%nnz
+        ptn = M%eptnmap(M%lg_fmap(A_ghost%indi(k)))
+        if (ptn/=myrank+1) then
+          ! find neighbour number
+          do i=1,M%nnghbrs
+            if (M%nghbrs(i)+1==ptn) then
+              neigh = i
+              exit
+            end if
+          end do
+          strong_sends(neigh)%ninds = strong_sends(neigh)%ninds+1
+        end if
+      end do
+      !! collect elements
+      !!! prepare indices
+      do neigh=1,M%nnghbrs
+        allocate(strong_sends(neigh)%inds(strong_sends(neigh)%ninds))
+      end do
+      strong_sends%ninds = 0 ! reset
+      do k=1,A_ghost%nnz
+        ptn = M%eptnmap(M%lg_fmap(A_ghost%indi(k)))
+        if (ptn/=myrank+1) then
+          ! find neighbour number
+          do i=1,M%nnghbrs
+            if (M%nghbrs(i)+1==ptn) then
+              neigh = i
+              exit
+            end if
+          end do
+          ninds = strong_sends(neigh)%ninds
+          strong_sends(neigh)%ninds = ninds+1
+          strong_sends(neigh)%inds(ninds+1) = k
+        end if
+      end do
+
+      ! gather number of matrix elements
+      allocate(strong_recvs(M%nnghbrs))
+      do i=1,M%nnghbrs
+         neigh = M%nghbrs(i)
+         call MPI_Send(strong_sends(i)%ninds, 1, MPI_INTEGER, neigh, &
+              TAG_EXCHANGE_STRONG, MPI_COMM_WORLD, ierr)
+      end do
+      do i=1,M%nnghbrs
+         neigh = M%nghbrs(i)
+         call MPI_Recv(strong_recvs(i)%ninds, 1, MPI_INTEGER, neigh, &
+              TAG_EXCHANGE_STRONG, MPI_COMM_WORLD, status, ierr)
+      end do
+
+      !!! pack and send index data
+      allocate(outbuffers(M%nnghbrs))
+      allocate(outreqs(M%nnghbrs))
+      do neigh=1,M%nnghbrs
+        bufsize = calcBufferSize(strong_sends(neigh)%ninds)
+        allocate(outbuffers(neigh)%data(bufsize))
+        bufpos = 0
+        call MPI_Pack(M%lg_fmap(A_ghost%indi(strong_sends(neigh)%inds)), strong_sends(neigh)%ninds, MPI_INTEGER,&
+             outbuffers(neigh)%data, bufsize, bufpos, MPI_COMM_WORLD, ierr)
+        call MPI_Pack(M%lg_fmap(A_ghost%indj(strong_sends(neigh)%inds)), strong_sends(neigh)%ninds, MPI_INTEGER,&
+             outbuffers(neigh)%data, bufsize, bufpos, MPI_COMM_WORLD, ierr)
+        call MPI_ISend(outbuffers(neigh)%data, bufsize, MPI_CHARACTER, M%nghbrs(neigh), TAG_EXCHANGE_STRONG,&
+             MPI_COMM_WORLD, outreqs(neigh), ierr)
+      end do
+
+      !!! recv index data
+      allocate(inbuffer(calcBufferSize(maxval(strong_recvs%ninds))))
+      nnz = sum(strong_recvs%ninds)
+      allocate(indi(nnz),indj(nnz))
+      nnz = 0
+      do i=1,M%nnghbrs
+        bufsize = calcBufferSize(strong_recvs(i)%ninds)
+        call MPI_Recv(inbuffer, bufsize, MPI_CHARACTER, M%nghbrs(i),&
+             TAG_EXCHANGE_STRONG, MPI_COMM_WORLD, status, ierr)
+        ninds = strong_recvs(i)%ninds
+        bufpos = 0
+        call MPI_Unpack(inbuffer, bufsize, bufpos, indi(nnz+1), ninds,&
+             MPI_INTEGER, MPI_COMM_WORLD, ierr)
+        if (ierr/=0) call DOUG_abort("MPI UnPack of matrix elements failed")
+        call MPI_Unpack(inbuffer, bufsize, bufpos, indj(nnz+1), ninds,&
+             MPI_INTEGER, MPI_COMM_WORLD, ierr)
+        if (ierr/=0) call DOUG_abort("MPI UnPack of matrix elements failed")
+        nnz = nnz+ninds
+      end do
+
+      ! find strong values
+      allocate(strong(nnz))
+      do k=1,nnz
+        i = M%gl_fmap(indi(k))
+        j = M%gl_fmap(indj(k))
+        k2 = SpMtx_findElem(A, i, j)
+        if(k2<=0) call DOUG_abort("Matrix element not found during 'strong' exchange")
+        strong(k) = A%strong(k2)
+      end do
+
+      ! wait for all data to be sent
+      allocate(outstatuses(MPI_STATUS_SIZE, M%nnghbrs))
+      call MPI_Waitall(M%nnghbrs, outreqs, outstatuses, ierr)
+
+      ! send strong values back
+      nnz = 0
+      bufpos = 0
+      do i=1,M%nnghbrs
+        ninds = strong_recvs(i)%ninds
+        call MPI_ISend(strong(nnz+1), ninds, MPI_LOGICAL, M%nghbrs(i), &
+             TAG_EXCHANGE_STRONG, MPI_COMM_WORLD, outreqs(i), ierr)
+        nnz = nnz+ninds
+      end do
+
+      ! receive strong values (requested value indices are in strong_sends)
+      allocate(A_ghost%strong(A_ghost%nnz))
+      nnz = sum(strong_sends%ninds)
+      allocate(strongval_recvs(nnz))
+      nnz = 0
+      do i=1,M%nnghbrs
+        ninds = strong_sends(i)%ninds
+        call MPI_Recv(strongval_recvs(nnz+1), ninds, MPI_LOGICAL,M%nghbrs(i),&
+             TAG_EXCHANGE_STRONG, MPI_COMM_WORLD, status, ierr)
+        ! overwrite local strong value with remote
+        !write (stream,*) "----", strong_sends(i)%ninds, ninds, strong_sends(i)%inds, strongval_recvs(nnz+1:nnz+ninds)
+        do k=1,ninds
+          k2 = strong_sends(i)%inds(k)
+          !write(stream,*) "--k2", k2, strongval_recvs(nnz+k), size(A_ghost%strong)
+          A_ghost%strong(k2) = strongval_recvs(nnz+k)
+        end do
+
+        nnz = nnz+ninds
+      end do
+
+      ! free memory
+      do neigh=1,M%nnghbrs
+        deallocate(outbuffers(neigh)%data)
+        deallocate(strong_sends(neigh)%inds)
+      end do
+      deallocate(outbuffers)
+      deallocate(strong_sends, strong_recvs)
+    end subroutine exchange_strong
+  end subroutine SpMtx_find_strong
+  
+!------------------------------------------------------
 End Module SpMtx_aggregation
 !------------------------------------------------------
 

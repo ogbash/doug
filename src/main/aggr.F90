@@ -146,7 +146,7 @@ program main_aggr
     else
       strong_conn1=0.67_rk
     endif
-    call SpMtx_find_strong(A=A,alpha=strong_conn1,A_ghost=A_ghost)
+    call SpMtx_find_strong(A=A,alpha=strong_conn1,A_ghost=A_ghost,M=M)
     call SpMtx_find_strong(A=LA,alpha=strong_conn1)
     write(stream, *) "FIND STRONG LA", count(.not.A%strong), count(.not.LA%strong), A%nnz, LA%nnz
     if (sctls%radius1>0) then
@@ -224,7 +224,7 @@ program main_aggr
 write(stream,*)'Restrict is:=================='
 call SpMtx_printRaw(restrict)
       CS = CoarseSpace_Init(Restrict, A%aggr%nagr)
-      call CoarseSpace_Expand(CS)
+      call CoarseSpace_Expand(CS,Restrict,M,cdat)
       write(stream,*) "Restrict%nrows", Restrict%nrows
 write(stream,*)'Restrict expanded is:=================='
 call SpMtx_printRaw(restrict)
@@ -233,7 +233,7 @@ call SpMtx_printRaw(restrict)
       !write(stream,*) "Restrict%indi", Restrict%indi
       !write(stream,*) "A%aggr%num", A%aggr%num
       call KeepGivenRowIndeces(Restrict,A%aggr%num)
-      write(stream,*) "Restrict%nrows", Restrict%nrows
+      !write(stream,*) "Restrict%nrows", Restrict%nrows
 !write(stream,*)'Restrict local is:=================='
 !call SpMtx_printRaw(Restrict)
       if (sctls%verbose>3.and.cdat%LAC%nnz<400) then
