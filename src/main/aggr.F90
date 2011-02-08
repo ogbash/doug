@@ -71,6 +71,7 @@ program main_aggr
   use DenseMtx_mod
   use solvers_mod
   use Aggregate_mod
+  use Aggregate_utils_mod
   use CoarseMtx_mod
   use CoarseAllgathers
   use RobustCoarseMtx_mod
@@ -166,19 +167,8 @@ program main_aggr
     else
       plotting=sctls%plotting
     endif
-    !call SpMtx_aggregate(A,aggr_radius1, &
-    !       minaggrsize=min_asize1,       &
-    !       maxaggrsize=max_asize1,       &
-    !       alpha=strong_conn1,           &
-    !       M=M,                          &
-    !       plotting=plotting)    
-    !call SpMtx_unscale(A)
-    ! todo: to be rewritten with aggr%starts and aggr%nodes...:
 
-    !if (sctls%plotting>=2) then
-    !   call Aggr_writeFile(A%aggr%inner, 'aggr1.txt')
-    !end if
-
+    ! find fine aggregates
     if (numprocs > 1) then
       ! we need to create aggregates only on inner nodes, so use local matrix LA
       !  instead of expanded (to overlap) local matrix A
@@ -194,16 +184,18 @@ program main_aggr
       call AggrInfo_Destroy(A%aggr)
       A%aggr => LA%aggr
       nullify(LA%aggr)
+
     else
       ! non-parallel case use the whole matrix
       call SpMtx_find_strong(A=A,alpha=strong_conn1)
-      call SpMtx_aggregate(A,aggr_radius1, &
-           minaggrsize=min_asize1,       &
-           maxaggrsize=max_asize1,       &
-           alpha=strong_conn1,           &
-           M=M,                          &
-           plotting=plotting)
-      call SpMtx_unscale(A)      
+      ! call SpMtx_aggregate(A,aggr_radius1, &
+      !      minaggrsize=min_asize1,       &
+      !      maxaggrsize=max_asize1,       &
+      !      alpha=strong_conn1,           &
+      !      M=M,                          &
+      !      plotting=plotting)
+      ! call SpMtx_unscale(A)
+      call Aggrs_readFile_fine(A%aggr, "aggregates.txt")
     end if
     ! profile info
     if(pstream/=0) then
@@ -301,12 +293,13 @@ program main_aggr
         !max_asize2=max_asize1
         max_asize2=(2*aggr_radius2+1)**2
       endif
-      call SpMtx_aggregate(AC,aggr_radius2, &
-           minaggrsize=min_asize2,          &
-           maxaggrsize=max_asize2,          &
-           alpha=strong_conn2,              &
-           Afine=A)    
-      call SpMtx_unscale(AC)
+      ! call SpMtx_aggregate(AC,aggr_radius2, &
+      !      minaggrsize=min_asize2,          &
+      !      maxaggrsize=max_asize2,          &
+      !      alpha=strong_conn2,              &
+      !      Afine=A)    
+      ! call SpMtx_unscale(AC)
+      call Aggrs_readFile_coarse(AC%aggr, "aggregates.txt")
 
       ! profile info
       if(pstream/=0) then
@@ -330,6 +323,10 @@ program main_aggr
       write(stream,*)'# coarse aggregates:',AC%aggr%inner%nagr
     endif 
   endif
+
+  if (numprocs>1) then
+    call Aggrs_writeFile(M, A%aggr, AC%aggr, cdat, "aggregates.txt")
+  end if
 
   ! Testing UMFPACK:
   allocate(sol(A%nrows))
