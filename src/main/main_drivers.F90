@@ -24,6 +24,7 @@ module main_drivers
   use doug_utils
   use Graph_class
   use Mesh_class
+  use Mesh_plot_mod
   use ElemMtxs_mods
   use SpMtx_mods
   use Vect_mod

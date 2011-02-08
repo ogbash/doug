@@ -209,8 +209,6 @@ program main_aggr
     if(pstream/=0) then
       write(pstream, "(I0,':fine aggregates:',I0)") myrank, A%aggr%inner%nagr
     end if
-    !write(stream,*) "aggr", LA%aggr%inner%nagr, LA%aggr%inner%num
-    !write(stream,*) "expandedaggr", LA%aggr%expanded%nagr, LA%aggr%expanded%num
 
     !if (sctls%plotting>=2) then
     !   call SpMtx_writeLogicalValues(A, A%strong, 'strong.txt')
@@ -232,42 +230,18 @@ program main_aggr
     if (numprocs>1) then
       call SpMtx_find_strong(A=A,alpha=strong_conn1,A_ghost=A_ghost,M=M)
       call SpMtx_unscale(A)
-      !write(stream, *) "STRONG", count(.not.A%strong), count(.not.LA%strong), A%nnz, LA%nnz
-      !write(stream,*) "strong", A%strong
-      !write(stream,*) "A%aggr%inner%nagr", A%aggr%inner%nagr
-      !write(stream,*) "A%aggr%full%nagr", A%aggr%full%nagr
-      !write(stream,*) "A%aggr%expanded%nagr", A%aggr%expanded%nagr
       call IntRestBuild(A,A%aggr%expanded,Restrict,A_ghost)
-!write(stream,*)'Restrict is:=================='
-!call SpMtx_printRaw(restrict)
-!      CS = CoarseSpace_Init(Restrict, A%aggr%inner%nagr)
-!      call CoarseSpace_Expand(CS,Restrict,M,cdat)
-!      write(stream,*) "Restrict%nrows", Restrict%nrows
-!write(stream,*)'Restrict expanded is:=================='
-!call SpMtx_printRaw(restrict)
       call CoarseMtxBuild(A,cdat%LAC,Restrict,A_ghost)
-!      write(stream,*) "Restrict%nrows,ncols", Restrict%nrows, Restrict%ncols
-      !write(stream,*) "Restrict%indi", Restrict%indi
-      !write(stream,*) "A%aggr%inner%num", A%aggr%inner%num
-      call KeepGivenRowIndeces(Restrict,A%aggr%inner%num)
-      !write(stream,*) "Restrict%nrows", Restrict%nrows
-!write(stream,*)'Restrict local is:=================='
-!call SpMtx_printRaw(Restrict)
+      call KeepGivenRowIndeces(Restrict,A%aggr%inner%num) 
+
       if (sctls%verbose>3.and.cdat%LAC%nnz<400) then
         write(stream,*)'A coarse (local) is:=================='
         call SpMtx_printRaw(A=cdat%LAC)
       endif
-      !call MPI_BARRIER(MPI_COMM_WORLD,i)
-      !call DOUG_abort('testing parallel AC',0)
-    else 
-      call IntRestBuild(A,A%aggr%inner,Restrict)
-!write(stream,*)'Smoothed matrix is:------------'
-!call SpMtx_printRaw(Restrict)
 
-      if (sctls%verbose>5.and.AC%nnz<400) then
-        write(stream,*)'Restrict is:=================='
-        call SpMtx_printRaw(A=Restrict)
-      endif
+    else 
+      ! non-parallel
+      call IntRestBuild(A,A%aggr%inner,Restrict)
 
       if (sctls%coarse_method<=1) then ! if not specified or ==1
          call CoarseMtxBuild(A,AC,Restrict)

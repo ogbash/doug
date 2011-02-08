@@ -682,7 +682,6 @@ if (bugtrack)call Print_Glob_Vect(z,Msh,'global bef comm z===',chk_endind=Msh%ni
 !call Print_Glob_Vect(z,Msh,'global aft comm z===',chk_endind=Msh%ninner)
 !call Print_Glob_Vect(z,Msh,'global z===')
       ! compute current rho
-      write(stream,*) "R,P,Z", size(r), size(p), size(z)
       rho_curr = Vect_dot_product(r,z)
 
       if (it == 1) then

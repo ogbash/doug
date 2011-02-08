@@ -6,6 +6,7 @@ libdoug_la_SOURCES += \
 	datatypes/Points2D.F90 \
 	datatypes/Polygon.F90 \
 	datatypes/Mesh.F90 \
+	datatypes/Mesh_plot.F90 \
 	datatypes/IdxMap.f90 \
 	datatypes/DenseMtx.F90 \
 	datatypes/Hash.f90 \

@@ -23,6 +23,7 @@
 Module Aggregate_mod
   use RealKind
   use globals
+  use Mesh_class
 
   Implicit None
 
@@ -1029,6 +1030,18 @@ CONTAINS
    end if
    close(78)
  end subroutine Aggr_writeFile
+
+ !> Write all aggregates to file for testing with non-paralel case.
+ subroutine Aggrs_writeFile(M, fAggr, cAggr, filename)
+   type(Mesh), intent(in) :: M
+   type(AggrInfo), intent(in) :: fAggr, cAggr
+   character(*), intent(in) :: filename
+
+   open(79, file=filename)
+   
+   close(79)
+   
+ end subroutine Aggrs_writeFile
 !------------------------------------------------------
 end Module Aggregate_mod
 !------------------------------------------------------
