@@ -194,7 +194,7 @@ program main_aggr
       !      alpha=strong_conn1,           &
       !      M=M,                          &
       !      plotting=plotting)
-      ! call SpMtx_unscale(A)
+      call SpMtx_unscale(A)
       call Aggrs_readFile_fine(A%aggr, "aggregates.txt")
     end if
     ! profile info
@@ -298,7 +298,7 @@ program main_aggr
       !      maxaggrsize=max_asize2,          &
       !      alpha=strong_conn2,              &
       !      Afine=A)    
-      ! call SpMtx_unscale(AC)
+      call SpMtx_unscale(AC)
       call Aggrs_readFile_coarse(AC%aggr, "aggregates.txt")
 
       ! profile info

@@ -198,6 +198,7 @@ contains
     end if
 
     ! factorise
+    write(stream,*) "FACTORIZE", snnz, sval
     call factorise(id,nnodes,snnz,sindi,sindj,sval)
   end subroutine factorise_subdomain
 
