@@ -81,7 +81,7 @@ contains
                             alpha=strong_conn1)
         call SpMtx_buildAggrAdjncy(A,max_asize1,nedges,xadj,adjncy)
         call SpMtx_unscale(A) !todo -- check
-        G=Graph_newInit(A%aggr%nagr,nedges,xadj,adjncy,D_GRAPH_NODAL)
+        G=Graph_newInit(A%aggr%inner%nagr,nedges,xadj,adjncy,D_GRAPH_NODAL)
 if (sctls%plotting==1.or.sctls%plotting==3) then
  allocate(owner(A%nrows))
  do i=1,A%nnz
@@ -111,26 +111,26 @@ endif
       call Graph_Partition(G,numprocs,D_PART_VKMETIS,part_opts)
       if (partitioning==AGGRND_METIS) then
         do i=1,A%nrows
-          A%aggr%num(i)=G%part(A%aggr%num(i))
+          A%aggr%inner%num(i)=G%part(A%aggr%inner%num(i))
         enddo
         if (sctls%debug==1234) then
           open(77,FILE='domnums.txt',FORM='FORMATTED',STATUS='new')
           do i=1,A%nrows
-            write(77,*)A%aggr%num(i)
+            write(77,*)A%aggr%inner%num(i)
           enddo
           close(77)
         endif
         if (sctls%debug==4321) then
           open(77,FILE='domnums.txt',FORM='FORMATTED',STATUS='old')
           do i=1,A%nrows
-            read(77,FMT=*)A%aggr%num(i)
+            read(77,FMT=*)A%aggr%inner%num(i)
           enddo
           close(77)
         endif
         if (sctls%plotting==1.or.sctls%plotting==3) then
           allocate(tmpnum(A%nrows))
           tmpnum=(/(i,i=1,A%nrows)/)
-          call color_print_aggrs(n=A%nrows,aggrnum=tmpnum,owner=A%aggr%num)
+          call color_print_aggrs(n=A%nrows,aggrnum=tmpnum,owner=A%aggr%inner%num)
           deallocate(tmpnum)
           call flush(stream)
         endif
@@ -152,7 +152,7 @@ endif
       !call Mesh_allocate(M,eptnmap=.true.)
       allocate(M%eptnmap(A%nrows))
       if (partitioning==AGGRND_METIS) then
-        M%eptnmap(1:A%nrows) = A%aggr%num(1:A%nrows)
+        M%eptnmap(1:A%nrows) = A%aggr%inner%num(1:A%nrows)
       elseif (partitioning==ONLY_METIS) then
         M%eptnmap(1:A%nrows) = G%part(1:A%nrows)
       endif

@@ -143,15 +143,7 @@ module SpMtx_class
     !> Permutation map for freedoms : perm_map[M%nlf]
     integer,   dimension(:), pointer :: perm_map
 
-
-    !> \name Aggregates info
-    !! @{
-
-    type(Aggrs) :: aggr !< aggregates (on all inner freedoms)
-    type(Aggrs) :: fullaggr !< aggr with holes painted over
-    type(Aggrs) :: expandedaggr !< aggr + neighbours' on overlap
-    !> @}
-
+    type(AggrInfo),pointer :: aggr
     type(Decomposition) :: DD !< domain decomposition for the space of the matrix
  end type SpMtx
 
@@ -197,14 +189,13 @@ contains
     ! permutation map
     M%perm_map => NULL()
 
-    M%aggr = Aggrs_New()
-    M%fullaggr = Aggrs_New()
-
     M%strong => NULL()
     M%strong_rowstart => NULL()
     M%strong_colnrs => NULL()
     M%diag => NULL()
 
+    allocate(M%aggr)
+    M%aggr = AggrInfo_New()
     M%DD = Decomposition_New()
   end function SpMtx_New
 
@@ -692,11 +683,11 @@ contains
     !write(stream,*)'[SpMtx_Destroy]: PAY ATTENTION ON IT!'
     if (M%arrange_type/=D_SpMtx_ARRNG_NO) deallocate(M%M_bound)
     !------
-    if (M%aggr%nagr>0) then
-      call Destruct_Aggrs(M%aggr)
+    if (M%aggr%inner%nagr>0) then
+      call Destruct_Aggrs(M%aggr%inner)
     endif
-    if (M%fullaggr%nagr>0) then
-      call Destruct_Aggrs(M%fullaggr)
+    if (M%aggr%full%nagr>0) then
+      call Destruct_Aggrs(M%aggr%full)
     endif
     if (associated(M%M_bound)) deallocate(M%M_bound)
     M%arrange_type=0

@@ -148,9 +148,9 @@ contains
         if (factorised) then
           call free_spmtx_subsolves(A)
         endif
-        allocate(A%DD%subsolve_ids(AC%fullaggr%nagr))
+        allocate(A%DD%subsolve_ids(AC%aggr%full%nagr))
         A%DD%subsolve_ids=0
-        allocate(A%DD%subd(AC%fullaggr%nagr+1))
+        allocate(A%DD%subd(AC%aggr%full%nagr+1))
         if (sctls%overlap<0) then ! autom. overlap from Restriction
           if (Restrict%arrange_type/=D_SpMtx_ARRNG_ROWS) then
             write (stream,*) 'Arranging Restrict to row storage format!'
@@ -168,12 +168,12 @@ contains
                  indi=A%indi,                &
                  indj=A%indj,                &
                  val=A%val,                  &
-                 nagr1=A%fullaggr%nagr,      &
-                 starts1=A%fullaggr%starts,  &
-                 nodes1=A%fullaggr%nodes,    & 
-                 nagr2=AC%fullaggr%nagr,     &
-                 starts2=AC%fullaggr%starts, &
-                 nodes2=AC%fullaggr%nodes,   &
+                 nagr1=A%aggr%full%nagr,      &
+                 starts1=A%aggr%full%starts,  &
+                 nodes1=A%aggr%full%nodes,    & 
+                 nagr2=AC%aggr%full%nagr,     &
+                 starts2=AC%aggr%full%starts, &
+                 nodes2=AC%aggr%full%nodes,   &
                  starts3=Restrict%M_bound,   &
                  nodes3=Restrict%indj)
         else
@@ -189,21 +189,21 @@ contains
                  indi=A%indi,                &
                  indj=A%indj,                &
                  val=A%val,                  &
-                 nagr1=A%fullaggr%nagr,      &
-                 starts1=A%fullaggr%starts,  &
-                 nodes1=A%fullaggr%nodes,    & 
-                 nagr2=AC%fullaggr%nagr,     &
-                 starts2=AC%fullaggr%starts, &
-                 nodes2=AC%fullaggr%nodes)   
+                 nagr1=A%aggr%full%nagr,      &
+                 starts1=A%aggr%full%starts,  &
+                 nodes1=A%aggr%full%nodes,    & 
+                 nagr2=AC%aggr%full%nagr,     &
+                 starts2=AC%aggr%full%starts, &
+                 nodes2=AC%aggr%full%nodes)   
         endif
       else !}{ no coarse solves:
 !       if (present(A_interf_).or.sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED) then
-        A%fullaggr%nagr=1
+        A%aggr%full%nagr=1
         A%DD%nsubsolves=1
 !       endif
-        allocate(A%DD%subsolve_ids(A%fullaggr%nagr))
+        allocate(A%DD%subsolve_ids(A%aggr%full%nagr))
         A%DD%subsolve_ids=0
-        allocate(A%DD%subd(A%fullaggr%nagr+1))
+        allocate(A%DD%subd(A%aggr%full%nagr+1))
         if (present(A_interf_).and.A_interf_%nnz>0) then
           if (A%arrange_type/=D_SpMtx_ARRNG_ROWS) then
             write (stream,*) 'Arranging A to row storage format!'
@@ -259,9 +259,9 @@ contains
                    indi=A%indi,                &
                    indj=A%indj,                &
                    val=A%val,                  &
-                   nagr1=A%fullaggr%nagr,      &
-                   starts1=A%fullaggr%starts,  &
-                   nodes1=A%fullaggr%nodes)
+                   nagr1=A%aggr%full%nagr,      &
+                   starts1=A%aggr%full%starts,  &
+                   nodes1=A%aggr%full%nodes)
           endif
         endif
       endif !}

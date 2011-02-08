@@ -592,8 +592,8 @@ CONTAINS
     logical, dimension(:), pointer :: diagstrong
     n=A%nrows
     allocate(ii(n))
-    allocate(A%aggr%num(n))
-    A%aggr%num(1:n)=0
+    allocate(A%aggr%inner%num(n))
+    A%aggr%inner%num(1:n)=0
     ii=(/ (i,i=1,n) /) !built-in array initialisation to 1:n
     call random_permutation(n,ii)
     !write(stream,*)'permutation is:',ii
@@ -605,7 +605,7 @@ CONTAINS
     allocate(diagstrong(n))
     stat=0
     layersize=0
-    A%aggr%nagr=0
+    A%aggr%inner%nagr=0
     nact=0
     counter=0
     call SpMtx_build_refs_symm(A,noffdels,      &
@@ -638,8 +638,8 @@ CONTAINS
           endif
         endif
         !Add an aggregate
-        A%aggr%nagr=A%aggr%nagr+1
-        A%aggr%num(ii(i))=A%aggr%nagr
+        A%aggr%inner%nagr=A%aggr%inner%nagr+1
+        A%aggr%inner%num(ii(i))=A%aggr%inner%nagr
         if (nact<neighood) then
           nact=nact+1
         endif
@@ -647,7 +647,7 @@ CONTAINS
         if (counter>neighood) then
           counter=1
         endif
-        actanum(counter)=A%aggr%nagr
+        actanum(counter)=A%aggr%inner%nagr
         aggrsize(counter)=1
         layersize(counter)=1
         layer(1,counter)=ii(i)
@@ -669,7 +669,7 @@ CONTAINS
                 if (stat(cn)==0) then !node not in any aggregate
                   newlayersize=newlayersize+1
                   newlayer(newlayersize)=cn
-                  A%aggr%num(cn)=actanum(k)
+                  A%aggr%inner%num(cn)=actanum(k)
                   stat(cn)=1 ! mark it
                   aggrsize(k)=aggrsize(k)+1
                   if (aggrsize(k)>=maxaggrsize) then 
@@ -704,7 +704,7 @@ CONTAINS
                 if (stat(newlayer(kk))<-1) then
                   layersize(k)=layersize(k)+1
                   layer(layersize(k),k)=newlayer(kk)
-                  A%aggr%num(newlayer(kk))=actanum(k)
+                  A%aggr%inner%num(newlayer(kk))=actanum(k)
                   aggrsize(k)=aggrsize(k)+1
                   if (aggrsize(k)>=maxaggrsize) then 
                     ! close this aggregate
@@ -723,7 +723,7 @@ CONTAINS
     enddo
     if (sctls%plotting==1.or.sctls%plotting==3) then
       write(stream,*)'Rough Aggregates are:'
-      call color_print_aggrs(n=n,aggrnum=A%aggr%num,overwrite=overwrite)
+      call color_print_aggrs(n=n,aggrnum=A%aggr%inner%num,overwrite=overwrite)
     endif
     deallocate(A%strong_colnrs)
     deallocate(A%strong_rowstart)
@@ -2561,13 +2561,13 @@ CONTAINS
     integer, dimension(:,:), allocatable :: neigs
 
     !At first, find, which are the neighbouring aggregates
-    allocate(neigs(maxaggrsize,A%aggr%nagr))
-    allocate(nneig(A%aggr%nagr))
+    allocate(neigs(maxaggrsize,A%aggr%inner%nagr))
+    allocate(nneig(A%aggr%inner%nagr))
     nneig=0
     do i=1,A%nnz
       if (A%indi(i)<A%indj(i)) then
-        c1=A%aggr%num(A%indi(i))
-        c2=A%aggr%num(A%indj(i))
+        c1=A%aggr%inner%num(A%indi(i))
+        c2=A%aggr%inner%num(A%indj(i))
         if (c1/=c2) then
           k=1
           do while(k<=nneig(c1))
@@ -2584,33 +2584,33 @@ CONTAINS
       endif
     enddo
     ! allocation for the adjacency data
-    allocate(xadj(A%aggr%nagr+1))
+    allocate(xadj(A%aggr%inner%nagr+1))
     xadj = 0
     ! count the lengths
     !   (NB! We are expecting matrix symmetric structure!!!)
-    do c1=1,A%aggr%nagr
+    do c1=1,A%aggr%inner%nagr
       do k=1,nneig(c1)
         xadj(c1)=xadj(c1)+1
         c2=neigs(k,c1)
         xadj(c2)=xadj(c2)+1
       enddo
     enddo
-    allocate(counter(A%aggr%nagr))
+    allocate(counter(A%aggr%inner%nagr))
     counter = 0
     s = xadj(1)
     xadj(1) = 1
     counter(1) = 1
-    do i = 2,A%aggr%nagr
+    do i = 2,A%aggr%inner%nagr
        s1 = xadj(i)
        xadj(i) = xadj(i-1)+s
        counter(i) = xadj(i)
        s = s1
     enddo
-    xadj(A%aggr%nagr+1) = xadj(A%aggr%nagr) + s
-    sadjncy = xadj(A%aggr%nagr+1) - 1
+    xadj(A%aggr%inner%nagr+1) = xadj(A%aggr%inner%nagr) + s
+    sadjncy = xadj(A%aggr%inner%nagr+1) - 1
     allocate(adjncy(sadjncy))
     ! pass 2 of the data
-    do c1=1,A%aggr%nagr
+    do c1=1,A%aggr%inner%nagr
       do k=1,nneig(c1)
         c2=neigs(k,c1)
         adjncy(counter(c1))=c2

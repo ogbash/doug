@@ -43,6 +43,13 @@ Module Aggregate_mod
     integer, dimension(:),pointer :: starts,nodes !< compressed storage
   end Type Aggrs !Aggrs
 
+  !> Aggregates info for parallel execution
+  type AggrInfo
+    type(Aggrs) :: inner !< aggregates (on all inner freedoms)
+    type(Aggrs) :: full !< aggr with holes painted over
+    type(Aggrs) :: expanded !< aggr + neighbours' on overlap
+  end type AggrInfo
+
   logical :: debu = .false.
 CONTAINS
 
@@ -57,6 +64,14 @@ CONTAINS
     nullify(aggr%starts)
     nullify(aggr%nodes)
   end function Aggrs_New
+
+  function AggrInfo_New() result (aggr)
+    type(AggrInfo) :: aggr
+    
+    aggr%inner = Aggrs_New()
+    aggr%full = Aggrs_New()
+    aggr%expanded = Aggrs_New()
+  end function AggrInfo_New
 
   subroutine Form_Aggr(aggr,nagrs,n,radius,nisolated,aggrnum)
     Implicit None

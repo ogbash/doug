@@ -93,18 +93,18 @@ contains
     allocate(nodes(nnodes))
 
     if (present(AC)) then !{
-      A%DD%nsubsolves=AC%fullaggr%nagr
-      allocate(A%DD%subsolve_ids(AC%fullaggr%nagr))
+      A%DD%nsubsolves=AC%aggr%full%nagr
+      allocate(A%DD%subsolve_ids(AC%aggr%full%nagr))
       A%DD%subsolve_ids=0
-      allocate(A%DD%subd(AC%fullaggr%nagr+1))
+      allocate(A%DD%subd(AC%aggr%full%nagr+1))
       if (sctls%overlap<0) then ! autom. overlap from smoothing
         ol = sctls%smoothers
       else
         ol = sctls%overlap
       endif
       call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS,sort=.false.)
-      do cAggr=1,AC%fullaggr%nagr ! loop over coarse aggregates
-        call Get_aggregate_nodes(cAggr,AC%fullaggr,A%fullaggr,A%nrows,nodes,nnodes)
+      do cAggr=1,AC%aggr%full%nagr ! loop over coarse aggregates
+        call Get_aggregate_nodes(cAggr,AC%aggr%full,A%aggr%full,A%nrows,nodes,nnodes)
         call Add_layers(A%m_bound,A%indj,nodes,nnodes,ol,nnodes_exp)
 
         setuptime=setuptime+(MPI_WTIME()-t1) ! switchoff clock
@@ -121,11 +121,11 @@ contains
 
     else !}{ no coarse solves:
       nnodes_exp = nnodes
-      A%fullaggr%nagr=1
+      A%aggr%full%nagr=1
       A%DD%nsubsolves=1
-      allocate(A%DD%subsolve_ids(A%fullaggr%nagr))
+      allocate(A%DD%subsolve_ids(A%aggr%full%nagr))
       A%DD%subsolve_ids=0
-      allocate(A%DD%subd(A%fullaggr%nagr+1))
+      allocate(A%DD%subd(A%aggr%full%nagr+1))
       nodes(1:nnodes_exp)=(/ (i,i=1,nnodes_exp) /)
 
       setuptime=setuptime+(MPI_WTIME()-t1) ! switchoff clock
@@ -210,7 +210,7 @@ contains
     logical :: factorised=.false.
     integer :: nids=0
     if (.not.factorised) then
-      allocate(ids(A%aggr%nagr))
+      allocate(ids(A%aggr%inner%nagr))
       ids=0
       call exact_multi_subsmooth(   &
              nids=nids,             &
@@ -222,9 +222,9 @@ contains
              indi=A%indi,           &
              indj=A%indj,           &
              val=A%val,             &
-             nagr1=A%aggr%nagr,     &
-             starts1=A%aggr%starts, &
-             nodes1=A%aggr%nodes,   &
+             nagr1=A%aggr%inner%nagr,     &
+             starts1=A%aggr%inner%starts, &
+             nodes1=A%aggr%inner%nodes,   &
              overlap=2)
       factorised=.true.
     else

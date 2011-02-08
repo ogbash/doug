@@ -61,7 +61,7 @@ contains
 
     ! debug
     if(sctls%verbose>5) then
-       do iAggr=1,A%aggr%nagr
+       do iAggr=1,A%aggr%inner%nagr
           print *, "Ai for i=", iAggr, "nrows,ncols =", B%Ai(iAggr)%nrows, B%Ai(iAggr)%ncols
           call SpMtx_printRaw(B%Ai(iAggr))
        end do
@@ -89,7 +89,7 @@ contains
         integer, allocatable :: last_nodes(:) !< helper array: number of added nodes
         type(SpMtx) :: AiTemp
 
-        nagr = A%aggr%nagr
+        nagr = A%aggr%inner%nagr
         ! For now hack: aggregate node numbers (incl. overlap nodes) is extracted from 
         ! the standard case restriction matrix.
 

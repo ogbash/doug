@@ -179,7 +179,7 @@ program main_aggr
     ! todo: to be rewritten with aggr%starts and aggr%nodes...:
 
     !if (sctls%plotting>=2) then
-    !   call Aggr_writeFile(A%aggr, 'aggr1.txt')
+    !   call Aggr_writeFile(A%aggr%inner, 'aggr1.txt')
     !end if
 
     call SpMtx_aggregate(LA,aggr_radius1, &
@@ -189,8 +189,8 @@ program main_aggr
            M=M,                          &
            plotting=plotting)
     call SpMtx_unscale(LA)
-    !write(stream,*) "aggr", LA%aggr%nagr, LA%aggr%num
-    !write(stream,*) "expandedaggr", LA%expandedaggr%nagr, LA%expandedaggr%num
+    !write(stream,*) "aggr", LA%aggr%inner%nagr, LA%aggr%inner%num
+    !write(stream,*) "expandedaggr", LA%aggr%expanded%nagr, LA%aggr%expanded%num
 
     !if (sctls%plotting>=2) then
     !   call SpMtx_writeLogicalValues(A, A%strong, 'strong.txt')
@@ -199,7 +199,7 @@ program main_aggr
     call Mesh_printInfo(M)
     
     if (numprocs==1.and.sctls%plotting==2.and.M%nell>0) then
-      call Mesh_pl2D_plotAggregate(A%aggr,M,&
+      call Mesh_pl2D_plotAggregate(A%aggr%inner,M,&
                       A%strong_rowstart,A%strong_colnrs,&
                       mctls%assembled_mtx_file, &
                                  INIT_CONT_END=D_PLPLOT_INIT)
@@ -214,13 +214,13 @@ program main_aggr
       call SpMtx_unscale(A)
       !write(stream, *) "STRONG", count(.not.A%strong), count(.not.LA%strong), A%nnz, LA%nnz
       !write(stream,*) "strong", A%strong
-      !write(stream,*) "LA%aggr%nagr", LA%aggr%nagr
-      !write(stream,*) "LA%fullaggr%nagr", LA%fullaggr%nagr
-      !write(stream,*) "LA%expandedaggr%nagr", LA%expandedaggr%nagr
-      call IntRestBuild(A,LA%expandedaggr,Restrict,A_ghost)
+      !write(stream,*) "LA%aggr%inner%nagr", LA%aggr%inner%nagr
+      !write(stream,*) "LA%aggr%full%nagr", LA%aggr%full%nagr
+      !write(stream,*) "LA%aggr%expanded%nagr", LA%aggr%expanded%nagr
+      call IntRestBuild(A,LA%aggr%expanded,Restrict,A_ghost)
 !write(stream,*)'Restrict is:=================='
 !call SpMtx_printRaw(restrict)
-!      CS = CoarseSpace_Init(Restrict, A%aggr%nagr)
+!      CS = CoarseSpace_Init(Restrict, A%aggr%inner%nagr)
 !      call CoarseSpace_Expand(CS,Restrict,M,cdat)
 !      write(stream,*) "Restrict%nrows", Restrict%nrows
 !write(stream,*)'Restrict expanded is:=================='
@@ -228,8 +228,8 @@ program main_aggr
       call CoarseMtxBuild(A,cdat%LAC,Restrict,A_ghost)
 !      write(stream,*) "Restrict%nrows,ncols", Restrict%nrows, Restrict%ncols
       !write(stream,*) "Restrict%indi", Restrict%indi
-      !write(stream,*) "A%aggr%num", A%aggr%num
-      call KeepGivenRowIndeces(Restrict,LA%aggr%num)
+      !write(stream,*) "A%aggr%inner%num", A%aggr%inner%num
+      call KeepGivenRowIndeces(Restrict,LA%aggr%inner%num)
       !write(stream,*) "Restrict%nrows", Restrict%nrows
 !write(stream,*)'Restrict local is:=================='
 !call SpMtx_printRaw(Restrict)
@@ -240,7 +240,7 @@ program main_aggr
       !call MPI_BARRIER(MPI_COMM_WORLD,i)
       !call DOUG_abort('testing parallel AC',0)
     else 
-      call IntRestBuild(A,LA%aggr,Restrict)
+      call IntRestBuild(A,LA%aggr%inner,Restrict)
 !write(stream,*)'Smoothed matrix is:------------'
 !call SpMtx_printRaw(Restrict)
 
@@ -315,27 +315,27 @@ program main_aggr
     
       call SpMtx_unscale(AC)
       if (sctls%plotting==2) then
-         call Aggr_writeFile(LA%aggr, 'aggr2.txt', AC%aggr)
+         call Aggr_writeFile(LA%aggr%inner, 'aggr2.txt', AC%aggr%inner)
       end if
       if (sctls%plotting==2.and.M%nell>0) then
         !print *,'press Key<Enter>'
         !read *,str
-        call Mesh_pl2D_plotAggregate(LA%aggr,M,&
+        call Mesh_pl2D_plotAggregate(LA%aggr%inner,M,&
                         A%strong_rowstart,A%strong_colnrs,&
                         mctls%assembled_mtx_file, &
-                        caggrnum=AC%aggr%num, &
+                        caggrnum=AC%aggr%inner%num, &
                       INIT_CONT_END=D_PLPLOT_END)!, &
                       !INIT_CONT_END=D_PLPLOT_CONT)!, &
                                   ! D_PLPLOT_END)
       endif
-      write(stream,*)'# coarse aggregates:',AC%aggr%nagr
+      write(stream,*)'# coarse aggregates:',AC%aggr%inner%nagr
     endif 
   endif
 
   ! profile info
   if(pstream/=0) then
-     write(pstream, "(I0,':fine aggregates:',I0)") myrank, LA%aggr%nagr
-     write(pstream, "(I0,':coarse aggregates:',I0)") myrank, AC%aggr%nagr
+     write(pstream, "(I0,':fine aggregates:',I0)") myrank, LA%aggr%inner%nagr
+     write(pstream, "(I0,':coarse aggregates:',I0)") myrank, AC%aggr%inner%nagr
   end if
 
   ! Testing UMFPACK:
