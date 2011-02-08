@@ -73,6 +73,14 @@ CONTAINS
     aggr%expanded = Aggrs_New()
   end function AggrInfo_New
 
+  subroutine AggrInfo_Destroy(aggr)
+    type(AggrInfo) :: aggr
+
+    call Destruct_Aggrs(aggr%inner)
+    call Destruct_Aggrs(aggr%full)
+    call Destruct_Aggrs(aggr%expanded)
+  end subroutine AggrInfo_Destroy
+
   subroutine Form_Aggr(aggr,nagrs,n,radius,nisolated,aggrnum)
     Implicit None
     type(Aggrs) :: aggr

@@ -683,11 +683,8 @@ contains
     !write(stream,*)'[SpMtx_Destroy]: PAY ATTENTION ON IT!'
     if (M%arrange_type/=D_SpMtx_ARRNG_NO) deallocate(M%M_bound)
     !------
-    if (M%aggr%inner%nagr>0) then
-      call Destruct_Aggrs(M%aggr%inner)
-    endif
-    if (M%aggr%full%nagr>0) then
-      call Destruct_Aggrs(M%aggr%full)
+    if (associated(M%aggr)) then
+      call AggrInfo_Destroy(M%aggr)
     endif
     if (associated(M%M_bound)) deallocate(M%M_bound)
     M%arrange_type=0

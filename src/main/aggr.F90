@@ -137,8 +137,6 @@ program main_aggr
 
   call parallelDistributeInput(sctls%input_type,M,A,b,nparts,part_opts,A_ghost)
 
-  LA = getLocal(A,M)
-
   if (sctls%levels>1.or.(numprocs==1.and.sctls%levels==1)) then !todo remove
     ! Testing aggregation: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
     if (sctls%strong1/=0.0_rk) then
@@ -146,7 +144,6 @@ program main_aggr
     else
       strong_conn1=0.67_rk
     endif
-    call SpMtx_find_strong(A=LA,alpha=strong_conn1)
     if (sctls%radius1>0) then
       aggr_radius1=sctls%radius1
     else
@@ -182,13 +179,32 @@ program main_aggr
     !   call Aggr_writeFile(A%aggr%inner, 'aggr1.txt')
     !end if
 
-    call SpMtx_aggregate(LA,aggr_radius1, &
+    if (numprocs > 1) then
+      ! we need to create aggregates only on inner nodes, so use local matrix LA
+      !  instead of expanded (to overlap) local matrix A
+      LA = getLocal(A,M)
+      call SpMtx_find_strong(A=LA,alpha=strong_conn1)
+      call SpMtx_aggregate(LA,aggr_radius1, &
            minaggrsize=min_asize1,       &
            maxaggrsize=max_asize1,       &
            alpha=strong_conn1,           &
            M=M,                          &
            plotting=plotting)
-    call SpMtx_unscale(LA)
+      call SpMtx_unscale(LA)
+      call AggrInfo_Destroy(A%aggr)
+      A%aggr => LA%aggr
+      nullify(LA%aggr)
+    else
+      ! non-parallel case use the whole matrix
+      call SpMtx_find_strong(A=A,alpha=strong_conn1)
+      call SpMtx_aggregate(A,aggr_radius1, &
+           minaggrsize=min_asize1,       &
+           maxaggrsize=max_asize1,       &
+           alpha=strong_conn1,           &
+           M=M,                          &
+           plotting=plotting)
+      call SpMtx_unscale(A)      
+    end if
     !write(stream,*) "aggr", LA%aggr%inner%nagr, LA%aggr%inner%num
     !write(stream,*) "expandedaggr", LA%aggr%expanded%nagr, LA%aggr%expanded%num
 
@@ -214,10 +230,10 @@ program main_aggr
       call SpMtx_unscale(A)
       !write(stream, *) "STRONG", count(.not.A%strong), count(.not.LA%strong), A%nnz, LA%nnz
       !write(stream,*) "strong", A%strong
-      !write(stream,*) "LA%aggr%inner%nagr", LA%aggr%inner%nagr
-      !write(stream,*) "LA%aggr%full%nagr", LA%aggr%full%nagr
-      !write(stream,*) "LA%aggr%expanded%nagr", LA%aggr%expanded%nagr
-      call IntRestBuild(A,LA%aggr%expanded,Restrict,A_ghost)
+      !write(stream,*) "A%aggr%inner%nagr", A%aggr%inner%nagr
+      !write(stream,*) "A%aggr%full%nagr", A%aggr%full%nagr
+      !write(stream,*) "A%aggr%expanded%nagr", A%aggr%expanded%nagr
+      call IntRestBuild(A,A%aggr%expanded,Restrict,A_ghost)
 !write(stream,*)'Restrict is:=================='
 !call SpMtx_printRaw(restrict)
 !      CS = CoarseSpace_Init(Restrict, A%aggr%inner%nagr)
@@ -229,7 +245,7 @@ program main_aggr
 !      write(stream,*) "Restrict%nrows,ncols", Restrict%nrows, Restrict%ncols
       !write(stream,*) "Restrict%indi", Restrict%indi
       !write(stream,*) "A%aggr%inner%num", A%aggr%inner%num
-      call KeepGivenRowIndeces(Restrict,LA%aggr%inner%num)
+      call KeepGivenRowIndeces(Restrict,A%aggr%inner%num)
       !write(stream,*) "Restrict%nrows", Restrict%nrows
 !write(stream,*)'Restrict local is:=================='
 !call SpMtx_printRaw(Restrict)
@@ -240,7 +256,7 @@ program main_aggr
       !call MPI_BARRIER(MPI_COMM_WORLD,i)
       !call DOUG_abort('testing parallel AC',0)
     else 
-      call IntRestBuild(A,LA%aggr%inner,Restrict)
+      call IntRestBuild(A,A%aggr%inner,Restrict)
 !write(stream,*)'Smoothed matrix is:------------'
 !call SpMtx_printRaw(Restrict)
 
@@ -315,12 +331,12 @@ program main_aggr
     
       call SpMtx_unscale(AC)
       if (sctls%plotting==2) then
-         call Aggr_writeFile(LA%aggr%inner, 'aggr2.txt', AC%aggr%inner)
+         call Aggr_writeFile(A%aggr%inner, 'aggr2.txt', AC%aggr%inner)
       end if
       if (sctls%plotting==2.and.M%nell>0) then
         !print *,'press Key<Enter>'
         !read *,str
-        call Mesh_pl2D_plotAggregate(LA%aggr%inner,M,&
+        call Mesh_pl2D_plotAggregate(A%aggr%inner,M,&
                         A%strong_rowstart,A%strong_colnrs,&
                         mctls%assembled_mtx_file, &
                         caggrnum=AC%aggr%inner%num, &
@@ -334,7 +350,7 @@ program main_aggr
 
   ! profile info
   if(pstream/=0) then
-     write(pstream, "(I0,':fine aggregates:',I0)") myrank, LA%aggr%inner%nagr
+     write(pstream, "(I0,':fine aggregates:',I0)") myrank, A%aggr%inner%nagr
      write(pstream, "(I0,':coarse aggregates:',I0)") myrank, AC%aggr%inner%nagr
   end if
 
