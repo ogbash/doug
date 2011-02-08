@@ -205,6 +205,10 @@ program main_aggr
            plotting=plotting)
       call SpMtx_unscale(A)      
     end if
+    ! profile info
+    if(pstream/=0) then
+      write(pstream, "(I0,':fine aggregates:',I0)") myrank, A%aggr%inner%nagr
+    end if
     !write(stream,*) "aggr", LA%aggr%inner%nagr, LA%aggr%inner%num
     !write(stream,*) "expandedaggr", LA%aggr%expanded%nagr, LA%aggr%expanded%num
 
@@ -327,9 +331,14 @@ program main_aggr
            minaggrsize=min_asize2,          &
            maxaggrsize=max_asize2,          &
            alpha=strong_conn2,              &
-           Afine=A)
-    
+           Afine=A)    
       call SpMtx_unscale(AC)
+
+      ! profile info
+      if(pstream/=0) then
+        write(pstream, "(I0,':coarse aggregates:',I0)") myrank, AC%aggr%inner%nagr
+      end if
+
       if (sctls%plotting==2) then
          call Aggr_writeFile(A%aggr%inner, 'aggr2.txt', AC%aggr%inner)
       end if
@@ -347,12 +356,6 @@ program main_aggr
       write(stream,*)'# coarse aggregates:',AC%aggr%inner%nagr
     endif 
   endif
-
-  ! profile info
-  if(pstream/=0) then
-     write(pstream, "(I0,':fine aggregates:',I0)") myrank, A%aggr%inner%nagr
-     write(pstream, "(I0,':coarse aggregates:',I0)") myrank, AC%aggr%inner%nagr
-  end if
 
   ! Testing UMFPACK:
   allocate(sol(A%nrows))
