@@ -653,119 +653,12 @@ print *,'    ========== aggregate ',i,' got removed node by node ============'
     endif
   end subroutine SpMtx_aggregate
 
-!------------------------------------------------------
-! Finding strong connections in matrix
-!------------------------------------------------------
-  subroutine SpMtx_find_strong(A,alpha,A_ghost,symmetrise,M)
-    Implicit None
-    Type(SpMtx),intent(in out) :: A
-    float(kind=rk), intent(in) :: alpha
-    Type(SpMtx),intent(in out),optional :: A_ghost
-    logical,intent(in),optional :: symmetrise
-    type(Mesh),intent(in),optional :: M
-    ! local:
-    integer :: i,j,k,start,ending,nnz,ndiags
-    logical :: did_scale
-    logical :: simple=.false.,symm=.false.,mirror2ghost=.true.
-    float(kind=rk) :: maxndiag,aa
-    did_scale=.false.
-    if (A%scaling==D_SpMtx_SCALE_NO.or.A%scaling==D_SpMtx_SCALE_UNDEF) then
-      call SpMtx_scale(A,A_ghost)
-      did_scale=.true.
-    endif
-    if (A%mtx_bbe(2,2)>0) then
-      nnz=A%mtx_bbe(2,2)
-    else
-      nnz=A%nnz
-    endif
-    if (.not.associated(A%strong)) then
-      allocate(A%strong(nnz))
-    endif
-    if (simple) then
-      do i=1,nnz
-        if (abs(A%val(i))>=alpha) then
-          A%strong(i)=.true.
-        else
-          A%strong(i)=.false.
-        endif
-      enddo
-    else ! not the simple case:
-      ndiags=max(A%nrows,A%ncols)
-      call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS,sort=.false.)        
-      do i=1,A%nrows
-        start=A%M_bound(i)
-        ending=A%M_bound(i+1)-1
-        maxndiag=-1.0e15
-        do j=start,ending
-          if (A%indj(j)/=i) then ! not on diagonal
-            aa=abs(A%val(j))
-            if (maxndiag<aa) then
-              maxndiag=aa
-            endif
-          endif
-        enddo
-        maxndiag=maxndiag*alpha
-        do j=start,ending
-          aa=abs(A%val(j))
-          if (A%indj(j)/=i) then ! not on diagonal
-            if (aa>maxndiag) then
-              A%strong(j)=.true.
-            else
-              A%strong(j)=.false.
-            endif
-          else
-            if (A%diag(i)>maxndiag) then
-              A%strong(j)=.true.
-            else
-              A%strong(j)=.false.
-            endif
-            !write(stream,*)'diag at i is:',i,A%diag(i),A%strong(j),maxndiag
-          endif
-        enddo
-      enddo
-    endif
-    !if (did_scale) then
-    !  call SpMtx_unscale(A)
-    !endif
-    if (present(A_ghost).and.associated(A_ghost%indi)) then
-      ! this should only be called once, during local strong calculations
-      call exchange_strong()
-    end if
-    if (present(symmetrise)) then
-      symm=symmetrise
-    endif
-    if (symm) then
-      do i=1,nnz
-        if (A%arrange_type == D_SpMtx_ARRNG_ROWS) then
-          k=SpMtx_findElem(A,A%indi(i),A%indj(i))
-        else 
-          k=SpMtx_findElem(A,A%indj(i),A%indi(i))
-        endif
-        if (k>0) then
-          if (A%strong(i).and..not.A%strong(k)) then
-            A%strong(k)=.true.
-write(stream,*)'symmetrising to strong:',A%indi(i),A%indj(i)
-          elseif (A%strong(k).and..not.A%strong(i)) then
-            A%strong(i)=.true.
-write(stream,*)'symmetrising to strong:',A%indi(i),A%indj(i)
-          endif
-        else
-          write(stream,*) 'Warning: matrix does not have symmetric structure!'
-        endif
-      enddo
-    endif
-    if (mirror2ghost) then
-      if (present(A_ghost).and.associated(A_ghost%indi)) then
-        do i=1,A_ghost%nnz
-          if(A_ghost%indi(i)/=A_ghost%indj(i)) then
-            k=SpMtx_findElem(A,A_ghost%indi(i),A_ghost%indj(i))
-            if (k>0) then
-              A_ghost%strong(i)=A%strong(k)
-            endif
-          endif
-        enddo
-      endif
-    endif
+  subroutine SpMtx_exchange_strong(A,A_ghost,M)
+    type(SpMtx), intent(in) :: A
+    type(SpMtx), intent(inout) :: A_ghost
+    type(Mesh), intent(in) :: M
+
+    call exchange_strong()
 
   contains
     function calcBufferSize(ninds) result(bufferSize)
@@ -796,6 +689,7 @@ write(stream,*)'symmetrising to strong:',A%indi(i),A%indj(i)
       integer :: status(MPI_STATUS_SIZE), ierr
       character, allocatable :: inbuffer(:)
       logical, allocatable :: strong(:)
+      integer :: i,j,nnz
 
       allocate(strong_sends(M%nnghbrs))
 
@@ -937,6 +831,121 @@ write(stream,*)'symmetrising to strong:',A%indi(i),A%indj(i)
       deallocate(outbuffers)
       deallocate(strong_sends, strong_recvs)
     end subroutine exchange_strong
+  end subroutine SpMtx_exchange_strong
+
+!------------------------------------------------------
+! Finding strong connections in matrix
+!------------------------------------------------------
+  subroutine SpMtx_find_strong(A,alpha,A_ghost,symmetrise,M)
+    Implicit None
+    Type(SpMtx),intent(in out) :: A
+    float(kind=rk), intent(in) :: alpha
+    Type(SpMtx),intent(in out),optional :: A_ghost
+    logical,intent(in),optional :: symmetrise
+    type(Mesh),intent(in),optional :: M
+    ! local:
+    integer :: i,j,k,start,ending,nnz,ndiags
+    logical :: did_scale
+    logical :: simple=.false.,symm=.false.,mirror2ghost=.true.
+    float(kind=rk) :: maxndiag,aa
+    did_scale=.false.
+    if (A%scaling==D_SpMtx_SCALE_NO.or.A%scaling==D_SpMtx_SCALE_UNDEF) then
+      call SpMtx_scale(A,A_ghost)
+      did_scale=.true.
+    endif
+    if (A%mtx_bbe(2,2)>0) then
+      nnz=A%mtx_bbe(2,2)
+    else
+      nnz=A%nnz
+    endif
+    if (.not.associated(A%strong)) then
+      allocate(A%strong(nnz))
+    endif
+    if (simple) then
+      do i=1,nnz
+        if (abs(A%val(i))>=alpha) then
+          A%strong(i)=.true.
+        else
+          A%strong(i)=.false.
+        endif
+      enddo
+    else ! not the simple case:
+      ndiags=max(A%nrows,A%ncols)
+      call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS,sort=.false.)        
+      do i=1,A%nrows
+        start=A%M_bound(i)
+        ending=A%M_bound(i+1)-1
+        maxndiag=-1.0e15
+        do j=start,ending
+          if (A%indj(j)/=i) then ! not on diagonal
+            aa=abs(A%val(j))
+            if (maxndiag<aa) then
+              maxndiag=aa
+            endif
+          endif
+        enddo
+        maxndiag=maxndiag*alpha
+        do j=start,ending
+          aa=abs(A%val(j))
+          if (A%indj(j)/=i) then ! not on diagonal
+            if (aa>maxndiag) then
+              A%strong(j)=.true.
+            else
+              A%strong(j)=.false.
+            endif
+          else
+            if (A%diag(i)>maxndiag) then
+              A%strong(j)=.true.
+            else
+              A%strong(j)=.false.
+            endif
+            !write(stream,*)'diag at i is:',i,A%diag(i),A%strong(j),maxndiag
+          endif
+        enddo
+      enddo
+    endif
+    !if (did_scale) then
+    !  call SpMtx_unscale(A)
+    !endif
+    if (present(A_ghost).and.associated(A_ghost%indi)) then
+      ! this should only be called once, during local strong calculations
+      call SpMtx_exchange_strong(A,A_ghost,M)
+    end if
+    if (present(symmetrise)) then
+      symm=symmetrise
+    endif
+    if (symm) then
+      do i=1,nnz
+        if (A%arrange_type == D_SpMtx_ARRNG_ROWS) then
+          k=SpMtx_findElem(A,A%indi(i),A%indj(i))
+        else 
+          k=SpMtx_findElem(A,A%indj(i),A%indi(i))
+        endif
+        if (k>0) then
+          if (A%strong(i).and..not.A%strong(k)) then
+            A%strong(k)=.true.
+write(stream,*)'symmetrising to strong:',A%indi(i),A%indj(i)
+          elseif (A%strong(k).and..not.A%strong(i)) then
+            A%strong(i)=.true.
+write(stream,*)'symmetrising to strong:',A%indi(i),A%indj(i)
+          endif
+        else
+          write(stream,*) 'Warning: matrix does not have symmetric structure!'
+        endif
+      enddo
+    endif
+    if (mirror2ghost) then
+      if (present(A_ghost).and.associated(A_ghost%indi)) then
+        do i=1,A_ghost%nnz
+          if(A_ghost%indi(i)/=A_ghost%indj(i)) then
+            k=SpMtx_findElem(A,A_ghost%indi(i),A_ghost%indj(i))
+            if (k>0) then
+              A_ghost%strong(i)=A%strong(k)
+            endif
+          endif
+        enddo
+      endif
+    endif
   end subroutine SpMtx_find_strong
   
 !------------------------------------------------------
