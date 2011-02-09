@@ -693,7 +693,7 @@ call SpMtx_printRaw(S)
     Type(SpMtx),intent(inout) :: AC ! coarse level matrix
     Type(SpMtx), intent(inout) :: Restrict ! the restriction matrix
     Type(SpMtx),intent(in),optional :: A_ghost !< additional part to the matrix
-    Type(SpMtx) :: T,TT !temporary matrix
+    Type(SpMtx) :: T,TT,RT !temporary matrix
     integer,dimension(:),pointer :: indi,indj
     real(kind=rk),dimension(:),pointer :: val
     integer :: i,nz
@@ -725,7 +725,14 @@ call SpMtx_printRaw(S)
 !call SpMtx_printRaw(A=T)
     !write(*,*) 'A Restrict* time:',MPI_WTIME()-t1
     !t1 = MPI_WTIME()
-    AC = SpMtx_AB(A=Restrict,B=T)
+    write(stream,*) "Restrict"
+    call SpMtx_printRaw(Restrict)
+    RT = SpMtx_Copy(Restrict)
+    call KeepGivenColumnIndeces(RT,(/(i,i=1,size(A%aggr%inner%num))/),.TRUE.)
+    write(stream,*) "RT"
+    call SpMtx_printRaw(RT)
+    AC = SpMtx_AB(A=RT,B=T)
+    call SpMtx_Destroy(RT)
     !write(*,*) 'Restrict A time:',MPI_WTIME()-t1
     call SpMtx_Destroy(T)
   end subroutine CoarseMtxBuild

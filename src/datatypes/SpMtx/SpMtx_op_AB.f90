@@ -60,8 +60,8 @@ module SpMtx_op_AB
       Aindj=>A%indi
       !Anrows=A%Ncols
       !Ancols=A%Nrows
-      Anrows=max(0, maxval(Aindi))
-      Ancols=max(0, maxval(Aindj))
+      Anrows=max(A%nrows, maxval(Aindi))
+      Ancols=max(A%ncols, maxval(Aindj))
 !write(stream,*)'AAATTT A%Nrows,maxval(A%indi):',A%Nrows,maxval(A%indi),Ancols
 !write(stream,*)'AAATTT A%Ncols,maxval(A%indj):',A%Ncols,maxval(A%indj),Anrows,max(A%nnz,A%ol0nnz)
       call SpMtx_arrange(A,D_SpMtx_ARRNG_COLS,sort=.false.,nnz=max(A%nnz,A%ol0nnz), &
@@ -75,8 +75,8 @@ module SpMtx_op_AB
     !!else
     !!Ancols=A%Ncols
     ! Ancols=maxval(A%indj(1:A%nnz))
-      Anrows=max(0, maxval(Aindi))
-      Ancols=max(0, maxval(Aindj))
+      Anrows=max(A%nrows, maxval(Aindi))
+      Ancols=max(A%ncols, maxval(Aindj))
 !write(stream,*)'AAAAAA A%Nrows,maxval(A%indi):',A%Nrows,maxval(A%indi),Anrows
 !write(stream,*)'AAAAAA A%Ncols,maxval(A%indj):',A%Ncols,maxval(A%indj),Ancols,max(A%nnz,A%ol0nnz)
      !endif
@@ -104,8 +104,8 @@ module SpMtx_op_AB
       Bindj=>B%indi
       !Bnrows=B%Ncols
       !Bncols=B%Nrows
-      Bnrows=max(0, maxval(Bindi))
-      Bncols=max(0, maxval(Bindj))
+      Bnrows=max(B%nrows, maxval(Bindi))
+      Bncols=max(B%ncols, maxval(Bindj))
 !write(stream,*)'BBBTTT B%Nrows,maxval(B%indi):',B%Nrows,maxval(B%indi),Bncols
 !write(stream,*)'BBBTTT B%Ncols,maxval(A%indj):',B%Ncols,maxval(B%indj),Bnrows,max(B%nnz,B%ol0nnz)
       call SpMtx_arrange(B,D_SpMtx_ARRNG_COLS,sort=.false.,nnz=max(B%nnz,B%ol0nnz), &
@@ -115,8 +115,8 @@ module SpMtx_op_AB
       Bindj=>B%indj
       !Bnrows=B%Nrows
       !Bncols=B%Ncols
-      Bnrows=max(0, maxval(Bindi))
-      Bncols=max(0, maxval(Bindj))
+      Bnrows=max(B%nrows, maxval(Bindi))
+      Bncols=max(B%ncols, maxval(Bindj))
 !write(stream,*)'BBBBBB B%Nrows,maxval(B%indi):',B%Nrows,maxval(B%indi),Bnrows
 !write(stream,*)'BBBBBB B%Ncols,maxval(A%indj):',B%Ncols,maxval(B%indj),Bncols,max(B%nnz,B%ol0nnz)
       call SpMtx_arrange(B,D_SpMtx_ARRNG_ROWS,sort=.false.,nnz=max(B%nnz,B%ol0nnz), &

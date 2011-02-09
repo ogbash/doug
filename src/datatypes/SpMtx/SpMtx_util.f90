@@ -113,7 +113,69 @@ Contains
       A%nnz=nz
       A%nrows=maxval(A%indi)
     endif
+
+    if (A%arrange_type/=D_SPMTX_ARRNG_NO) then
+      deallocate(A%m_bound)
+      A%arrange_type=D_SPMTX_ARRNG_NO
+    end if
+
   end subroutine KeepGivenRowIndeces
+
+  subroutine KeepGivenColumnIndeces(A,inds,keepShape)
+    implicit none
+    Type(SpMtx),intent(inout) :: A ! the fine level matrix
+    integer,dimension(:),intent(in) :: inds
+    logical,intent(in) :: keepShape
+    integer,dimension(:),pointer :: indi,indj
+    real(kind=rk),dimension(:),pointer :: val
+    logical,dimension(:),pointer :: isin
+    integer :: i,n,nz
+    allocate(isin(A%ncols))
+    isin=.false.
+    n=size(inds)
+    do i=1,n
+      isin(inds(i))=.true.
+    enddo
+    nz=0
+    do i=1,A%nnz
+      if (isin(A%indj(i))) then
+        nz=nz+1
+        A%indi(nz)=A%indi(i)
+        A%indj(nz)=A%indj(i)
+        A%val(nz)=A%val(i)
+      endif
+    enddo
+    deallocate(isin)
+    if (nz<A%nnz) then
+      allocate(indi(nz))
+      indi=A%indi(1:nz)
+      deallocate(A%indi)
+      allocate(A%indi(nz))
+      A%indi=indi
+      deallocate(indi)
+      allocate(indj(nz))
+      indj=A%indj(1:nz)
+      deallocate(A%indj)
+      allocate(A%indj(nz))
+      A%indj=indj
+      deallocate(indj)
+      allocate(val(nz))
+      val=A%val(1:nz)
+      deallocate(A%val)
+      allocate(A%val(nz))
+      A%val=val
+      deallocate(val)
+      A%nnz=nz
+      if (.not.keepShape) then
+        A%ncols=maxval(A%indj)
+      end if
+    endif
+
+    if (A%arrange_type/=D_SPMTX_ARRNG_NO) then
+      deallocate(A%m_bound)
+      A%arrange_type=D_SPMTX_ARRNG_NO
+    end if
+  end subroutine KeepGivenColumnIndeces
 
     Function SpMtx_findElem(A, i, j) result(n)
         type(SpMtx), intent(in)  :: A

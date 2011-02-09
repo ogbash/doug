@@ -96,7 +96,7 @@ contains
 
     onnodes = nnodes
     allocate(frontstart(0:nlayers), frontend(0:nlayers))
-    allocate(onfront(size(adjBounds)-1))
+    allocate(onfront(size(nodes)))
     onfront = 0
     
     ! mark inital nodes as the very first step

@@ -73,13 +73,14 @@ contains
 
   end subroutine solve_subdomains
 
-  subroutine factorise_subdomains(A,A_interf_,AC)
+  subroutine factorise_subdomains(A,M,A_interf_,AC)
     type(SpMtx),intent(inout) :: A
+    type(Mesh),intent(in) :: M
     type(SpMtx),optional :: A_interf_ ! 
     type(SpMtx),optional :: AC ! is supplied to indicate coarse aggregates
 
     integer,allocatable :: nodes(:)
-    integer :: nnodes, nnodes_exp, cAggr, ol, i
+    integer :: nnodes, nnodes_exp, cAggr, ol, i, nagr
     double precision :: t1
 
     setuptime=0.0_rk
@@ -92,16 +93,17 @@ contains
     end if
     allocate(nodes(nnodes))
 
+    if (sctls%overlap<0) then ! autom. overlap from smoothing
+      ol = sctls%smoothers
+    else
+      ol = sctls%overlap
+    endif
+
     if (present(AC)) then !{
       A%DD%nsubsolves=AC%aggr%full%nagr
       allocate(A%DD%subsolve_ids(AC%aggr%full%nagr))
       A%DD%subsolve_ids=0
       allocate(A%DD%subd(AC%aggr%full%nagr+1))
-      if (sctls%overlap<0) then ! autom. overlap from smoothing
-        ol = sctls%smoothers
-      else
-        ol = sctls%overlap
-      endif
       call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS,sort=.false.)
       do cAggr=1,AC%aggr%full%nagr ! loop over coarse aggregates
         call Get_aggregate_nodes(cAggr,AC%aggr%full,A%aggr%full,A%nrows,nodes,nnodes)
@@ -120,13 +122,17 @@ contains
       !deallocate(subrhs,subsol)
 
     else !}{ no coarse solves:
-      nnodes_exp = nnodes
-      A%aggr%full%nagr=1
+      !A%aggr%full%nagr=1
+      nagr = 1
       A%DD%nsubsolves=1
-      allocate(A%DD%subsolve_ids(A%aggr%full%nagr))
+      allocate(A%DD%subsolve_ids(nagr))
       A%DD%subsolve_ids=0
-      allocate(A%DD%subd(A%aggr%full%nagr+1))
-      nodes(1:nnodes_exp)=(/ (i,i=1,nnodes_exp) /)
+      allocate(A%DD%subd(nagr+1)) ! +1 ???
+ 
+      nodes(1:m%ninner) = (/ (i,i=1,M%ninner) /)
+      call Add_layers(A%m_bound,A%indj,nodes,M%ninner,ol,nnodes_exp)
+      !nnodes_exp = nnodes
+      !nodes(1:nnodes_exp)=(/ (i,i=1,nnodes_exp) /)
 
       setuptime=setuptime+(MPI_WTIME()-t1) ! switchoff clock
       call Factorise_subdomain(A,nodes(1:nnodes_exp),A%DD%subsolve_ids(1),A_interf_)
@@ -198,7 +204,6 @@ contains
     end if
 
     ! factorise
-    write(stream,*) "FACTORIZE", snnz, sval
     call factorise(id,nnodes,snnz,sindi,sindj,sval)
   end subroutine factorise_subdomain
 

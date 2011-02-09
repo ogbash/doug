@@ -147,9 +147,9 @@ module Mesh_class
      !> \addtogroup domain_decomp 
      !! @{
      type(indlist),dimension(:),pointer :: ax_recvidx,ax_sendidx
-     type(indlist),dimension(:),pointer :: ol_outer
-     type(indlist),dimension(:),pointer :: ol_inner
-     type(indlist),dimension(:),pointer :: ol_solve
+     type(indlist),dimension(:),pointer :: ol_outer !< overlap with each neighbour in his partition
+     type(indlist),dimension(:),pointer :: ol_inner !< overlap with each neighbour in my partition
+     type(indlist),dimension(:),pointer :: ol_solve !< overlap with each neighbour in his,my or third process partitions
      !> @}
 
      !! Graph

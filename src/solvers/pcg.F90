@@ -262,10 +262,10 @@ contains
     if(sctls%method==1) then
       if (refactor_) then!{
         if (.not.present(CoarseMtx_).or.sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL.or.numprocs>1) then
-          call Factorise_subdomains(A,A_interf_)
+          call Factorise_subdomains(A,M,A_interf_)
         else
           if (.not.present(Restrict)) call DOUG_abort("Restriction matrix needs to be passed along with the coarse matrix!")
-          call Factorise_subdomains(A,AC=CoarseMtx_)
+          call Factorise_subdomains(A,M,AC=CoarseMtx_)
         end if
         refactor_=.false.
       end if
@@ -325,6 +325,7 @@ contains
       call AllSendCoarseMtx(cdat%LAC,CoarseMtx_,cdat%lg_cfmap,&
            cdat%ngfc,cdat%nprocs,cdat%send)
       call AllRecvCoarseMtx(CoarseMtx_,cdat%send,add=add) ! Recieve it
+      call SpMtx_printRaw(CoarseMtx_)
 
     end subroutine prec2Level_exchangeMatrix
 
@@ -347,7 +348,7 @@ contains
           allocate(crhs(CoarseMtx_%ncols))
           allocate(csol(CoarseMtx_%nrows))
         endif
-        write(stream,*) "Restrict%nrows", Restrict%nrows
+        write(stream,*) "Restrict%nrows", Restrict%nrows, Restrict%nnz
         allocate(clrhs(Restrict%nrows)) ! allocate memory for vector
       end if
 
@@ -679,6 +680,7 @@ if (bugtrack)call Print_Glob_Vect(z,Msh,'global bef comm z===',chk_endind=Msh%ni
       if (sctls%method/=0) then
         call Add_common_interf(z,A,Msh)
       endif
+
 !call Print_Glob_Vect(z,Msh,'global aft comm z===',chk_endind=Msh%ninner)
 !call Print_Glob_Vect(z,Msh,'global z===')
       ! compute current rho
