@@ -447,7 +447,7 @@ contains
         arrange_type=D_SpMtx_ARRNG_NO )
       deallocate(val,indj,indi)
       deallocate(diag)
-write(stream,*)'Smoother matrix is:------------'
+!write(stream,*)'Smoother matrix is:------------'
 call SpMtx_printRaw(S)
       if (smoothers>=2) then
         ! Build smoother2
@@ -634,10 +634,12 @@ call SpMtx_printRaw(S)
       else ! i.e. smoothers==1 :
 !write(stream,*)'bbb building Restrict...'
 !write(stream,*)'A%ncols===',A%ncols,maxval(A%indj)
+        write(stream,*) "Smoothing: ", T%nrows, T%ncols, S%nrows, S%ncols, "A,A_ghost", A%nrows, A_ghost%nrows
         Restrict = SpMtx_AB(A=T,       &
                             B=S,       &
                            AT=.false., &
                            BT=.true.)
+        write(stream,*) "Done", Restrict%nrows, Restrict%ncols
 !write(stream,*)'bbb done building Restrict...'
       endif
       call SpMtx_Destroy(S)
