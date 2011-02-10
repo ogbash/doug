@@ -56,17 +56,14 @@ module CoarseMtx_mod
 contains
 
   !> Create new coarse space from computed restriction matrix.
-  !!
-  !! Currently assume Restrict contains excessive aggregates (because of refactoring process).
-  function CoarseSpace_Init(Restrict, nsupports) result(CS)
+  function CoarseSpace_Init(Restrict) result(CS)
     type(SpMtx), intent(in) :: Restrict
-    integer, intent(in) :: nsupports
     type(CoarseSpace) :: CS
 
     integer, allocatable :: nnodes(:), cnodes(:)
     integer :: i, isupport
 
-    CS%nsupports = nsupports    
+    CS%nsupports = Restrict%nrows
 
     ! count the number of fine mesh nodes in each coarse node support
     allocate(nnodes(CS%nsupports))
@@ -118,6 +115,7 @@ contains
 
     ! collect restrict values from external node to local coarse support
     call collectRestrictValues(extR)
+    write(stream,*) "extR"
     call SpMtx_printRaw(extR)
 
   contains
@@ -211,7 +209,6 @@ contains
       allocate(outbuffers(M%nnghbrs))
       allocate(outreqs(M%nnghbrs))
       do i=1,M%nnghbrs
-         write(stream,*) "--", R%val(smooth_sends(i)%inds), smooth_sends(i)%inds
          ! prepare and fill buffer
          bufsize = calcBufferSize(smooth_sends(i)%ninds)
          allocate(outbuffers(i)%data(bufsize))
@@ -241,7 +238,11 @@ contains
          bufsize = calcBufferSize(smooth_recvs(i)%ninds)
          call MPI_Recv(inbuffer, bufsize, MPI_CHARACTER, M%nghbrs(i),&
               TAG_CREATE_PROLONG, MPI_COMM_WORLD, status, ierr)
+
+         ! do not even try to unpack if empty
          ninds = smooth_recvs(i)%ninds
+         if (ninds==0) cycle
+
          bufpos = 0
          call MPI_Unpack(inbuffer, bufsize, bufpos, eR%indi(nnz+1), ninds,&
               MPI_INTEGER, MPI_COMM_WORLD, ierr)
@@ -288,10 +289,13 @@ contains
     !logical,parameter :: smoothall=.true.
     logical,parameter :: smoothall=.false.
 
+    if (sctls%verbose>1) write(stream,*) 'Building restriction matrix'
     if (sctls%smoothers>sctls%radius1) then
       write(stream,*) '***NB! reducing smoothers to radius1=',sctls%radius1
       sctls%smoothers=sctls%radius1
     endif
+    Tnrows = A%nrows
+    if (present(A_ghost)) Tnrows = max(Tnrows, A_ghost%nrows)
     smoothers=sctls%smoothers
     if (smoothers==0) then
       nz=aggr%starts(aggr%nagr+1)-1 ! is actually A%nrows-nisolated
@@ -306,7 +310,7 @@ contains
                    nnz=nz,                 & ! non-overlapping simple case
                nblocks=1,                  &
                  nrows=nagr,               &
-                 ncols=maxval(A%indj),     & ! should match for sparse Mult eg.
+                 ncols=Tnrows,     & 
             symmstruct=.false.,            &
            symmnumeric=.false.,            &
                   indi=indi,               &
@@ -350,8 +354,6 @@ contains
         k=aggr%starts(i+1)-1
         indi(j:k)=i
       enddo
-      Tnrows = A%nrows
-      if (present(A_ghost)) Tnrows = max(Tnrows, A_ghost%nrows)
       T = SpMtx_newInit(                 &
                  nnz=nz,                 & ! non-overlapping simple case
              nblocks=1,                  &
@@ -636,6 +638,7 @@ call SpMtx_printRaw(S)
       else ! i.e. smoothers==1 :
 !write(stream,*)'bbb building Restrict...'
 !write(stream,*)'A%ncols===',A%ncols,maxval(A%indj)
+        if (sctls%verbose>3) write(stream,*) "Restrict = T*S"
         Restrict = SpMtx_AB(A=T,       &
                             B=S,       &
                            AT=.false., &
@@ -700,11 +703,13 @@ call SpMtx_printRaw(S)
     real(kind=rk),dimension(:),pointer :: val
     integer :: i,nz
     
+    if (sctls%verbose>1) write(stream,*) 'Building coarse matrix'
     ! Timing:
     !real(kind=rk) :: t1, t2
     !t1 = MPI_WTIME()
     ! we need to work with a copy to preserve the structure and ordering of A:
     if (present(A_ghost).and.associated(A_ghost%indi)) then
+      write(stream,*) "PRESENT"
       nz=A%nnz+A_ghost%nnz
       TT=SpMtx_newInit(nz)
       TT%indi(1:A%nnz)=A%indi

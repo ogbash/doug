@@ -54,6 +54,11 @@ module SpMtx_op_AB
     ! Timing:
     !real(kind=rk) :: t1, t2
 
+    if (sctls%verbose>3) then
+      write(stream,"(A,': ',I0,'x',I0,', ',I0,'x',I0)") &
+           "Multiplying matrices with shapes", &
+           A%nrows, A%ncols, B%nrows, B%ncols
+    end if
     !t1 = MPI_WTIME()
     if (present(AT).and.AT) then
       Aindi=>A%indj

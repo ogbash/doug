@@ -188,14 +188,14 @@ program main_aggr
     else
       ! non-parallel case use the whole matrix
       call SpMtx_find_strong(A=A,alpha=strong_conn1)
-      call SpMtx_aggregate(A,aggr_radius1, &
-            minaggrsize=min_asize1,       &
-            maxaggrsize=max_asize1,       &
-            alpha=strong_conn1,           &
-            M=M,                          &
-            plotting=plotting)
-      call SpMtx_unscale(A)
-      !call Aggrs_readFile_fine(A%aggr, "aggregates.txt")
+      ! call SpMtx_aggregate(A,aggr_radius1, &
+      !       minaggrsize=min_asize1,       &
+      !       maxaggrsize=max_asize1,       &
+      !       alpha=strong_conn1,           &
+      !       M=M,                          &
+      !       plotting=plotting)
+      ! call SpMtx_unscale(A)
+      call Aggrs_readFile_fine(A%aggr, "aggregates.txt")
     end if
     ! profile info
     if(pstream/=0) then
@@ -223,6 +223,10 @@ program main_aggr
       call SpMtx_find_strong(A=A,alpha=strong_conn1,A_ghost=A_ghost,M=M)
       call SpMtx_unscale(A)
       call IntRestBuild(A,A%aggr%inner,Restrict,A_ghost)
+      write(stream,*) "Restrict matrix size", Restrict%nrows, Restrict%ncols
+      CS = CoarseSpace_Init(Restrict)
+      call CoarseSpace_Expand(CS,Restrict,M,cdat_vec)
+
       call CoarseMtxBuild(A,cdat%LAC,Restrict,A_ghost)
       call KeepGivenRowIndeces(Restrict,A%aggr%inner%num) 
 
@@ -293,13 +297,13 @@ program main_aggr
         !max_asize2=max_asize1
         max_asize2=(2*aggr_radius2+1)**2
       endif
-      call SpMtx_aggregate(AC,aggr_radius2, &
-            minaggrsize=min_asize2,          &
-            maxaggrsize=max_asize2,          &
-            alpha=strong_conn2,              &
-            Afine=A)    
+      ! call SpMtx_aggregate(AC,aggr_radius2, &
+      !       minaggrsize=min_asize2,          &
+      !       maxaggrsize=max_asize2,          &
+      !       alpha=strong_conn2,              &
+      !       Afine=A)    
       call SpMtx_unscale(AC)
-      !call Aggrs_readFile_coarse(AC%aggr, "aggregates.txt")
+      call Aggrs_readFile_coarse(AC%aggr, "aggregates.txt")
 
       ! profile info
       if(pstream/=0) then
@@ -324,9 +328,9 @@ program main_aggr
     endif 
   endif
 
-  !if (numprocs>1) then
-  !  call Aggrs_writeFile(M, A%aggr, AC%aggr, cdat, "aggregates.txt")
-  !end if
+  if (numprocs>1) then
+    call Aggrs_writeFile(M, A%aggr, AC%aggr, cdat, "aggregates.txt")
+  end if
 
   ! Testing UMFPACK:
   allocate(sol(A%nrows))
