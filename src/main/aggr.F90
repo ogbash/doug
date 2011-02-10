@@ -222,7 +222,7 @@ program main_aggr
     if (numprocs>1) then
       call SpMtx_find_strong(A=A,alpha=strong_conn1,A_ghost=A_ghost,M=M)
       call SpMtx_unscale(A)
-      call IntRestBuild(A,A%aggr%expanded,Restrict,A_ghost)
+      call IntRestBuild(A,A%aggr%inner,Restrict,A_ghost)
       call CoarseMtxBuild(A,cdat%LAC,Restrict,A_ghost)
       call KeepGivenRowIndeces(Restrict,A%aggr%inner%num) 
 

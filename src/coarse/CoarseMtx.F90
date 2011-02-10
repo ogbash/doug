@@ -273,7 +273,7 @@ contains
     integer :: nagr,nz,nagrnodes ! # aggregated nodes (there can be some isol.)
     integer, dimension(:), allocatable :: indi,indj
     integer :: i,j,k
-    integer :: smoothers=0
+    integer :: smoothers=0, Tnrows
     Type(SpMtx) :: S,S2,T,SS,SSS,SSSS
     float(kind=rk),dimension(:),allocatable :: diag,val
     !!!float(kind=rk) :: omega=0.66666666666667_rk
@@ -350,11 +350,13 @@ contains
         k=aggr%starts(i+1)-1
         indi(j:k)=i
       enddo
+      Tnrows = A%nrows
+      if (present(A_ghost)) Tnrows = max(Tnrows, A_ghost%nrows)
       T = SpMtx_newInit(                 &
                  nnz=nz,                 & ! non-overlapping simple case
              nblocks=1,                  &
                nrows=nagr,               &
-               ncols=A%nrows,            & ! should match for sparse Mult eg.
+               ncols=Tnrows,  & ! should match for sparse Mult eg.
           symmstruct=.false.,            &
          symmnumeric=.false.,            &
                 indi=indi,               &
@@ -437,8 +439,8 @@ contains
       S = SpMtx_newInit(      &
                  nnz=nz,      & ! non-overlapping simple case
              nblocks=1,       &
-               nrows=A%ncols, &
-               ncols=A%nrows, & ! should match for sparse Mult eg.
+               nrows=Tnrows, &
+               ncols=Tnrows, & ! should match for sparse Mult eg.
           symmstruct=.false., &
          symmnumeric=.false., &
                 indi=indi,    &
@@ -521,8 +523,8 @@ call SpMtx_printRaw(S)
         S2 = SpMtx_newInit(      &
                    nnz=nz,      & ! non-overlapping simple case
                nblocks=1,       &
-                 nrows=A%ncols, &
-                 ncols=A%nrows, & ! should match for sparse Mult eg.
+                 nrows=Tnrows, &
+                 ncols=Tnrows, & ! should match for sparse Mult eg.
             symmstruct=.false., &
            symmnumeric=.false., &
                   indi=indi,    &
