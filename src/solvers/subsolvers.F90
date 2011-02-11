@@ -129,6 +129,7 @@ contains
       A%DD%subsolve_ids=0
       allocate(A%DD%subd(nagr+1)) ! +1 ???
  
+      call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS,sort=.false.)
       nodes(1:m%ninner) = (/ (i,i=1,M%ninner) /)
       call Add_layers(A%m_bound,A%indj,nodes,M%ninner,ol,nnodes_exp)
       !nnodes_exp = nnodes
