@@ -265,13 +265,11 @@ endif
       M%ax_recvidx(k)%inds=M%gl_fmap(M%ax_recvidx(k)%inds)
       M%ax_sendidx(k)%inds=M%gl_fmap(M%ax_sendidx(k)%inds)
     enddo
-    if (ol>0) then
-      do k=1,M%nnghbrs
-        M%ol_inner(k)%inds=M%gl_fmap(M%ol_inner(k)%inds)
-        M%ol_outer(k)%inds=M%gl_fmap(M%ol_outer(k)%inds)
-        M%ol_solve(k)%inds=M%gl_fmap(M%ol_solve(k)%inds)
-      enddo
-    endif
+    do k=1,M%nnghbrs
+      M%ol_inner(k)%inds=M%gl_fmap(M%ol_inner(k)%inds)
+      M%ol_outer(k)%inds=M%gl_fmap(M%ol_outer(k)%inds)
+      M%ol_solve(k)%inds=M%gl_fmap(M%ol_solve(k)%inds)
+    enddo
     do i=1,A%ol0nnz
       A%indi(i)=M%gl_fmap(A%indi(i))
       A%indj(i)=M%gl_fmap(A%indj(i))

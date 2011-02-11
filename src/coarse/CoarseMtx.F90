@@ -28,7 +28,8 @@ module CoarseMtx_mod
   use SpMtx_op_AB
   use SpMtx_op_Ax
   use globals
-
+  use SpMtx_distribution_mod
+  use SpMtx_operation
 
   use Mesh_class
 
@@ -100,56 +101,101 @@ contains
 
   !> Expand coarse space to the nodes and supports on the overlap.
   !!
-  !! In parallel case prolongation must as well update nodes on the overlap from non-local coarse nodes.
+  !! This is done in two phases: first collect the values and then redistribute them.
   subroutine CoarseSpace_Expand(CS,R,M,cdat)
     use CoarseAllgathers, only: CoarseData
     type(CoarseSpace), intent(inout) :: CS
-    type(SpMtx), intent(in) :: R !< Restriction matrix
+    type(SpMtx), intent(inout) :: R !< Restriction matrix
     type(Mesh), intent(in) :: M
-    type(CoarseData), intent(in) :: cdat
+    type(CoarseData), intent(inout) :: cdat
 
-    integer,dimension(:), pointer :: indi, indj
     real(kind=rk), pointer :: val(:)
-    integer :: nnz
-    type(SpMtx) :: extR
+    type(SpMtx) :: iR, i2ecR, eR
+    integer :: i
+    
+    ! ---- collect restrict values
+    call collectRestrictValues(R, i2ecR)
 
-    ! collect restrict values from external node to local coarse support
-    call collectRestrictValues(extR)
-    write(stream,*) "extR"
-    call SpMtx_printRaw(extR)
+    ! extend cdat with the neighbour coarse nodes
+    i2ecR%indj = M%gl_fmap(i2ecR%indj)
+    call add_indices(cdat, i2ecR%indi)
+
+    ! localize i2ecR and add new elements to the restriction matrix
+    i2ecR%indi = cdat%gl_cfmap(i2ecR%indi)
+    i2ecR%nrows = cdat%nlfc
+    i2ecR%ncols = M%nlf
+    iR = SpMtx_add(R, i2ecR, 1.0_rk, 1.0_rk)
+    call KeepGivenColumnIndeces(iR,(/(i,i=1,M%ninner)/), keepShape=.TRUE.)
+
+    ! ---- distribute restrict values
+    call distributeRestrictValues(iR, eR)
+
+    ! extend cdat once more, this may contain third partition coarse nodes
+    eR%indj = M%gl_fmap(eR%indj)
+    call add_indices(cdat, eR%indi)
+
+    ! localize eR and add new elements
+    eR%indi = cdat%gl_cfmap(eR%indi)
+    eR%nrows = cdat%nlfc
+    eR%ncols = M%nlf
+
+    ! add internal and external elements
+    call SpMtx_Destroy(R)
+    R = SpMtx_add(iR, eR, 1.0_rk, 1.0_rk)
+
+    call SpMtx_Destroy(eR)
+    call SpMtx_Destroy(iR)
+
+    write(stream,*) "NEW R", cdat%nlfc, size(cdat%lg_cfmap)
+    call SpMtx_printRaw(R)
 
   contains
+    subroutine add_indices(cdata, g_cinds)
+      type(CoarseData), intent(inout) :: cdata
+      integer, intent(in) :: g_cinds(:) !< coarse nodes to add (with duplicates)
+      
+      integer :: gci,lci,k,nf ! global coarse index, local coarse index
+      integer,pointer :: lg_cfmap(:)
 
-    !> Calculate buffer size for MPI operations
-    function calcBufferSize(ninds) result(bufferSize)
-      integer, intent(in) :: ninds
-      integer :: bufferSize
-      integer :: size, ierr
-      call MPI_Pack_size(ninds, MPI_INTEGER, MPI_COMM_WORLD, size, ierr)
-      bufferSize = 2*size
-      call MPI_Pack_size(ninds, MPI_fkind, MPI_COMM_WORLD, size, ierr)
-      bufferSize = bufferSize+size
-    end function calcBufferSize
+      ! first mark new indices with negative indices
+      nf = cdata%nlfc
+      do k=1,size(g_cinds)
+        gci = g_cinds(k)
+        if (cdata%gl_cfmap(gci)==0) then
+          nf = nf+1
+          cdata%gl_cfmap(gci)=-nf
+        end if
+      end do
 
-    subroutine collectRestrictValues(eR)
+      ! now extend lg_cfmap
+      allocate(lg_cfmap(nf))
+      lg_cfmap(1:cdata%nlfc) = cdata%lg_cfmap
+      nf = cdata%nlfc
+      do k=1,size(g_cinds)
+        gci = g_cinds(k)
+        if (cdata%gl_cfmap(gci)<0) then
+          nf = nf+1
+          lci = -cdata%gl_cfmap(gci)
+          cdata%gl_cfmap(gci) = lci
+          lg_cfmap(lci) = gci
+        end if
+      end do
+      
+      cdata%nlfc = nf
+      deallocate(cdata%lg_cfmap)
+      cdata%lg_cfmap => lg_cfmap
+      
+    end subroutine add_indices
+
+    subroutine collectRestrictValues(R, eR)
+      type(SpMtx),intent(in) :: R
       type(SpMtx),intent(out) :: eR
 
-      type(indlist), allocatable :: smooth_sends(:), smooth_recvs(:)
-      integer :: k, i, j, isupport, ptn, ngh, ierr, status(MPI_STATUS_SIZE)
-
-      integer, allocatable :: outreqs(:)
-      type Buffer
-         character, pointer :: data(:)       
-      end type Buffer
-      type(Buffer), allocatable :: outbuffers(:)
-      integer :: bufsize, bufpos
-      character, allocatable :: inbuffer(:)
-
-      integer :: ninds, nnz
-      integer, allocatable :: outstatuses(:,:)
+      type(indlist), allocatable :: smooth_sends(:)
+      integer :: k, i, j, isupport, ptn, ngh
 
       ! first count
-      allocate(smooth_sends(M%nnghbrs), smooth_recvs(M%nnghbrs))
+      allocate(smooth_sends(M%nnghbrs))
       smooth_sends%ninds=0
       do k=1,R%nnz
          isupport = R%indi(k)
@@ -191,77 +237,33 @@ contains
          end if
       end do
 
-      ! gather values
-      ! gather number of matrix elements each node has
-      do i=1,M%nnghbrs
-         ngh = M%nghbrs(i)
-         call MPI_Send(smooth_sends(i)%ninds, 1, MPI_INTEGER, ngh, &
-              TAG_CREATE_PROLONG, MPI_COMM_WORLD, ierr)
-      end do
-      do i=1,M%nnghbrs
-         ngh = M%nghbrs(i)
-         call MPI_Recv(smooth_recvs(i)%ninds, 1, MPI_INTEGER, ngh, &
-              TAG_CREATE_PROLONG, MPI_COMM_WORLD, status, ierr)
-      end do
-
-      ! gather matrix elements
-      ! non-blockingly send
-      allocate(outbuffers(M%nnghbrs))
-      allocate(outreqs(M%nnghbrs))
-      do i=1,M%nnghbrs
-         ! prepare and fill buffer
-         bufsize = calcBufferSize(smooth_sends(i)%ninds)
-         allocate(outbuffers(i)%data(bufsize))
-         bufpos = 0
-         call MPI_Pack(cdat%lg_cfmap(R%indi(smooth_sends(i)%inds)), smooth_sends(i)%ninds, MPI_INTEGER,&
-              outbuffers(i)%data, bufsize, bufpos, MPI_COMM_WORLD, ierr)
-         if (ierr/=0) call DOUG_abort("MPI Pack of matrix elements failed")
-         call MPI_Pack(M%lg_fmap(R%indj(smooth_sends(i)%inds)), smooth_sends(i)%ninds, MPI_INTEGER,&
-              outbuffers(i)%data, bufsize, bufpos, MPI_COMM_WORLD, ierr)
-         if (ierr/=0) call DOUG_abort("MPI Pack of matrix elements failed")
-         call MPI_Pack(R%val(smooth_sends(i)%inds), smooth_sends(i)%ninds, MPI_fkind,&
-              outbuffers(i)%data, bufsize, bufpos, MPI_COMM_WORLD, ierr)
-         if (ierr/=0) call DOUG_abort("MPI Pack of matrix elements failed")
-
-         ! start sending values
-         call MPI_ISend(outbuffers(i)%data, bufpos, MPI_CHARACTER, M%nghbrs(i),&
-              TAG_CREATE_PROLONG, MPI_COMM_WORLD, outreqs(i), ierr)
-      end do
-
-      ! receive values
-      allocate(inbuffer(calcBufferSize(maxval(smooth_recvs%ninds))))
-      nnz = sum(smooth_recvs%ninds)
-      eR = SpMtx_newInit(nnz)
-      nnz = 0
-      do i=1,M%nnghbrs
-         ! prepare and fill buffer
-         bufsize = calcBufferSize(smooth_recvs(i)%ninds)
-         call MPI_Recv(inbuffer, bufsize, MPI_CHARACTER, M%nghbrs(i),&
-              TAG_CREATE_PROLONG, MPI_COMM_WORLD, status, ierr)
-
-         ! do not even try to unpack if empty
-         ninds = smooth_recvs(i)%ninds
-         if (ninds==0) cycle
-
-         bufpos = 0
-         call MPI_Unpack(inbuffer, bufsize, bufpos, eR%indi(nnz+1), ninds,&
-              MPI_INTEGER, MPI_COMM_WORLD, ierr)
-         if (ierr/=0) call DOUG_abort("MPI UnPack of matrix elements failed")
-         call MPI_Unpack(inbuffer, bufsize, bufpos, eR%indj(nnz+1), ninds,&
-              MPI_INTEGER, MPI_COMM_WORLD, ierr)
-         if (ierr/=0) call DOUG_abort("MPI UnPack of matrix elements failed")
-         call MPI_Unpack(inbuffer, bufsize, bufpos, eR%val(nnz+1), ninds,&
-              MPI_fkind, MPI_COMM_WORLD, ierr)
-         if (ierr/=0) call DOUG_abort("MPI UnPack of matrix elements failed")
-         nnz = nnz+ninds
-      end do
-
-      ! wait for all data to be sent
-      allocate(outstatuses(MPI_STATUS_SIZE, M%nnghbrs))
-      call MPI_Waitall(M%nnghbrs, outreqs, outstatuses, ierr)
+      eR = SpMtx_exchange(R, smooth_sends, M, cdat%lg_cfmap, M%lg_fmap)
 
     end subroutine collectRestrictValues
     
+    subroutine distributeRestrictValues(iR, eR)
+      type(SpMtx),intent(in) :: iR
+      type(SpMtx),intent(out) :: eR
+      type(indlist), allocatable :: sends(:)
+
+      integer :: i
+
+      call SpMtx_printRaw(iR)
+      allocate(sends(M%nnghbrs))
+      do i=1,M%nnghbrs
+        write(stream,*) "inner", M%ol_inner(i)%inds
+        call SpMtx_findColumnElems(iR, M%ol_inner(i)%inds, sends(i)%inds)
+        sends(i)%ninds = size(sends(i)%inds)
+      end do
+      eR = SpMtx_exchange(iR, sends, M, cdat%lg_cfmap, M%lg_fmap)
+      
+      ! deallocate
+      do i=1,M%nnghbrs
+        deallocate(sends(i)%inds)
+      end do
+      deallocate(sends)
+    end subroutine distributeRestrictValues
+
   end subroutine CoarseSpace_Expand
 
   !> Build the restriction matrix for the aggregation method.
@@ -704,9 +706,6 @@ call SpMtx_printRaw(S)
     integer :: i,nz
     
     if (sctls%verbose>1) write(stream,*) 'Building coarse matrix'
-    ! Timing:
-    !real(kind=rk) :: t1, t2
-    !t1 = MPI_WTIME()
     ! we need to work with a copy to preserve the structure and ordering of A:
     if (present(A_ghost).and.associated(A_ghost%indi)) then
       write(stream,*) "PRESENT"
@@ -723,29 +722,17 @@ call SpMtx_printRaw(S)
     else
       TT=SpMtx_Copy(A)
     endif
+    call SpMtx_printRaw(A)
     T = SpMtx_AB(A=TT,        &
                  B=Restrict, &
                 AT=.false.,  &
                 BT=.true.)
     call SpMtx_Destroy(TT)
-!write(stream,*)'TTTTT T is:'
-!call SpMtx_printRaw(A=T)
-    !write(*,*) 'A Restrict* time:',MPI_WTIME()-t1
-    !t1 = MPI_WTIME()
-    write(stream,*) "Restrict"
-    call SpMtx_printRaw(Restrict)
     RT = SpMtx_Copy(Restrict)
     call KeepGivenColumnIndeces(RT,(/(i,i=1,size(A%aggr%inner%num))/),.TRUE.)
-    write(stream,*) "RT"
-    call SpMtx_printRaw(RT)
     AC = SpMtx_AB(A=RT,B=T)
     call SpMtx_Destroy(RT)
-    !write(*,*) 'Restrict A time:',MPI_WTIME()-t1
     call SpMtx_Destroy(T)
   end subroutine CoarseMtxBuild
-
-!  subroutine IntRest_Destroy()
-!    call SpMtx_Destroy(Restrict)
-!  end subroutine IntRest_Destroy
 
 end module CoarseMtx_mod

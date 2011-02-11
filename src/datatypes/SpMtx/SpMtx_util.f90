@@ -23,28 +23,30 @@
 !!Some useful procedures for sparse matrixes
 !!----------------------------------------------------------
 Module SpMtx_util
-
   use DOUG_utils
   use RealKind
   use SpMtx_class
   use globals
   use DenseMtx_mod
 
+  implicit none
+
 Contains
-  !> This is similar to KeepGivenRowIndeces() which does not change the matrix, 
-  !! but returns 3 arrays instead.
-  subroutine GetGivenRowsElements(A,nodes,indi,indj,val)
-    Type(SpMtx),intent(in) :: A ! the fine level matrix
-    integer,dimension(:),intent(in) :: nodes
-    integer,dimension(:),pointer :: indi,indj
-    real(kind=rk),dimension(:),pointer :: val
+  !> Find matrix elements for the given rows.
+  !! It is responsibility of the caller to free inds array.
+  subroutine SpMtx_findRowElems(A,rows,inds)
+    type(SpMtx),intent(in) :: A
+    integer,intent(in) :: rows(:) !< matrix row numbers
+    integer,pointer :: inds(:) !< found matrix elements
+
     logical,dimension(:),pointer :: isin
     integer :: i,n,nz
+
     allocate(isin(A%nrows))
     isin=.false.
-    n=size(nodes)
+    n=size(rows)
     do i=1,n
-      isin(nodes(i))=.true.
+      isin(rows(i))=.true.
     enddo
     ! count
     nz=0
@@ -53,18 +55,70 @@ Contains
         nz=nz+1
       endif
     enddo
-    ! copy
-    allocate(indi(nz),indj(nz),val(nz))
+    allocate(inds(nz))
     nz = 0
     do i=1,A%nnz
       if (isin(A%indi(i))) then
         nz=nz+1
-        indi(nz)=A%indi(i)
-        indj(nz)=A%indj(i)
-        val(nz)=A%val(i)
+        inds(nz)=i
       endif
     enddo
     deallocate(isin)
+  end subroutine SpMtx_findRowElems
+
+  !> Find matrix elements for the given columns.
+  !! It is responsibility of the caller to free inds array.
+  subroutine SpMtx_findColumnElems(A,cols,inds)
+    type(SpMtx),intent(in) :: A
+    integer,intent(in) :: cols(:) !< matrix column numbers
+    integer,pointer :: inds(:) !< found matrix elements
+
+    logical,dimension(:),pointer :: isin
+    integer :: i,n,nz
+
+    allocate(isin(A%ncols))
+    isin=.false.
+    n=size(cols)
+    do i=1,n
+      isin(cols(i))=.true.
+    enddo
+    ! count
+    nz=0
+    do i=1,A%nnz
+      if (isin(A%indj(i))) then
+        nz=nz+1
+      endif
+    enddo
+    allocate(inds(nz))
+    nz = 0
+    do i=1,A%nnz
+      if (isin(A%indj(i))) then
+        nz=nz+1
+        inds(nz)=i
+      endif
+    enddo
+    deallocate(isin)
+  end subroutine SpMtx_findColumnElems
+
+  !> This is similar to KeepGivenRowIndeces() which does not change the matrix, 
+  !! but returns 3 arrays instead.
+  subroutine GetGivenRowsElements(A,nodes,indi,indj,val)
+    Type(SpMtx),intent(in) :: A ! the fine level matrix
+    integer,dimension(:),intent(in) :: nodes
+    integer,dimension(:),pointer :: indi,indj,inds
+    real(kind=rk),dimension(:),pointer :: val
+    integer :: nz, ierr
+
+    ! copy
+    call SpMtx_findRowElems(A,nodes,inds)
+    nz = size(inds)
+    allocate(indi(nz),indj(nz),val(nz))
+    indi = A%indi(inds)
+    indj = A%indj(inds)
+    val = A%val(inds)
+    deallocate(inds)
+
+    call MPI_Barrier(MPI_COMM_WORLD, ierr)
   end subroutine GetGivenRowsElements
 
   subroutine KeepGivenRowIndeces(A,inds)
@@ -305,6 +359,7 @@ return
       else
         i2=A%nnz
       endif
+      write (stream,'(I0," x ",I0)') A%nrows, A%ncols
       write (stream,'(A5)',advance='no') "N"
       write (stream,'(A5)',advance='no') "indi"
       write (stream,'(A5)',advance='no') "indj"

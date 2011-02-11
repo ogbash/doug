@@ -80,7 +80,24 @@ module CoarseAllgathers
    type(CoarseData), save :: cdat_vec !<coarse data -- w/o overlap, for vector
                                 !                              collects
 contains
-    
+  subroutine CoarseData_Copy(cdata, cdata2)
+    type(CoarseData),intent(inout) :: cdata
+    type(CoarseData),intent(in) :: cdata2
+    cdata%ngfc = cdata2%ngfc
+    cdata%nlfc = cdata2%nlfc
+
+    if (associated(cdata%lg_cfmap)) deallocate(cdata%lg_cfmap)
+    allocate(cdata%lg_cfmap(cdata%nlfc))
+    cdata%lg_cfmap = cdata2%lg_cfmap
+
+    if (associated(cdata%gl_cfmap)) deallocate(cdata%gl_cfmap)
+    allocate(cdata%gl_cfmap(cdata%ngfc))
+    cdata%gl_cfmap = cdata2%gl_cfmap
+
+    if (associated(cdata%cdisps)) deallocate(cdata%cdisps)
+    if (associated(cdata%glg_cfmap)) deallocate(cdata%glg_cfmap)
+  end subroutine CoarseData_Copy
+
     function SendData_New(nproc) result (S)
         use Mesh_class
 

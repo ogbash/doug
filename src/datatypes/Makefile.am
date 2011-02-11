@@ -19,6 +19,7 @@ libdoug_la_SOURCES += \
 	datatypes/SpMtx/SpMtx_class.F90 \
 	datatypes/SpMtx/SpMtx_util.f90 \
 	datatypes/SpMtx/SpMtx_arrangement.F90 \
+	datatypes/SpMtx/SpMtx_distribution.F90 \
 	datatypes/SpMtx/SpMtx_op_Ax.f90 \
 	datatypes/SpMtx/SpMtx_op_AB.f90 \
 	datatypes/SpMtx/SpMtx_op_block.f90 \

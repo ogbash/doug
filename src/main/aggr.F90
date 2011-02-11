@@ -194,7 +194,7 @@ program main_aggr
       !       alpha=strong_conn1,           &
       !       M=M,                          &
       !       plotting=plotting)
-      ! call SpMtx_unscale(A)
+      call SpMtx_unscale(A)
       call Aggrs_readFile_fine(A%aggr, "aggregates.txt")
     end if
     ! profile info
@@ -223,14 +223,15 @@ program main_aggr
       call SpMtx_find_strong(A=A,alpha=strong_conn1,A_ghost=A_ghost,M=M)
       call SpMtx_unscale(A)
       call IntRestBuild(A,A%aggr%inner,Restrict,A_ghost)
-      write(stream,*) "Restrict matrix size", Restrict%nrows, Restrict%ncols
       CS = CoarseSpace_Init(Restrict)
-      call CoarseSpace_Expand(CS,Restrict,M,cdat_vec)
-
+      call CoarseData_Copy(cdat,cdat_vec)
+      call CoarseSpace_Expand(CS,Restrict,M,cdat)
       call CoarseMtxBuild(A,cdat%LAC,Restrict,A_ghost)
-      call KeepGivenRowIndeces(Restrict,A%aggr%inner%num) 
+      call KeepGivenRowIndeces(Restrict, (/(i,i=1,A%aggr%inner%nagr)/))
 
       if (sctls%verbose>3.and.cdat%LAC%nnz<400) then
+        write(stream,*)'Restrict (local) is:=================='
+        call SpMtx_printRaw(A=Restrict)
         write(stream,*)'A coarse (local) is:=================='
         call SpMtx_printRaw(A=cdat%LAC)
       endif

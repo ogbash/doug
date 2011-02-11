@@ -348,8 +348,7 @@ contains
           allocate(crhs(CoarseMtx_%ncols))
           allocate(csol(CoarseMtx_%nrows))
         endif
-        write(stream,*) "Restrict%nrows", Restrict%nrows, Restrict%nnz
-        allocate(clrhs(Restrict%nrows)) ! allocate memory for vector
+        allocate(clrhs(cdat%nlfc)) ! allocate memory for vector
       end if
 
       if (.not.associated(tmpsol)) then
@@ -422,9 +421,9 @@ contains
       end if
 
       if (cdat_vec%active) then
-        call Vect_remap(csol,clrhs,cdat_vec%gl_cfmap,dozero=.true.)
+        call Vect_remap(csol,clrhs,cdat%gl_cfmap,dozero=.true.)
         call SpMtx_Ax(tmpsol,Restrict,clrhs,dozero=.true.,transp=.true.)
-        !write(stream,*) "tmpsol", tmpsol
+
       elseif (cdat%active) then
         call Vect_remap(csol,clrhs,cdat%gl_cfmap,dozero=.true.)
         call SpMtx_Ax(tmpsol,Restrict,clrhs,dozero=.true.,transp=.true.)
@@ -440,7 +439,7 @@ contains
 
       if (sctls%method==1) then
         !call Print_Glob_Vect(sol,M,'sol===',chk_endind=M%ninner)
-        sol(1:A%nrows)=sol(1:A%nrows)+tmpsol(1:A%nrows)
+        sol=sol+tmpsol
       elseif (sctls%method==3) then ! fully multiplicative Schwarz
         sol(1:A%nrows)=sol(1:A%nrows)+tmpsol(1:A%nrows)
         ! calculate the residual:
