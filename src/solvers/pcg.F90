@@ -325,7 +325,6 @@ contains
       call AllSendCoarseMtx(cdat%LAC,CoarseMtx_,cdat%lg_cfmap,&
            cdat%ngfc,cdat%nprocs,cdat%send)
       call AllRecvCoarseMtx(CoarseMtx_,cdat%send,add=add) ! Recieve it
-      call SpMtx_printRaw(CoarseMtx_)
 
     end subroutine prec2Level_exchangeMatrix
 

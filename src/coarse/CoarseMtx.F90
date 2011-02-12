@@ -146,9 +146,6 @@ contains
     call SpMtx_Destroy(eR)
     call SpMtx_Destroy(iR)
 
-    write(stream,*) "NEW R", cdat%nlfc, size(cdat%lg_cfmap)
-    call SpMtx_printRaw(R)
-
   contains
     subroutine add_indices(cdata, g_cinds)
       type(CoarseData), intent(inout) :: cdata
@@ -248,7 +245,6 @@ contains
 
       integer :: i
 
-      call SpMtx_printRaw(iR)
       allocate(sends(M%nnghbrs))
       do i=1,M%nnghbrs
         write(stream,*) "inner", M%ol_inner(i)%inds
@@ -453,8 +449,6 @@ contains
         arrange_type=D_SpMtx_ARRNG_NO )
       deallocate(val,indj,indi)
       deallocate(diag)
-!write(stream,*)'Smoother matrix is:------------'
-call SpMtx_printRaw(S)
       if (smoothers>=2) then
         ! Build smoother2
         allocate(diag(max(A%nrows,A%ncols)))
@@ -722,7 +716,6 @@ call SpMtx_printRaw(S)
     else
       TT=SpMtx_Copy(A)
     endif
-    call SpMtx_printRaw(A)
     T = SpMtx_AB(A=TT,        &
                  B=Restrict, &
                 AT=.false.,  &
