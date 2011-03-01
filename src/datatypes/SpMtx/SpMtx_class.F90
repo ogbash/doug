@@ -29,7 +29,6 @@ module SpMtx_class
   use globals
   use DOUG_utils
   use Aggregate_mod
-  use decomposition_mod
 
   implicit none
 
@@ -143,8 +142,11 @@ module SpMtx_class
     !> Permutation map for freedoms : perm_map[M%nlf]
     integer,   dimension(:), pointer :: perm_map
 
+    !> aggregates
     type(AggrInfo),pointer :: aggr
-    type(Decomposition) :: DD !< domain decomposition for the space of the matrix
+
+    !> subsolve id for the coarse matrix
+    integer :: subsolve_id
  end type SpMtx
 
 contains
@@ -196,7 +198,6 @@ contains
 
     allocate(M%aggr)
     M%aggr = AggrInfo_New()
-    M%DD = Decomposition_New()
   end function SpMtx_New
 
 !> \code
@@ -680,7 +681,6 @@ contains
     if (associated(M%M_bound)) deallocate(M%M_bound)
     M%arrange_type=0
 
-    call Decomposition_Destroy(M%DD)
   End Subroutine SpMtx_Destroy
 
 !> Function for coping sparse matrix

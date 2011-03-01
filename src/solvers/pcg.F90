@@ -29,7 +29,6 @@ module pcg_mod
   use Mesh_class
   use globals
   use subsolvers
-  use subsolvers_mult
 
   implicit none
 
@@ -244,49 +243,25 @@ contains
     if (associated(arr_copy)) deallocate(arr_copy)
   end subroutine pcg
 
-  subroutine prec1Level(sol,A,rhs,M,res,A_interf_,CoarseMtx_,Restrict,refactor_)
+  subroutine prec1Level(DD,sol,A,rhs,A_ghost,refactor)
     implicit none
+    type(Decomposition),intent(inout) :: DD !< domains
     real(kind=rk),dimension(:),pointer :: sol !< solution
     type(SpMtx)                        :: A   !< sparse system matrix
     real(kind=rk),dimension(:),pointer :: rhs !< right hand side
-    type(Mesh),intent(in)              :: M   !< Mesh
-    real(kind=rk),dimension(:),pointer :: res !< residual vector, allocated
-                                              !! here for multiplicative Schwarz
-    type(SpMtx),optional               :: A_interf_  !< matr@interf.
-    type(SpMtx),optional               :: CoarseMtx_ !< Coarse matrix
-    type(SpMtx),optional               :: Restrict   !< Restriction matrix
-     logical,intent(inout),optional :: refactor_
+    type(SpMtx),optional               :: A_ghost  !< matr@interf.
+    logical,intent(inout),optional :: refactor
 
-    type(SpMtx)                        :: A_tmp
+    if (refactor) then!{
+      if (sctls%verbose>4) write(stream,*) "Factorizing 1. level"
+      call Factorise_subdomains(DD,A,A_ghost)
+      refactor=.false.
+    end if
 
-    if(sctls%method==1) then
-      if (refactor_) then!{
-        if (sctls%verbose>4) write(stream,*) "Factorizing 1. level"
-        if (.not.present(CoarseMtx_).or.sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL.or.numprocs>1) then
-          call Factorise_subdomains(A,M,A_interf_)
-        else
-          if (.not.present(Restrict)) call DOUG_abort("Restriction matrix needs to be passed along with the coarse matrix!")
-          call Factorise_subdomains(A,M,AC=CoarseMtx_)
-        end if
-        refactor_=.false.
-      end if
-      if (sctls%verbose>4) write(stream,*) "Solving 1. level"
-      call solve_subdomains(sol,A,rhs)
+    ! solve
+    if (sctls%verbose>4) write(stream,*) "Solving 1. level"
+    call solve_subdomains(sol,DD,rhs)
 
-    else if (sctls%method>1) then ! For multiplicative Schwarz method...:
-      if (numprocs>1) call DOUG_abort('multiplicative Schwarz only for numprocs==1 so far',-1)
-      if (.not.present(CoarseMtx_).or.sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL) then
-        call multiplicative_sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
-                          A_interf_=A_interf_, &
-                          refactor=refactor_) !fine solves 
-      else
-        if (.not.present(Restrict)) call DOUG_abort("Restriction matrix needs to be passed along with the coarse matrix!")
-        call multiplicative_sparse_multisolve(sol=sol,A=A,M=M,rhs=rhs,res=res, &
-                          A_interf_=A_interf_,AC=CoarseMtx_, &
-                          refactor=refactor_,Restrict=Restrict) !fine solves
-      end if
-      refactor_=.false.
-    endif
   end subroutine prec1Level
 
   subroutine prec2Level(prepare,A,sol,rhs,res,CoarseMtx_,Restrict,isFirstIter)
@@ -414,14 +389,11 @@ contains
         write (stream,*) &
              'factorising coarse matrix of size',CoarseMtx_%nrows, &
              ' and nnz:',CoarseMtx_%nnz
-        call free_spmtx_subsolves(CoarseMtx_)
-        allocate(CoarseMtx_%DD%subsolve_ids(1))
-        CoarseMtx_%DD%subsolve_ids=0
-        CoarseMtx_%DD%nsubsolves=1
+        CoarseMtx_%subsolve_id=0
       end if
 
       ! Coarse solve
-      call sparse_singlesolve(CoarseMtx_%DD%subsolve_ids(1),csol,crhs,&
+      call sparse_singlesolve(CoarseMtx_%subsolve_id,csol,crhs,&
            nfreds=CoarseMtx_%nrows, &
            nnz=CoarseMtx_%nnz,        &
            indi=CoarseMtx_%indi,      &
@@ -474,8 +446,8 @@ contains
   !-------------------------------
   !> Make preconditioner
   !-------------------------------
-  subroutine preconditioner(sol,A,rhs,M, &
-               A_interf_,CoarseMtx_,Restrict,refactor_,bugtrack_)
+  subroutine preconditioner(sol,A,rhs,M,DD,&
+               A_ghost,CoarseMtx_,Restrict,refactor,bugtrack_)
     use CoarseAllgathers
     use CoarseMtx_mod
     use Vect_mod
@@ -484,12 +456,13 @@ contains
     type(SpMtx)                        :: A   !< sparse system matrix
     real(kind=rk),dimension(:),pointer :: rhs !< right hand side
     type(Mesh),intent(in)              :: M   !< Mesh
+    type(Decomposition),intent(inout) :: DD !< domains
     real(kind=rk),dimension(:),pointer :: res !< residual vector, allocated
                                               !! here for multiplicative Schwarz
-    type(SpMtx),optional               :: A_interf_  !< matr@interf.
+    type(SpMtx),optional               :: A_ghost  !< matr@interf.
     type(SpMtx),optional               :: CoarseMtx_ !< Coarse matrix
     type(SpMtx),optional               :: Restrict   !< Restriction matrix
-    logical,intent(inout),optional :: refactor_
+    logical,intent(inout),optional :: refactor
     logical,optional                   :: bugtrack_
     ! ----- local: ------
     integer :: i
@@ -507,7 +480,7 @@ contains
     endif
     ! ----------------------------
     isFirstIter = .false.
-    if (present(refactor_)) isFirstIter = refactor_
+    if (present(refactor)) isFirstIter = refactor
 
     if (sctls%method==0) then
       sol=rhs
@@ -524,16 +497,11 @@ contains
     end if
 
     ! first level prec
-    call prec1Level(sol,A,rhs,M,res,A_interf_,CoarseMtx_,Restrict,refactor_)
+    call prec1Level(DD,sol,A,rhs,A_ghost,refactor)
 
     if (sctls%levels>1) then
       call prec2Level(.false.,A,sol,rhs,res,CoarseMtx_,Restrict,isFirstIter)
     end if
-
-    if (sctls%method>1) then ! For multiplicative Schwarz method...:
-      call prec1Level(sol,A,rhs,M,res,A_interf_,CoarseMtx_,Restrict,refactor_)
-      if (associated(res)) deallocate(res)
-    endif
 
     time_preconditioner = time_preconditioner + MPI_WTime()-t1
 
@@ -556,7 +524,7 @@ contains
   !--------------------------
   !> Preconditioned conjugent gradient method with eigenvalues
   !--------------------------
-  subroutine pcg_weigs (A,b,x,Msh,it,cond_num,A_interf_,tol_,maxit_, &
+  subroutine pcg_weigs (A,b,x,Msh,DomDec,it,cond_num,A_interf_,tol_,maxit_, &
        x0_,solinf,resvects_,CoarseMtx_,Restrict,refactor_)
     use CoarseAllgathers
 
@@ -566,6 +534,7 @@ contains
     float(kind=rk),dimension(:),pointer :: b !< right hand side
     float(kind=rk),dimension(:),pointer :: x !< Solution
     type(Mesh),intent(in)               :: Msh !< Mesh - aux data for Ax operation
+    type(Decomposition),intent(inout)   :: DomDec !< Domain decomposition
 
     integer,intent(out) :: it
     real(kind=rk),intent(out) :: cond_num
@@ -681,10 +650,11 @@ if (bugtrack)call Print_Glob_Vect(r,Msh,'global r===',chk_endind=Msh%ninner)
                             A=A,          &
                           rhs=r,          &
                             M=Msh,        &
-                    A_interf_=A_interf_,  &
+                            DD=DomDec, &
+                    A_ghost=A_interf_,  &
                    CoarseMtx_=CoarseMtx_, &
                     Restrict=Restrict,    &
-                    refactor_=refactor,   &
+                    refactor=refactor,   &
                     bugtrack_=bugtrack)
 
       refactor=.false.

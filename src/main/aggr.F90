@@ -122,9 +122,10 @@ program main_aggr
   integer :: aver_finesize,min_finesize,max_finesize
   integer :: aver_subdsize,min_subdsize,max_subdsize
   integer :: start_radius1,start_radius2
-  integer :: plotting
+  integer :: plotting, ol
   integer,allocatable :: nodes(:), inds(:)
 
+  type(Decomposition) :: DD !< domain decomposition
   type(RobustPreconditionMtx) :: C
   type(CoarseSpace) :: CS
   ! Parallel coarse level
@@ -137,6 +138,13 @@ program main_aggr
   nparts = numprocs
 
   call parallelDistributeInput(sctls%input_type,M,A,b,nparts,part_opts,A_ghost)
+
+  ! overlap for subdomains
+  if (sctls%overlap<0) then ! autom. overlap from smoothing
+    ol = max(sctls%smoothers,0)
+  else
+    ol = sctls%overlap
+  endif
 
   if (sctls%levels>1.or.(numprocs==1.and.sctls%levels==1)) then !todo remove
     ! Testing aggregation: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
@@ -326,8 +334,15 @@ program main_aggr
                                   ! D_PLPLOT_END)
       endif
       write(stream,*)'# coarse aggregates:',AC%aggr%inner%nagr
+
     endif 
   endif
+
+  if (numprocs==1) then
+    DD = Decomposition_from_aggrs(A, AC%aggr%full, A%aggr%full, ol)
+  else
+    DD = Decomposition_full(A,A_interf,M%ninner,ol)
+  end if
 
   !if (numprocs>1) then
   !  call Aggrs_writeFile(M, A%aggr, AC%aggr, cdat, "aggregates.txt")
@@ -374,7 +389,7 @@ program main_aggr
      t1 = MPI_WTIME()
      if (numprocs==1) then
        write(stream,*)'calling pcg_weigs /1/...'
-       call pcg_weigs(A=A,b=b,x=xl,Msh=M,it=it,cond_num=cond_num, &
+       call pcg_weigs(A=A,b=b,x=xl,Msh=M,DomDec=DD,it=it,cond_num=cond_num, &
           CoarseMtx_=AC,Restrict=Restrict,refactor_=.true.)
      else
        !if (max(sctls%overlap,sctls%smoothers)>0) then
@@ -384,13 +399,13 @@ program main_aggr
        !else
          if (sctls%levels==2) then
            write(stream,*)'calling pcg_weigs /3/...'
-           call pcg_weigs(A=A,b=b,x=xl,Msh=M,it=it,cond_num=cond_num, &
+           call pcg_weigs(A=A,b=b,x=xl,Msh=M,DomDec=DD,it=it,cond_num=cond_num, &
                 A_interf_=A_ghost, &
                   CoarseMtx_=AC,Restrict=Restrict, &
                   refactor_=.true.)
          else
            write(stream,*)'calling pcg_weigs /4/...'
-           call pcg_weigs(A, b, xl, M,it,cond_num, &
+           call pcg_weigs(A, b, xl, M,DD,it,cond_num, &
                 A_interf_=A_ghost, refactor_=.true.)
          endif
        !endif

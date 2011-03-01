@@ -51,8 +51,8 @@ module subsolvers
 
 contains
 
-  subroutine solve_subdomains(sol,A,rhs)
-    type(SpMtx),intent(inout) :: A
+  subroutine Solve_subdomains(sol,DD,rhs)
+    type(Decomposition),intent(in) :: DD
     real(kind=rk),dimension(:),pointer :: sol,rhs
     ! ----- local: ------
     logical :: dofactorise
@@ -61,37 +61,29 @@ contains
     real(kind=rk),pointer :: subrhs(:),subsol(:)
 
     ! solve
-    allocate(subrhs(maxval(A%DD%subd(1:A%DD%nsubsolves)%ninds)))
-    allocate(subsol(maxval(A%DD%subd(1:A%DD%nsubsolves)%ninds)))
-    do sd=1,A%DD%nsubsolves
-      n=A%DD%subd(sd)%ninds
-      subrhs(1:n)=rhs(A%DD%subd(sd)%inds(1:n))
-      call Fact_solve(fakts(A%DD%subsolve_ids(sd)),subrhs,subsol)
-      sol(A%DD%subd(sd)%inds(1:n))=sol(A%DD%subd(sd)%inds(1:n))+subsol(1:n)
+    allocate(subrhs(maxval(DD%subd(1:DD%nsubsolves)%ninds)))
+    allocate(subsol(maxval(DD%subd(1:DD%nsubsolves)%ninds)))
+    do sd=1,DD%nsubsolves
+      n=DD%subd(sd)%ninds
+      subrhs(1:n)=rhs(DD%subd(sd)%inds(1:n))
+      call Fact_solve(fakts(DD%subsolve_ids(sd)),subrhs,subsol)
+      sol(DD%subd(sd)%inds(1:n))=sol(DD%subd(sd)%inds(1:n))+subsol(1:n)
     enddo
     deallocate(subrhs,subsol)
 
-  end subroutine solve_subdomains
+  end subroutine Solve_subdomains
 
-  subroutine factorise_subdomains(A,M,A_interf_,AC)
-    type(SpMtx),intent(inout) :: A
-    type(Mesh),intent(in) :: M
-    type(SpMtx),optional :: A_interf_ ! 
-    type(SpMtx),optional :: AC ! is supplied to indicate coarse aggregates
+  subroutine Factorise_subdomains(DD,A,A_ghost)
+    type(Decomposition),intent(inout) :: DD
+    type(SpMtx),intent(in) :: A
+    type(SpMtx),optional :: A_ghost
 
-    integer,allocatable :: nodes(:)
-    integer :: nnodes, nnodes_exp, cAggr, ol, i, nagr
+    integer :: cAggr, ol, i, nagr
     double precision :: t1
 
     setuptime=0.0_rk
     factorisation_time=0.0_rk
     t1 = MPI_WTime()
-    if (present(A_interf_)) then
-      nnodes = max(A%nrows, A_interf_%nrows)
-    else
-      nnodes = A%nrows
-    end if
-    allocate(nodes(nnodes))
 
     if (sctls%overlap<0) then ! autom. overlap from smoothing
       ol = max(sctls%smoothers,0)
@@ -99,55 +91,16 @@ contains
       ol = sctls%overlap
     endif
 
-    if (present(AC)) then !{
-      A%DD%nsubsolves=AC%aggr%full%nagr
-      allocate(A%DD%subsolve_ids(AC%aggr%full%nagr))
-      A%DD%subsolve_ids=0
-      allocate(A%DD%subd(AC%aggr%full%nagr+1))
-      call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS,sort=.false.)
-      do cAggr=1,AC%aggr%full%nagr ! loop over coarse aggregates
-        call Get_aggregate_nodes(cAggr,AC%aggr%full,A%aggr%full,A%nrows,nodes,nnodes)
-        call Add_layers(A%m_bound,A%indj,nodes,nnodes,ol,nnodes_exp)
-
-        setuptime=setuptime+(MPI_WTIME()-t1) ! switchoff clock
-        call Factorise_subdomain(A,nodes(1:nnodes_exp),A%DD%subsolve_ids(cAggr))
-        t1 = MPI_WTIME() ! switchon clock
-
-        ! keep indlist:
-        allocate(A%DD%subd(cAggr)%inds(nnodes_exp))
-        A%DD%subd(cAggr)%ninds=nnodes_exp
-        A%DD%subd(cAggr)%inds(1:nnodes_exp)=nodes(1:nnodes_exp)
-        setuptime=setuptime+(MPI_WTIME()-t1) ! switchoff clock
-      enddo
-      !deallocate(subrhs,subsol)
-
-    else !}{ no coarse solves:
-      !A%aggr%full%nagr=1
-      nagr = 1
-      A%DD%nsubsolves=1
-      allocate(A%DD%subsolve_ids(nagr))
-      A%DD%subsolve_ids=0
-      allocate(A%DD%subd(nagr+1)) ! +1 ???
- 
-      call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS,sort=.false.)
-      nodes(1:m%ninner) = (/ (i,i=1,M%ninner) /)
-      call Add_layers(A%m_bound,A%indj,nodes,M%ninner,ol,nnodes_exp)
-      !nnodes_exp = nnodes
-      !nodes(1:nnodes_exp)=(/ (i,i=1,nnodes_exp) /)
-
+    do i=1,DD%nsubsolves 
       setuptime=setuptime+(MPI_WTIME()-t1) ! switchoff clock
-      call Factorise_subdomain(A,nodes(1:nnodes_exp),A%DD%subsolve_ids(1),A_interf_)
+      call Factorise_subdomain(A,DD%subd(i)%inds,DD%subsolve_ids(i),A_ghost)
       t1 = MPI_WTIME() ! switchon clock
+    end do
 
-      ! keep indlist:
-      allocate(A%DD%subd(1)%inds(nnodes_exp))
-      A%DD%subd(1)%ninds=nnodes_exp
-      A%DD%subd(1)%inds(1:nnodes_exp)=nodes(1:nnodes_exp)
-      setuptime=setuptime+(MPI_WTIME()-t1) ! switchoff clock
-    endif !}    
+    !deallocate(subrhs,subsol)
   end subroutine factorise_subdomains
 
-  subroutine factorise_subdomain(A,nodes,id,A_ghost)
+  subroutine Factorise_subdomain(A,nodes,id,A_ghost)
     type(SpMtx),intent(in) :: A !< matrix
     integer,intent(in) :: nodes(:) !< subdomain nodes
     integer,intent(out) :: id

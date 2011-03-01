@@ -70,10 +70,12 @@ program main_geom
 
   ! +
   real(kind=rk) :: t1, time
-  integer :: i,it,ierr
+  integer :: i,it,ierr,ol
   real(kind=rk) :: res_norm_local,res_norm,cond_num
   real(kind=rk), dimension(:), pointer :: r, y
   float(kind=rk), dimension(:), pointer :: yc, gyc, ybuf
+
+  type(Decomposition) :: DD !< domains
 
   ! Aggregation
   integer :: nagrs
@@ -99,6 +101,14 @@ program main_geom
   call parallelDistributeInput(sctls%input_type,M,A,b,nparts,part_opts,A_interf)
 
   if(pstream/=0) write(pstream, "(I0,':distribute time:',F0.3)") myrank, MPI_WTIME()-t1
+
+  ! create subdomains
+  if (sctls%overlap<0) then ! autom. overlap from smoothing
+    ol = max(sctls%smoothers,0)
+  else
+    ol = sctls%overlap
+  endif
+  DD = Decomposition_full(A,A_interf,M%ninner,ol)
 
   ! conversion from elemental form to assembled matrix wanted?
   if (mctls%dump_matrix_only.eqv..true.) then
@@ -194,12 +204,12 @@ program main_geom
 
      if (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL .and. &
                         sctls%levels==2) then
-       call pcg_weigs(A=A,b=b,x=xl,Msh=M,it=it,cond_num=cond_num, &
+       call pcg_weigs(A=A,b=b,x=xl,Msh=M,DomDec=DD,it=it,cond_num=cond_num, &
                       A_interf_=A_interf,CoarseMtx_=AC,Restrict=Restrict, &
                       refactor_=.true.)
 !                     refactor_=.true., cdat_=cdat)
      else
-       call pcg_weigs(A=A,b=b,x=xl,Msh=M,it=it,cond_num=cond_num, &
+       call pcg_weigs(A=A,b=b,x=xl,Msh=M,DomDec=DD,it=it,cond_num=cond_num, &
                         A_interf_=A_interf,refactor_=.true.)
      endif
 
