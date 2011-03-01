@@ -530,6 +530,9 @@ INPUT                  = @top_srcdir@/src/datatypes \
                          @top_srcdir@/src/datatypes/SpMtx \
                          @top_srcdir@/src/datatypes/drivers \
                          @top_srcdir@/src/solvers \
+                         @top_srcdir@/src/coarse \
+                         @top_srcdir@/src/coarse/geom \
+                         @top_srcdir@/src/coarse/robust \
                          @top_srcdir@/src/utils \
                          @top_srcdir@/src/main \
                          @top_srcdir@/doc/general

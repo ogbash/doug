@@ -276,6 +276,7 @@ contains
         !> Assume that fbuf is already allocated and rsizes filled correctly
         logical, intent(in), optional :: useprev
 
+        if (sctls%verbose>6) write(stream,*) "Sending local coarse vector"
 
         if (.not.present(useprev).or..not.useprev) then
             ! Calc the size of my data
@@ -311,6 +312,8 @@ contains
         type(SendData), intent(in) :: send
         
         integer :: i
+
+        if (sctls%verbose>6) write(stream,*) "Receiving local coarse vector"
 
         ! Zero the vector
         xg=0.0_rk

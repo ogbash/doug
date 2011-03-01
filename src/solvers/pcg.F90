@@ -261,6 +261,7 @@ contains
 
     if(sctls%method==1) then
       if (refactor_) then!{
+        if (sctls%verbose>4) write(stream,*) "Factorizing 1. level"
         if (.not.present(CoarseMtx_).or.sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL.or.numprocs>1) then
           call Factorise_subdomains(A,M,A_interf_)
         else
@@ -269,6 +270,7 @@ contains
         end if
         refactor_=.false.
       end if
+      if (sctls%verbose>4) write(stream,*) "Solving 1. level"
       call solve_subdomains(sol,A,rhs)
 
     else if (sctls%method>1) then ! For multiplicative Schwarz method...:
@@ -305,8 +307,10 @@ contains
     ol=max(sctls%overlap,sctls%smoothers)
 
     if (prepare) then
+      if (sctls%verbose>4) write(stream,*) "Preparing 2. level"
       call prec2Level_prepare()
     else
+      if (sctls%verbose>4) write(stream,*) "Solving 2. level"
       call prec2Level_solve()
     end if
   
@@ -314,6 +318,8 @@ contains
     subroutine prec2Level_exchangeMatrix()
       integer :: ol
       logical :: add
+
+      if (sctls%verbose>4) write(stream,*) "Exchanging coarse matrix"
 
       ol=max(sctls%overlap,sctls%smoothers)
       if (ol==0) then
@@ -347,7 +353,12 @@ contains
           allocate(crhs(CoarseMtx_%ncols))
           allocate(csol(CoarseMtx_%nrows))
         endif
-        allocate(clrhs(cdat%nlfc)) ! allocate memory for vector
+        ! allocate memory for vector
+        if (cdat%active) then
+          allocate(clrhs(cdat%nlfc))
+        else
+          allocate(clrhs(cdat_vec%nlfc))
+        end if
       end if
 
       if (.not.associated(tmpsol)) then
@@ -355,6 +366,8 @@ contains
         allocate(tmpsol(size(rhs)))
       endif
 
+      if (sctls%verbose>6) write(stream,*) "Restricting into local coarse vector", size(clrhs), Restrict%nrows, Restrict%ncols, &
+           cdat%nlfc, cdat%active, cdat_vec%nlfc, cdat_vec%active
       if (cdat%active) then
         ! Send coarse vector
         call SpMtx_Ax(clrhs,Restrict,rhs,dozero=.true.) ! restrict <RA>
@@ -484,6 +497,7 @@ contains
     real(kind=rk) :: t1
     logical :: isFirstIter
 
+    if (sctls%verbose>4) write(stream,*) "Applying preconditioner"
     t1 = MPI_WTime()
 
     if (present(bugtrack_)) then

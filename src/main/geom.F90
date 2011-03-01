@@ -148,7 +148,6 @@ program main_geom
       if (sctls%verbose>0) write (stream,*) "Creating Restriction matrix"
       call CreateRestrict(LC,M,Restrict)
 
-
       if (sctls%verbose>1) write (stream,*) "Cleaning Restriction matrix"
       call CleanCoarse(LC,Restrict,M)
 
@@ -166,6 +165,7 @@ program main_geom
       cdat%gl_cfmap=>LC%gl_fmap
       cdat%nprocs=M%nparts
       cdat%ngfc=LC%ngfc
+      cdat%nlfc=LC%nlfc
       cdat%active=.true.
  
       call AllSendCoarselgmap(LC%lg_fmap,LC%nlfc,M%nparts,&

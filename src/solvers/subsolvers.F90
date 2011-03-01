@@ -94,7 +94,7 @@ contains
     allocate(nodes(nnodes))
 
     if (sctls%overlap<0) then ! autom. overlap from smoothing
-      ol = sctls%smoothers
+      ol = max(sctls%smoothers,0)
     else
       ol = sctls%overlap
     endif

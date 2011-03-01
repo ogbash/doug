@@ -722,7 +722,9 @@ contains
                 BT=.true.)
     call SpMtx_Destroy(TT)
     RT = SpMtx_Copy(Restrict)
-    call KeepGivenColumnIndeces(RT,(/(i,i=1,size(A%aggr%inner%num))/),.TRUE.)
+    if (sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED) then
+      call KeepGivenColumnIndeces(RT,(/(i,i=1,size(A%aggr%inner%num))/),.TRUE.)
+    end if
     AC = SpMtx_AB(A=RT,B=T)
     call SpMtx_Destroy(RT)
     call SpMtx_Destroy(T)
