@@ -112,7 +112,7 @@ program main_aggr
 
   real(kind=rk) :: t,t1
   integer :: i,j,k,n,it
-  float(kind=rk), dimension(:), pointer :: xchk, r, y
+  float(kind=rk), dimension(:), pointer :: r, y
   character :: str
   character(len=40) :: frm
   float(kind=rk) :: strong_conn1,strong_conn2,cond_num,nrm
@@ -149,7 +149,6 @@ program main_aggr
   endif
 
   if (sctls%levels>1.or.(numprocs==1.and.sctls%levels==1)) then !todo remove
-    ! Testing aggregation: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
     if (sctls%strong1/=0.0_rk) then
       strong_conn1=sctls%strong1
     else
@@ -191,9 +190,7 @@ program main_aggr
            M=M,                          &
            plotting=plotting)
       call SpMtx_unscale(LA)
-
-      write(stream,*) "_----------", fAggr%inner%nagr, size(fAggr%inner%starts)
-  else
+    else
       ! non-parallel case use the whole matrix
       call SpMtx_find_strong(A=A,alpha=strong_conn1)
       call SpMtx_aggregate(A,fAggr,aggr_radius1, &
@@ -223,8 +220,6 @@ program main_aggr
                                  INIT_CONT_END=D_PLPLOT_INIT)
                                  !D_PLPLOT_END)
     endif
-    
-    ! .. Testing aggregationAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
     
     ! Testing coarse matrix and aggregation through it:
     if (numprocs>1) then
@@ -277,7 +272,8 @@ program main_aggr
         call SpMtx_printRaw(A=AC)
       endif
     endif
-    
+   
+    ! coarse aggregates
     if (numprocs==1) then
       if (sctls%strong2>0) then
         strong_conn2=sctls%strong2
@@ -351,32 +347,10 @@ program main_aggr
   ! Testing UMFPACK:
   allocate(sol(A%nrows))
   allocate(rhs(A%ncols))
-  ! rhs=1.0_rk
 
   ! Solve the system
-! allocate(xl(A%nrows))
-! allocate(b(A%nrows))
   allocate(xl(M%nlf))
   xl = 0.0_rk
-  if (.FALSE..and.sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED.and.len_trim(mctls%assembled_rhs_file)<=0) then ! just test the solver
-    ! Set solution to random vector and calcluate RHS via b = A*x
-    write(stream,'(a,a)')' ##### (testing the solver: random RHS with known answer)'
-    allocate(xchk(M%nlf))
-    call random_number(xchk(1:M%ninner))
-    xchk(1:M%ninner) = 0.5_rk - xchk(1:M%ninner)
-    call update_outer_ol(xchk,M)
-    !call Print_Glob_Vect(xchk,M,'global xchk===')
-    call SpMtx_pmvm(b,A,xchk,M)
-    !call Print_Glob_Vect(b,M,'global b===')
-    !call MPI_BARRIER(MPI_COMM_WORLD,i)
-    ! and also normalise the rhs:
-    nrm=Vect_dot_product(b,b)
-    b=b/dsqrt(nrm)
-    xchk=xchk/dsqrt(nrm)
-    ! Another good test
-    !write(stream,'(a,a)') ' ##### (using unit vector as RHS) ##### '
-    !b=1.0_rk
-  endif
 
   select case(sctls%solver)
   case (DCTL_SOLVE_CG)
@@ -385,30 +359,17 @@ program main_aggr
      !call cg(A, b, xl, M, solinf=resStat)
   case (DCTL_SOLVE_PCG)
      ! Preconditioned conjugate gradient
-     !call pcg(A, b, xl, M, solinf=resStat, resvects_in=.true.)
      t1 = MPI_WTIME()
-     if (numprocs==1) then
-       write(stream,*)'calling pcg_weigs /1/...'
+     if (sctls%levels==2) then
+       write(stream,*)'calling pcg_weigs with coarse matrix'
        call pcg_weigs(A=A,b=b,x=xl,Msh=M,DomDec=DD,it=it,cond_num=cond_num, &
-          CoarseMtx_=AC,Restrict=Restrict,refactor_=.true.)
+            A_interf_=A_ghost, &
+            CoarseMtx_=AC,Restrict=Restrict, &
+            refactor_=.true.)
      else
-       !if (max(sctls%overlap,sctls%smoothers)>0) then
-       !  write(stream,*)'calling pcg_weigs /2/...'
-       !  call pcg_weigs(A=A,b=b,x=xl,Msh=M,it=it,cond_num=cond_num, &
-       !    A_interf_=A_ghost,refactor_=.true.)
-       !else
-         if (sctls%levels==2) then
-           write(stream,*)'calling pcg_weigs /3/...'
-           call pcg_weigs(A=A,b=b,x=xl,Msh=M,DomDec=DD,it=it,cond_num=cond_num, &
-                A_interf_=A_ghost, &
-                  CoarseMtx_=AC,Restrict=Restrict, &
-                  refactor_=.true.)
-         else
-           write(stream,*)'calling pcg_weigs /4/...'
-           call pcg_weigs(A, b, xl, M,DD,it,cond_num, &
-                A_interf_=A_ghost, refactor_=.true.)
-         endif
-       !endif
+       write(stream,*)'calling pcg_weigs'
+       call pcg_weigs(A, b, xl, M,DD,it,cond_num, &
+            A_interf_=A_ghost, refactor_=.true.)
      endif
      t=MPI_WTIME()-t1
      write(stream,*) 'time spent in pcg():',t
@@ -420,19 +381,6 @@ program main_aggr
   case default
      call DOUG_abort('[DOUG main] : Wrong solution method specified', -1)
   end select
-  if (associated(xchk)) then
-    ! Check the error
-    if (numprocs==1) then
-      allocate(r(A%nrows))
-    else
-      allocate(r(M%nlf))
-    endif
-    r = xl - xchk
-    write(stream,*) 'CHECK: The norm of the error is ', &
-           sqrt(Vect_dot_product(r,r)/Vect_dot_product(xchk,xchk))
-    deallocate(xchk)
-    deallocate(r)
-  endif
 
   if (numprocs>1) then
     ! Assemble result on master

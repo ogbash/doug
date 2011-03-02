@@ -368,10 +368,7 @@ CONTAINS
       call Form_Aggr(aggr%inner,nagrs,n,neighood,nisolated,aggrnum)
       ! communicate the neighbours' aggregate numbers and renumber:
       if (numprocs>1) then 
-        write(stream,*) "aggrnum", n, aggrnum
         call setup_aggr_cdat(nagrs,n,aggrnum,M)
-        write(stream,*) "aggrnum", nn, aggrnum
-        call Form_Aggr(aggr%expanded,nagrs,nn,neighood,nisolated,aggrnum)
       endif
     elseif (toosmall) then ! }{
       ! build the aggregate reference structure
@@ -589,12 +586,6 @@ print *,'    ========== aggregate ',i,' got removed node by node ============'
                   aggrnum=aggrnum)
       if (numprocs>1) then 
         call setup_aggr_cdat(nagrs_new,n,aggrnum,M)
-        call Form_Aggr(aggr=aggr%expanded,     &
-                      nagrs=nagrs_new,          &
-                          n=nn,                 &
-                     radius=neighood,           &
-                  nisolated=n-naggregatednodes, &
-                    aggrnum=aggrnum)
       endif
       deallocate(connweightsums) ! weight sums to each colour!
       deallocate(colsaround) ! lists the colors
