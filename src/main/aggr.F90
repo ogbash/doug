@@ -91,7 +91,7 @@ program main_aggr
 
   type(Mesh)     :: M  !< Mesh
 
-  type(SpMtx)    :: A,A_interf,A_ghost  !< System matrix (parallel sparse matrix)
+  type(SpMtx)    :: A,A_ghost  !< System matrix (parallel sparse matrix)
   type(SpMtx)    :: AC  !< coarse matrix
   type(SpMtx)    :: LA  !< matrix without outer nodes
   type(SpMtx)    :: Restrict !< Restriction matrix (for operation)
@@ -341,7 +341,7 @@ program main_aggr
   if (numprocs==1) then
     DD = Decomposition_from_aggrs(A, AC%aggr%full, A%aggr%full, ol)
   else
-    DD = Decomposition_full(A,A_interf,M%ninner,ol)
+    DD = Decomposition_full(A,A_ghost,M%ninner,ol)
   end if
 
   !if (numprocs>1) then

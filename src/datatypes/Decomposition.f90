@@ -6,12 +6,19 @@ module decomposition_mod
   use SpMtx_arrangement
   implicit none
 
+  !> Definition of subdomains and factorizations (solves) of subdomain matrices.
   type Decomposition
-    integer                          :: nsubsolves
-    integer, dimension(:), pointer   :: subsolve_ids !< numeric object handles of (UMFPACK,...) factorisations
-    type(indlist),dimension(:),pointer :: subd !< gives subdomain indeces for each subdomain
+    integer                          :: nsubsolves !< number of subdomain solves
+    integer, dimension(:), pointer   :: subsolve_ids !< numeric object handles of (UMFPACK,...) factorizations
+    type(indlist),dimension(:),pointer :: subd !< subdomain indices for each subdomain
   end type Decomposition
 
+  private
+  public :: Decomposition, &
+       Decomposition_New, &
+       Decomposition_Destroy, &
+       Decomposition_full, &
+       Decomposition_from_aggrs
 contains
 
   function Decomposition_New() result(DD)
@@ -58,10 +65,13 @@ contains
     type(SpMtx),intent(in) :: A_ghost
     integer,intent(in) :: ol !< overlap
     integer,intent(in) :: ninner !< number of inner nodes
+    !integer,intent(in) :: nlf !< number of local nodes
     type(Decomposition) ::  DD
 
     integer,allocatable :: nodes(:)
     integer :: nnodes, nnodes_exp, i
+
+    if (sctls%verbose>1) write(stream,*) "Creating single domain from process region", A%nrows, A_ghost%nrows
 
     nnodes = max(A%nrows, A_ghost%nrows)
     allocate(nodes(nnodes))
@@ -94,9 +104,9 @@ contains
     integer,allocatable :: nodes(:)
     integer :: nnodes, nnodes_exp, icAggr
 
-    allocate(nodes(A%nrows))
-
     if (sctls%verbose>1) write(stream,*) "Creating domains from coarse aggregates"
+
+    allocate(nodes(A%nrows))
 
     DD = Decomposition_New()
 
