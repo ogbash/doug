@@ -702,7 +702,6 @@ contains
     if (sctls%verbose>1) write(stream,*) 'Building coarse matrix'
     ! we need to work with a copy to preserve the structure and ordering of A:
     if (present(A_ghost).and.associated(A_ghost%indi)) then
-      write(stream,*) "PRESENT"
       nz=A%nnz+A_ghost%nnz
       TT=SpMtx_newInit(nz)
       TT%indi(1:A%nnz)=A%indi
