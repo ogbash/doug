@@ -358,17 +358,10 @@ contains
 
     subroutine prec2Level_solve()
       if (.not.cdat%active) then ! 1 processor case
-        if (sctls%smoothers==-1) then
-          allocate(tmpsol2(A%nrows))
-          tmpsol2=0.0_rk
-          call exact_sparse_multismoother(tmpsol2,A,rhs)
-          call SpMtx_Ax(crhs,Restrict,tmpsol2,dozero=.true.) ! restriction
+        if (sctls%method>1.and.sctls%method/=5) then ! multiplicative Schwarz
+          call SpMtx_Ax(crhs,Restrict,res,dozero=.true.) ! restriction
         else
-          if (sctls%method>1.and.sctls%method/=5) then ! multiplicative Schwarz
-            call SpMtx_Ax(crhs,Restrict,res,dozero=.true.) ! restriction
-          else
-            call SpMtx_Ax(crhs,Restrict,rhs,dozero=.true.) ! restriction
-          endif
+          call SpMtx_Ax(crhs,Restrict,rhs,dozero=.true.) ! restriction
         endif
       end if
 
@@ -412,13 +405,7 @@ contains
         call Vect_remap(csol,clrhs,cdat%gl_cfmap,dozero=.true.)
         call SpMtx_Ax(tmpsol,Restrict,clrhs,dozero=.true.,transp=.true.)
       else
-        if (sctls%smoothers==-1) then
-          call SpMtx_Ax(tmpsol2,Restrict,csol,dozero=.true.,transp=.true.) ! interpolation
-          tmpsol=0.0_rk
-          call exact_sparse_multismoother(tmpsol,A,tmpsol2)
-        else
-          call SpMtx_Ax(tmpsol,Restrict,csol,dozero=.true.,transp=.true.) ! interpolation
-        endif
+        call SpMtx_Ax(tmpsol,Restrict,csol,dozero=.true.,transp=.true.) ! interpolation
       endif
 
       if (sctls%method==1) then

@@ -13,7 +13,7 @@ module Distribution_mod
 #endif
 
 contains
-  subroutine SpMtx_DistributeAssembled(A,b,A_ghost,M)
+  subroutine SpMtx_DistributeAssembled(A,b,A_ghost,M,aggr)
     use Graph_class
     use Mesh_class
     implicit none
@@ -21,6 +21,7 @@ contains
     type(SpMtx),intent(inout)           :: A,A_ghost
     float(kind=rk),dimension(:),pointer :: b
     type(Mesh)                          :: M
+    type(AggrInfo),intent(out)          :: aggr
     !-----------------------
     integer :: i,j,k,ierr,n,ol
     integer, dimension(:), pointer :: xadj
@@ -76,12 +77,13 @@ contains
           max_asize1=(2*aggr_radius1+1)**2
         endif
         call SpMtx_roughly_aggregate(A=A,      &
+                         aggr=aggr, &
                          neighood=aggr_radius1,&
                       maxaggrsize=max_asize1,  &
                             alpha=strong_conn1)
-        call SpMtx_buildAggrAdjncy(A,max_asize1,nedges,xadj,adjncy)
+        call SpMtx_buildAggrAdjncy(A,aggr,max_asize1,nedges,xadj,adjncy)
         call SpMtx_unscale(A) !todo -- check
-        G=Graph_newInit(A%aggr%inner%nagr,nedges,xadj,adjncy,D_GRAPH_NODAL)
+        G=Graph_newInit(aggr%inner%nagr,nedges,xadj,adjncy,D_GRAPH_NODAL)
 if (sctls%plotting==1.or.sctls%plotting==3) then
  allocate(owner(A%nrows))
  do i=1,A%nnz
@@ -111,26 +113,26 @@ endif
       call Graph_Partition(G,numprocs,D_PART_VKMETIS,part_opts)
       if (partitioning==AGGRND_METIS) then
         do i=1,A%nrows
-          A%aggr%inner%num(i)=G%part(A%aggr%inner%num(i))
+          aggr%inner%num(i)=G%part(aggr%inner%num(i))
         enddo
         if (sctls%debug==1234) then
           open(77,FILE='domnums.txt',FORM='FORMATTED',STATUS='new')
           do i=1,A%nrows
-            write(77,*)A%aggr%inner%num(i)
+            write(77,*) aggr%inner%num(i)
           enddo
           close(77)
         endif
         if (sctls%debug==4321) then
           open(77,FILE='domnums.txt',FORM='FORMATTED',STATUS='old')
           do i=1,A%nrows
-            read(77,FMT=*)A%aggr%inner%num(i)
+            read(77,FMT=*) aggr%inner%num(i)
           enddo
           close(77)
         endif
         if (sctls%plotting==1.or.sctls%plotting==3) then
           allocate(tmpnum(A%nrows))
           tmpnum=(/(i,i=1,A%nrows)/)
-          call color_print_aggrs(n=A%nrows,aggrnum=tmpnum,owner=A%aggr%inner%num)
+          call color_print_aggrs(n=A%nrows,aggrnum=tmpnum,owner=aggr%inner%num)
           deallocate(tmpnum)
           call flush(stream)
         endif
@@ -152,7 +154,7 @@ endif
       !call Mesh_allocate(M,eptnmap=.true.)
       allocate(M%eptnmap(A%nrows))
       if (partitioning==AGGRND_METIS) then
-        M%eptnmap(1:A%nrows) = A%aggr%inner%num(1:A%nrows)
+        M%eptnmap(1:A%nrows) = aggr%inner%num(1:A%nrows)
       elseif (partitioning==ONLY_METIS) then
         M%eptnmap(1:A%nrows) = G%part(1:A%nrows)
       endif

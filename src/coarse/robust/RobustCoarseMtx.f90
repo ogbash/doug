@@ -50,22 +50,13 @@ module RobustCoarseMtx_mod
 contains
   !> Creates restrict matrices for the Robust Coarse Space algorithm
   !! from the restrict matrix of the aggregation and smoothing result.
-  function CoarseProjectionMtxsBuild(A,R) result (B)
+  function CoarseProjectionMtxsBuild(A,R,naggr) result (B)
     type(SpMtx), intent(inout) :: A
     type(SpMtx), intent(in) :: R !< restrict matrix from usual aggregate with smoothing
+    integer,intent(in) :: naggr !< number of aggregates
     type(SumOfInversedSubMtx) :: B
 
-    integer :: iAggr
-
     B = getConstrainedEnergyMatrix(A, R)
-
-    ! debug
-    if(sctls%verbose>5) then
-       do iAggr=1,A%aggr%inner%nagr
-          print *, "Ai for i=", iAggr, "nrows,ncols =", B%Ai(iAggr)%nrows, B%Ai(iAggr)%ncols
-          call SpMtx_printRaw(B%Ai(iAggr))
-       end do
-    end if
         
     ! ----- routines ---------
     contains
@@ -85,11 +76,10 @@ contains
         type(Array), dimension(:), pointer :: aggr_nodes
 
         integer :: i, iNode, j
-        integer :: coarse_node, fine_node, nagr, last_index
+        integer :: coarse_node, fine_node, last_index
         integer, allocatable :: last_nodes(:) !< helper array: number of added nodes
         type(SpMtx) :: AiTemp
 
-        nagr = A%aggr%inner%nagr
         ! For now hack: aggregate node numbers (incl. overlap nodes) is extracted from 
         ! the standard case restriction matrix.
 
@@ -98,17 +88,17 @@ contains
            call SpMtx_printRaw(R)
         end if
 
-        allocate(n_aggr_nodes(nagr))
+        allocate(n_aggr_nodes(naggr))
         n_aggr_nodes = 0
         do i=1, R%nnz
            coarse_node = R%indi(i)
            n_aggr_nodes(coarse_node) = n_aggr_nodes(coarse_node) + 1
         end do
-        allocate(aggr_nodes(nagr))
-        do iNode=1,nagr
+        allocate(aggr_nodes(naggr))
+        do iNode=1,naggr
            allocate(aggr_nodes(iNode)%values(n_aggr_nodes(iNode)))
         end do
-        allocate(last_nodes(nagr))
+        allocate(last_nodes(naggr))
         last_nodes = 0
         do i=1, R%nnz
            coarse_node = R%indi(i)
@@ -120,8 +110,8 @@ contains
         
         ! Now set the result
         B%A => A
-        allocate(B%R(nagr))
-        do i=1,nagr
+        allocate(B%R(naggr))
+        do i=1,naggr
           B%R(i) = SpMtx_NewInit(n_aggr_nodes(i), nrows=n_aggr_nodes(i), ncols=A%nrows)
           forall(j=1:n_aggr_nodes(i)) B%R(i)%indi(j) = j
           B%R(i)%indj = aggr_nodes(i)%values
@@ -134,14 +124,14 @@ contains
         end do
 
         ! calculate submatrices
-        allocate(B%Ai(nagr))
-        do i=1,nagr
+        allocate(B%Ai(naggr))
+        do i=1,naggr
            AiTemp = SpMtx_AB2(B%R(i), B%A)
            B%Ai(i) = SpMtx_AB2(AiTemp, B%R(i), BT=.TRUE.) 
         end do
         
         ! finally allocate ID array
-        allocate(B%subsolve_ids(nagr))
+        allocate(B%subsolve_ids(naggr))
         B%subsolve_ids = 0
       end function getConstrainedEnergyMatrix
 

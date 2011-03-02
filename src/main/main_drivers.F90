@@ -244,7 +244,10 @@ contains
     float(kind=rk), dimension(:), pointer :: b !< local RHS
     type(SpMtx),intent(in out),optional :: A_interf !< matrix at interface
 
+    type(AggrInfo) :: aggr
     integer :: n
+
+    aggr = AggrInfo_New()
 
     ! ======================
     ! Read matrix from file
@@ -281,9 +284,10 @@ contains
       endif
     else ! numprocs>1
       Msh=Mesh_New()
-      call SpMtx_DistributeAssembled(A,b,A_interf,Msh)
+      call SpMtx_DistributeAssembled(A,b,A_interf,Msh,aggr)
     endif
 
+    call AggrInfo_Destroy(aggr)
   end subroutine parallelDistributeAssembledInput
 
 end module main_drivers

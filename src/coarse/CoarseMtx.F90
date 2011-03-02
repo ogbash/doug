@@ -689,10 +689,11 @@ contains
     endif
   end subroutine IntRestBuild
 
-  subroutine CoarseMtxBuild(A,AC,Restrict,A_ghost)
+  subroutine CoarseMtxBuild(A,AC,Restrict,ninner,A_ghost)
     Type(SpMtx),intent(inout) :: A ! the fine level matrix
     Type(SpMtx),intent(inout) :: AC ! coarse level matrix
     Type(SpMtx), intent(inout) :: Restrict ! the restriction matrix
+    integer,intent(in) :: ninner !< number of inner nodes
     Type(SpMtx),intent(in),optional :: A_ghost !< additional part to the matrix
     Type(SpMtx) :: T,TT,RT !temporary matrix
     integer,dimension(:),pointer :: indi,indj
@@ -722,7 +723,7 @@ contains
     call SpMtx_Destroy(TT)
     RT = SpMtx_Copy(Restrict)
     if (sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED) then
-      call KeepGivenColumnIndeces(RT,(/(i,i=1,size(A%aggr%inner%num))/),.TRUE.)
+      call KeepGivenColumnIndeces(RT,(/(i,i=1,ninner)/),.TRUE.)
     end if
     AC = SpMtx_AB(A=RT,B=T)
     call SpMtx_Destroy(RT)

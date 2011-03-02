@@ -162,7 +162,7 @@ program main_geom
       call CleanCoarse(LC,Restrict,M)
 
       if (sctls%verbose>0)  write (stream,*) "Building coarse matrix"
-      call CoarseMtxBuild(A,cdat%LAC,Restrict)  
+      call CoarseMtxBuild(A,cdat%LAC,Restrict,M%ninner)
 
       if (sctls%verbose>1) write (stream, *) "Stripping the restriction matrix"
       call StripRestrict(M,Restrict)

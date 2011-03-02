@@ -28,7 +28,6 @@ module SpMtx_class
   use RealKind
   use globals
   use DOUG_utils
-  use Aggregate_mod
 
   implicit none
 
@@ -142,9 +141,6 @@ module SpMtx_class
     !> Permutation map for freedoms : perm_map[M%nlf]
     integer,   dimension(:), pointer :: perm_map
 
-    !> aggregates
-    type(AggrInfo),pointer :: aggr
-
     !> subsolve id for the coarse matrix
     integer :: subsolve_id
  end type SpMtx
@@ -196,8 +192,6 @@ contains
     M%strong_colnrs => NULL()
     M%diag => NULL()
 
-    allocate(M%aggr)
-    M%aggr = AggrInfo_New()
   end function SpMtx_New
 
 !> \code
@@ -675,9 +669,6 @@ contains
     !write(stream,*)'[SpMtx_Destroy]: PAY ATTENTION ON IT!'
     if (M%arrange_type/=D_SpMtx_ARRNG_NO) deallocate(M%M_bound)
     !------
-    if (associated(M%aggr)) then
-      call AggrInfo_Destroy(M%aggr)
-    endif
     if (associated(M%M_bound)) deallocate(M%M_bound)
     M%arrange_type=0
 

@@ -30,9 +30,9 @@ contains
  end subroutine Aggr_writeFile
 
  !> Write all aggregates to file for testing with non-paralel case.
- subroutine Aggrs_writeFile(M, fAggr, cAggr, cdata, filename)
+ subroutine Aggrs_writeFile(M, fAggr, cdata, filename)
    type(Mesh), intent(in) :: M
-   type(AggrInfo), intent(in) :: fAggr, cAggr
+   type(AggrInfo), intent(in) :: fAggr
    type(CoarseData), intent(in) :: cdata
    character(*), intent(in) :: filename
 

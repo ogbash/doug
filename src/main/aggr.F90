@@ -125,6 +125,8 @@ program main_aggr
   integer :: plotting, ol
   integer,allocatable :: nodes(:), inds(:)
 
+  type(AggrInfo) :: fAggr !< fine aggregates
+  type(AggrInfo) :: cAggr !< coarse aggregates
   type(Decomposition) :: DD !< domain decomposition
   type(RobustPreconditionMtx) :: C
   type(CoarseSpace) :: CS
@@ -182,21 +184,19 @@ program main_aggr
       !  instead of expanded (to overlap) local matrix A
       LA = getLocal(A,M)
       call SpMtx_find_strong(A=LA,alpha=strong_conn1)
-      call SpMtx_aggregate(LA,aggr_radius1, &
+      call SpMtx_aggregate(LA,fAggr,aggr_radius1, &
            minaggrsize=min_asize1,       &
            maxaggrsize=max_asize1,       &
            alpha=strong_conn1,           &
            M=M,                          &
            plotting=plotting)
       call SpMtx_unscale(LA)
-      call AggrInfo_Destroy(A%aggr)
-      A%aggr => LA%aggr
-      nullify(LA%aggr)
 
-    else
+      write(stream,*) "_----------", fAggr%inner%nagr, size(fAggr%inner%starts)
+  else
       ! non-parallel case use the whole matrix
       call SpMtx_find_strong(A=A,alpha=strong_conn1)
-      call SpMtx_aggregate(A,aggr_radius1, &
+      call SpMtx_aggregate(A,fAggr,aggr_radius1, &
             minaggrsize=min_asize1,       &
             maxaggrsize=max_asize1,       &
             alpha=strong_conn1,           &
@@ -207,7 +207,7 @@ program main_aggr
     end if
     ! profile info
     if(pstream/=0) then
-      write(pstream, "(I0,':fine aggregates:',I0)") myrank, A%aggr%inner%nagr
+      write(pstream, "(I0,':fine aggregates:',I0)") myrank, fAggr%inner%nagr
     end if
 
     !if (sctls%plotting>=2) then
@@ -217,7 +217,7 @@ program main_aggr
     call Mesh_printInfo(M)
     
     if (numprocs==1.and.sctls%plotting==2.and.M%nell>0) then
-      call Mesh_pl2D_plotAggregate(A%aggr%inner,M,&
+      call Mesh_pl2D_plotAggregate(fAggr%inner,M,&
                       A%strong_rowstart,A%strong_colnrs,&
                       mctls%assembled_mtx_file, &
                                  INIT_CONT_END=D_PLPLOT_INIT)
@@ -230,12 +230,12 @@ program main_aggr
     if (numprocs>1) then
       call SpMtx_find_strong(A=A,alpha=strong_conn1,A_ghost=A_ghost,M=M)
       call SpMtx_unscale(A)
-      call IntRestBuild(A,A%aggr%inner,Restrict,A_ghost)
+      call IntRestBuild(A,fAggr%inner,Restrict,A_ghost)
       CS = CoarseSpace_Init(Restrict)
       call CoarseData_Copy(cdat,cdat_vec)
       call CoarseSpace_Expand(CS,Restrict,M,cdat)
-      call CoarseMtxBuild(A,cdat%LAC,Restrict,A_ghost)
-      call KeepGivenRowIndeces(Restrict, (/(i,i=1,A%aggr%inner%nagr)/))
+      call CoarseMtxBuild(A,cdat%LAC,Restrict,M%ninner,A_ghost)
+      call KeepGivenRowIndeces(Restrict, (/(i,i=1,fAggr%inner%nagr)/))
 
       if (sctls%verbose>3.and.cdat%LAC%nnz<400) then
         write(stream,*)'Restrict (local) is:=================='
@@ -246,14 +246,14 @@ program main_aggr
 
     else 
       ! non-parallel
-      call IntRestBuild(A,A%aggr%inner,Restrict)
+      call IntRestBuild(A,fAggr%inner,Restrict)
 
       if (sctls%coarse_method<=1) then ! if not specified or ==1
-         call CoarseMtxBuild(A,AC,Restrict)
+         call CoarseMtxBuild(A,AC,Restrict,M%ninner)
 
       else if (sctls%coarse_method==2) then
          ! use the Robust Coarse Spaces algorithm
-         B_RCS = CoarseProjectionMtxsBuild(A,Restrict)
+         B_RCS = CoarseProjectionMtxsBuild(A,Restrict,fAggr%inner%nagr)
          allocate(rhs_1(A%nrows))
          allocate(g(A%ncols))
 
@@ -265,7 +265,7 @@ program main_aggr
          end if
 
          call RobustRestrictMtxBuild(B_RCS,g,Restrict)
-         call CoarseMtxBuild(A,AC,Restrict)
+         call CoarseMtxBuild(A,AC,Restrict,M%ninner)
 
       else
          write(stream,'(A," ",I2)') 'Wrong coarse method', sctls%coarse_method
@@ -306,47 +306,47 @@ program main_aggr
         !max_asize2=max_asize1
         max_asize2=(2*aggr_radius2+1)**2
       endif
-      call SpMtx_aggregate(AC,aggr_radius2, &
+      call SpMtx_aggregate(AC,cAggr,aggr_radius2, &
             minaggrsize=min_asize2,          &
             maxaggrsize=max_asize2,          &
             alpha=strong_conn2,              &
-            Afine=A)    
+            aggr_fine=fAggr)
       call SpMtx_unscale(AC)
-      !call Aggrs_readFile_coarse(AC%aggr, "aggregates.txt")
+      !call Aggrs_readFile_coarse(cAggr, "aggregates.txt")
 
       ! profile info
       if(pstream/=0) then
-        write(pstream, "(I0,':coarse aggregates:',I0)") myrank, AC%aggr%inner%nagr
+        write(pstream, "(I0,':coarse aggregates:',I0)") myrank, cAggr%inner%nagr
       end if
 
       if (sctls%plotting==2) then
-         call Aggr_writeFile(A%aggr%inner, 'aggr2.txt', AC%aggr%inner)
+         call Aggr_writeFile(fAggr%inner, 'aggr2.txt', cAggr%inner)
       end if
       if (sctls%plotting==2.and.M%nell>0) then
         !print *,'press Key<Enter>'
         !read *,str
-        call Mesh_pl2D_plotAggregate(A%aggr%inner,M,&
+        call Mesh_pl2D_plotAggregate(fAggr%inner,M,&
                         A%strong_rowstart,A%strong_colnrs,&
                         mctls%assembled_mtx_file, &
-                        caggrnum=AC%aggr%inner%num, &
+                        caggrnum=cAggr%inner%num, &
                       INIT_CONT_END=D_PLPLOT_END)!, &
                       !INIT_CONT_END=D_PLPLOT_CONT)!, &
                                   ! D_PLPLOT_END)
       endif
-      write(stream,*)'# coarse aggregates:',AC%aggr%inner%nagr
+      write(stream,*)'# coarse aggregates:',cAggr%inner%nagr
 
     endif 
   endif
 
   if (numprocs==1) then
-    DD = Decomposition_from_aggrs(A, AC%aggr%full, A%aggr%full, ol)
+    DD = Decomposition_from_aggrs(A, cAggr%full, fAggr%full, ol)
+    call AggrInfo_Destroy(cAggr)
+    call AggrInfo_Destroy(fAggr)
   else
     DD = Decomposition_full(A,A_ghost,M%ninner,ol)
+    ! call Aggrs_writeFile(M, fAggr, cdat, "aggregates.txt")
+    if (sctls%levels>1) call AggrInfo_Destroy(fAggr)
   end if
-
-  !if (numprocs>1) then
-  !  call Aggrs_writeFile(M, A%aggr, AC%aggr, cdat, "aggregates.txt")
-  !end if
 
   ! Testing UMFPACK:
   allocate(sol(A%nrows))

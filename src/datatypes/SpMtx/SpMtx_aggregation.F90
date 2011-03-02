@@ -46,21 +46,22 @@ Module SpMtx_aggregation
 CONTAINS
 
 !> Finding aggregates
-  subroutine SpMtx_aggregate(A,neighood,&
-               minaggrsize,maxaggrsize,alpha,Afine,M,plotting)
+  subroutine SpMtx_aggregate(A,aggr,neighood,&
+               minaggrsize,maxaggrsize,alpha,aggr_fine,M,plotting)
     use globals
     use CoarseAllgathers
     use Mesh_class
     use Vect_mod
     Implicit None
     Type(SpMtx),intent(in out) :: A ! our matrix
+    type(AggrInfo),intent(out) :: aggr !< aggregates
     integer,intent(in) :: neighood  ! 1-neighood,2-neighood or r-neighood...
       ! node stat: >= 0 free and far enough (versions 1,2 only)
       !            ==-1 free but in neighood
       !            ==-2 aggregated
     integer,intent(in),optional :: minaggrsize,maxaggrsize
     float(kind=rk),intent(in) :: alpha
-    Type(SpMtx),intent(inout),optional :: Afine ! fine level matrix
+    Type(AggrInfo),intent(in),optional :: aggr_fine ! fine level aggregates
     !type(CoarseData),optional :: cdat !coarse data
     type(Mesh),optional     :: M  ! Mesh
     integer,optional :: plotting
@@ -97,6 +98,8 @@ CONTAINS
     integer :: cnt,col,thiscol
     integer,dimension(:),pointer :: owner
     integer :: plot
+
+    aggr = AggrInfo_New()
     
     toosmall=.false.
     n=A%nrows
@@ -124,7 +127,7 @@ CONTAINS
              A%strong_rowstart,A%strong_colnrs,sortdown=.true.)
       endif
       if (plot==1.or.plot==3) then
-        if (present(Afine)) then
+        if (present(aggr_fine)) then
           write (stream,*) 'Coarse level aggregates:'
         else
           write (stream,*) 'Fine level aggregates:'
@@ -158,7 +161,7 @@ CONTAINS
           maxasize=(2*neighood+1)**2
         endif
       endif
-      if (present(Afine)) then
+      if (present(aggr_fine)) then
         !maxasizelargest=maxasize+32*(2*neighood)
         maxasizelargest=3*maxasize
       else
@@ -167,7 +170,7 @@ CONTAINS
         !maxasizelargest=maxasize+2*(2*neighood)
       endif
       !beta=alpha
-      if (.not.present(Afine)) then
+      if (.not.present(aggr_fine)) then
         ! this seems to be problem-dependent:
         beta=alpha/4.0_rk
         !beta=alpha/2.0_rk
@@ -246,7 +249,7 @@ CONTAINS
               endif
             enddo
             if (track_print) then
-              if (present(Afine)) then
+              if (present(aggr_fine)) then
                 do i=1,A%nrows
                   if (aggrnum(i)>0) then
                     moviecols(i)=aggrnum(i)
@@ -255,9 +258,9 @@ CONTAINS
                   endif
                 enddo
                 if (nagrs<=1) then
-                  call color_print_aggrs(Afine%nrows,Afine%aggr%inner%num,moviecols,overwrite=.false.)
+                  call color_print_aggrs(size(aggr_fine%full%nodes),aggr_fine%inner%num,moviecols,overwrite=.false.)
                 else
-                  call color_print_aggrs(Afine%nrows,Afine%aggr%inner%num,moviecols,overwrite=.true.)
+                  call color_print_aggrs(size(aggr_fine%full%nodes),aggr_fine%inner%num,moviecols,overwrite=.true.)
                 endif
               else
                 do i=1,A%nrows
@@ -362,13 +365,13 @@ CONTAINS
     if (.not.toosmall) then ! {
       fullaggrnum=aggrnum(1:A%nrows)
       full_nagrs_new=max(0, maxval(fullaggrnum))
-      call Form_Aggr(A%aggr%inner,nagrs,n,neighood,nisolated,aggrnum)
+      call Form_Aggr(aggr%inner,nagrs,n,neighood,nisolated,aggrnum)
       ! communicate the neighbours' aggregate numbers and renumber:
       if (numprocs>1) then 
         write(stream,*) "aggrnum", n, aggrnum
         call setup_aggr_cdat(nagrs,n,aggrnum,M)
         write(stream,*) "aggrnum", nn, aggrnum
-        call Form_Aggr(A%aggr%expanded,nagrs,nn,neighood,nisolated,aggrnum)
+        call Form_Aggr(aggr%expanded,nagrs,nn,neighood,nisolated,aggrnum)
       endif
     elseif (toosmall) then ! }{
       ! build the aggregate reference structure
@@ -454,10 +457,10 @@ CONTAINS
               endif
             endif
           enddo
-if (present(Afine)) then
+if (present(aggr_fine)) then
  print *,'too small aggr ',i,' of size:',aggrsize(i),' maxcw_sum:',maxconnweightsum
 endif
-          if (maxconnweightsum>=alpha.or.(present(Afine).and.maxconnweightsum>=beta)) then ! let the eater get the nodes
+          if (maxconnweightsum>=alpha.or.(present(aggr_fine).and.maxconnweightsum>=beta)) then ! let the eater get the nodes
             do j=1,aggrsize(i)
               ! print *, j, eater, lbound(aggrsize), ubound(aggrsize)
               aggrsize(eater)=aggrsize(eater)+1
@@ -470,7 +473,7 @@ endif
             neaten=neaten+1
 print *,'eater of ',i,' is:',eater
           else ! try to give the struct away node by node to all good neighbours...
-if (present(Afine)) then
+if (present(aggr_fine)) then
  print *,' ...not eaten... '
 endif
             nleft=aggrsize(i)
@@ -494,7 +497,7 @@ endif
                         !
                         !!if (aggrsize(colr)<maxasizelargest.and.(          &
                         !!                       dabs(A%val(j))>=alpha .or. &
-                        !!   (present(Afine).and.dabs(A%val(j))>=beta))) then
+                        !!   (present(aggr_fine).and.dabs(A%val(j))>=beta))) then
                         !
                         if (aggrsize(colr)<maxasizelargest.and.          &
                                                dabs(A%val(j))>=beta ) then
@@ -578,7 +581,7 @@ print *,'    ========== aggregate ',i,' got removed node by node ============'
           endif
         enddo
       endif
-      call Form_Aggr(aggr=A%aggr%inner,             &
+      call Form_Aggr(aggr=aggr%inner,             &
                     nagrs=nagrs_new,          &
                         n=n,                  &
                    radius=neighood,           &
@@ -586,7 +589,7 @@ print *,'    ========== aggregate ',i,' got removed node by node ============'
                   aggrnum=aggrnum)
       if (numprocs>1) then 
         call setup_aggr_cdat(nagrs_new,n,aggrnum,M)
-        call Form_Aggr(aggr=A%aggr%expanded,     &
+        call Form_Aggr(aggr=aggr%expanded,     &
                       nagrs=nagrs_new,          &
                           n=nn,                 &
                      radius=neighood,           &
@@ -602,7 +605,7 @@ print *,'    ========== aggregate ',i,' got removed node by node ============'
                     ' #occupied:',noccupied, &
                     ' # remaining:',ntoosmall-neaten-noccupied
     endif !}
-    call Form_Aggr(aggr=A%aggr%full,     &
+    call Form_Aggr(aggr=aggr%full,     &
                   nagrs=full_nagrs_new, &
                       n=n,              &
                  radius=neighood,       &
@@ -617,32 +620,32 @@ print *,'    ========== aggregate ',i,' got removed node by node ============'
           allocate(aggrnum(M%ngf))
           allocate(owner(M%ngf))
         end if
-        call Integer_Vect_Gather(A%aggr%inner%num,aggrnum,M,owner)
+        call Integer_Vect_Gather(aggr%inner%num,aggrnum,M,owner)
         if (ismaster()) then
           call color_print_aggrs(M%ngf,aggrnum,overwrite=.false.,owner=owner)
           deallocate(owner,aggrnum)
         endif
       else
-        if (.not.present(Afine)) then
+        if (.not.present(aggr_fine)) then
           if (plot==3) then
-            call color_print_aggrs(A%nrows,A%aggr%inner%num,overwrite=.true.)
+            call color_print_aggrs(A%nrows,aggr%inner%num,overwrite=.true.)
           else
             write(stream,*)' fine aggregates:'
-            call color_print_aggrs(A%nrows,A%aggr%inner%num)
+            call color_print_aggrs(A%nrows,aggr%inner%num)
             if (.not.aggrarefull) then
               write(stream,*)' FULL fine aggregates:'
-              call color_print_aggrs(A%nrows,A%aggr%full%num)
+              call color_print_aggrs(A%nrows,aggr%full%num)
             endif
           endif
         else
           if (plot==3) then
-            call color_print_aggrs(Afine%nrows,Afine%aggr%full%num,A%aggr%inner%num,overwrite=.true.)
+            call color_print_aggrs(size(aggr_fine%full%nodes),aggr_fine%full%num,aggr%inner%num,overwrite=.true.)
           else
             write(stream,*)' coarse aggregates:'
-            call color_print_aggrs(Afine%nrows,Afine%aggr%inner%num,A%aggr%inner%num)
+            call color_print_aggrs(size(aggr_fine%full%nodes),aggr_fine%inner%num,aggr%inner%num)
             if (.not.aggrarefull) then
               write(stream,*)' FULL coarse aggregates:'
-              call color_print_aggrs(Afine%nrows,Afine%aggr%full%num,A%aggr%full%num)
+              call color_print_aggrs(size(aggr_fine%full%nodes),aggr_fine%full%num,aggr%full%num)
             endif
           endif
         endif
