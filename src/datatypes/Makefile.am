@@ -1,7 +1,7 @@
 
 libdoug_la_SOURCES += \
 	datatypes/Aggregate_mod.F90 \
-	datatypes/Aggregate_utils.f90 \
+	datatypes/Aggregate_utils.f95 \
 	datatypes/Graph.f90 \
 	datatypes/Decomposition.f90 \
 	datatypes/Points2D.F90 \

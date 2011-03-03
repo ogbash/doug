@@ -19,6 +19,7 @@
 ! of Distributed Systems, Liivi 2, 50409 Tartu, Estonia, http://dougdevel.org,
 ! mailto:info(at)dougdevel.org)
 
+!> Base component for data distribution.
 module Distribution_mod
   use Mesh_class
   use SpMtx_class

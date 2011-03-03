@@ -13,7 +13,6 @@ doug_geom_LDADD=../libdoug.la
 
 doug_aggr_SOURCES = \
 	DOUG.f90 \
-	aggr_util.f95 \
 	aggr.F90
 
 doug_aggr_FCFLAGS=-I.. @FCFLAGS_F95@

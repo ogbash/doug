@@ -65,6 +65,7 @@ program main_aggr
 
   use doug
   use Distribution_mod
+  use Partitioning_mod
   use Mesh_class
   use Mesh_plot_mod
   use SpMtx_mods
@@ -78,8 +79,6 @@ program main_aggr
   use RobustCoarseMtx_mod
   use pcgRobust_mod
 
-  use aggr_util_mod
-
   implicit none
 
 #include<doug_config.h>
@@ -91,7 +90,6 @@ program main_aggr
 #endif
 
   type(SpMtx)    :: AC  !< coarse matrix
-  type(SpMtx)    :: LA  !< matrix without outer nodes
   type(SpMtx)    :: Restrict !< Restriction matrix (for operation)
   type(SumOfInversedSubMtx) :: B_RCS !< B matrix for the Robust Coarse Spaces
   !type(SpMtx)    :: Rest_cmb !< Restriction matrix (for coarse matrix build)
@@ -108,24 +106,16 @@ program main_aggr
   type(ConvInf) :: resStat
 
   real(kind=rk) :: t,t1
-  integer :: i,j,k,n,it
+  integer :: i,j,k,it,ol
   float(kind=rk), dimension(:), pointer :: r, y
   character :: str
   character(len=40) :: frm
-  float(kind=rk) :: strong_conn1,strong_conn2,cond_num,nrm
-  integer :: aggr_radius1,aggr_radius2
-  integer :: min_asize1,min_asize2
-  integer :: max_asize1,max_asize2
-  integer :: aver_finesize,min_finesize,max_finesize
-  integer :: aver_subdsize,min_subdsize,max_subdsize
-  integer :: start_radius1,start_radius2
-  integer :: plotting, ol
+  float(kind=rk) :: cond_num,nrm
   integer,allocatable :: nodes(:), inds(:)
 
-  type(AggrInfo) :: fAggr !< fine aggregates
-  type(AggrInfo) :: cAggr !< coarse aggregates
   type(Distribution) :: D !< mesh and matrix distribution
   type(Decomposition) :: DD !< domains
+  type(Partitionings) :: P !< fine and coarse aggregates
   type(RobustPreconditionMtx) :: C
   type(CoarseSpace) :: CS
   ! Parallel coarse level
@@ -139,70 +129,12 @@ program main_aggr
 
   D = Distribution_NewInit(sctls%input_type,nparts,part_opts)
 
-  ! overlap for subdomains
-  if (sctls%overlap<0) then ! autom. overlap from smoothing
-    ol = max(sctls%smoothers,0)
-  else
-    ol = sctls%overlap
-  endif
-
   if (sctls%levels>1.or.(numprocs==1.and.sctls%levels==1)) then !todo remove
-    if (sctls%strong1/=0.0_rk) then
-      strong_conn1=sctls%strong1
-    else
-      strong_conn1=0.67_rk
-    endif
-    if (sctls%radius1>0) then
-      aggr_radius1=sctls%radius1
-    else
-      aggr_radius1=2
-    endif
-    if (sctls%minasize1>0) then
-      min_asize1=sctls%minasize1
-    else
-       ! Changes R. Scheichl 21/06/05
-      ! min_asize1=2*aggr_radius1+1
-       min_asize1=0.5_rk*(2*aggr_radius1+1)**2
-    endif
-    if (sctls%maxasize1>0) then
-      max_asize1=sctls%maxasize1
-    else
-      max_asize1=(2*aggr_radius1+1)**2
-    endif
-    if (numprocs>1) then
-      plotting=0
-    else
-      plotting=sctls%plotting
-    endif
-
-    ! find fine aggregates
-    if (numprocs > 1) then
-      ! we need to create aggregates only on inner nodes, so use local matrix LA
-      !  instead of expanded (to overlap) local matrix A
-      LA = getLocal(D%A,D%mesh)
-      call SpMtx_find_strong(A=LA,alpha=strong_conn1)
-      call SpMtx_aggregate(LA,fAggr,aggr_radius1, &
-           minaggrsize=min_asize1,       &
-           maxaggrsize=max_asize1,       &
-           alpha=strong_conn1,           &
-           M=D%mesh,                          &
-           plotting=plotting)
-      call SpMtx_unscale(LA)
-    else
-      ! non-parallel case use the whole matrix
-      call SpMtx_find_strong(A=D%A,alpha=strong_conn1)
-      call SpMtx_aggregate(D%A,fAggr,aggr_radius1, &
-            minaggrsize=min_asize1,       &
-            maxaggrsize=max_asize1,       &
-            alpha=strong_conn1,           &
-            M=D%mesh,                          &
-            plotting=plotting)
-      call SpMtx_unscale(D%A)
-      !call Aggrs_readFile_fine(D%A%aggr, "aggregates.txt")
-    end if
+    P = Partitionings_New()
+    call Partitionings_CreateFine(P,D)
     ! profile info
     if(pstream/=0) then
-      write(pstream, "(I0,':fine aggregates:',I0)") myrank, fAggr%inner%nagr
+      write(pstream, "(I0,':fine aggregates:',I0)") myrank, P%fAggr%inner%nagr
     end if
 
     !if (sctls%plotting>=2) then
@@ -212,7 +144,7 @@ program main_aggr
     call Mesh_printInfo(D%mesh)
     
     if (numprocs==1.and.sctls%plotting==2.and.D%mesh%nell>0) then
-      call Mesh_pl2D_plotAggregate(fAggr%inner,D%mesh,&
+      call Mesh_pl2D_plotAggregate(P%fAggr%inner,D%mesh,&
                       D%A%strong_rowstart,D%A%strong_colnrs,&
                       mctls%assembled_mtx_file, &
                                  INIT_CONT_END=D_PLPLOT_INIT)
@@ -221,14 +153,14 @@ program main_aggr
     
     ! Testing coarse matrix and aggregation through it:
     if (numprocs>1) then
-      call SpMtx_find_strong(A=D%A,alpha=strong_conn1,A_ghost=D%A_ghost,M=D%mesh)
+      call SpMtx_find_strong(A=D%A,alpha=P%strong_conn1,A_ghost=D%A_ghost,M=D%mesh)
       call SpMtx_unscale(D%A)
-      call IntRestBuild(D%A,fAggr%inner,Restrict,D%A_ghost)
+      call IntRestBuild(D%A,P%fAggr%inner,Restrict,D%A_ghost)
       CS = CoarseSpace_Init(Restrict)
       call CoarseData_Copy(cdat,cdat_vec)
       call CoarseSpace_Expand(CS,Restrict,D%mesh,cdat)
       call CoarseMtxBuild(D%A,cdat%LAC,Restrict,D%mesh%ninner,D%A_ghost)
-      call KeepGivenRowIndeces(Restrict, (/(i,i=1,fAggr%inner%nagr)/))
+      call KeepGivenRowIndeces(Restrict, (/(i,i=1,P%fAggr%inner%nagr)/))
 
       if (sctls%verbose>3.and.cdat%LAC%nnz<400) then
         write(stream,*)'Restrict (local) is:=================='
@@ -239,14 +171,14 @@ program main_aggr
 
     else 
       ! non-parallel
-      call IntRestBuild(D%A,fAggr%inner,Restrict)
+      call IntRestBuild(D%A,P%fAggr%inner,Restrict)
 
       if (sctls%coarse_method<=1) then ! if not specified or ==1
          call CoarseMtxBuild(D%A,AC,Restrict,D%mesh%ninner)
 
       else if (sctls%coarse_method==2) then
          ! use the Robust Coarse Spaces algorithm
-         B_RCS = CoarseProjectionMtxsBuild(D%A,Restrict,fAggr%inner%nagr)
+         B_RCS = CoarseProjectionMtxsBuild(D%A,Restrict,P%fAggr%inner%nagr)
          allocate(rhs_1(D%A%nrows))
          allocate(g(D%A%ncols))
 
@@ -273,73 +205,48 @@ program main_aggr
    
     ! coarse aggregates
     if (numprocs==1) then
-      if (sctls%strong2>0) then
-        strong_conn2=sctls%strong2
-      else
-        strong_conn2=strong_conn1/2.0_rk
-      endif
-      call SpMtx_find_strong(AC,strong_conn2)
-    
-      if (sctls%radius2>0) then
-        aggr_radius2=sctls%radius2
-      else
-         n=sqrt(1.0_rk*D%A%nrows)
-         aggr_radius2=nint(3*sqrt(dble(n))/(2*aggr_radius1+1)-1)
-         write (stream,*) 'Coarse aggregation radius aggr_radius2 =',aggr_radius2
-      endif
-      if (sctls%minasize2>0) then
-        min_asize2=sctls%minasize2
-      elseif (sctls%radius2>0) then
-        min_asize2=2*sctls%radius2+1
-      else
-        min_asize2=0.5_rk*(2*aggr_radius2+1)**2
-      endif
-      if (sctls%maxasize2>0) then
-        max_asize2=sctls%maxasize2
-      else
-        !max_asize2=max_asize1
-        max_asize2=(2*aggr_radius2+1)**2
-      endif
-      call SpMtx_aggregate(AC,cAggr,aggr_radius2, &
-            minaggrsize=min_asize2,          &
-            maxaggrsize=max_asize2,          &
-            alpha=strong_conn2,              &
-            aggr_fine=fAggr)
-      call SpMtx_unscale(AC)
-      !call Aggrs_readFile_coarse(cAggr, "aggregates.txt")
+      call Partitionings_CreateCoarse(P,D,AC)
+      !call Aggrs_readFile_coarse(P%cAggr, "aggregates.txt")
 
       ! profile info
       if(pstream/=0) then
-        write(pstream, "(I0,':coarse aggregates:',I0)") myrank, cAggr%inner%nagr
+        write(pstream, "(I0,':coarse aggregates:',I0)") myrank, P%cAggr%inner%nagr
       end if
 
       if (sctls%plotting==2) then
-         call Aggr_writeFile(fAggr%inner, 'aggr2.txt', cAggr%inner)
+         call Aggr_writeFile(P%fAggr%inner, 'aggr2.txt', P%cAggr%inner)
       end if
       if (sctls%plotting==2.and.D%mesh%nell>0) then
         !print *,'press Key<Enter>'
         !read *,str
-        call Mesh_pl2D_plotAggregate(fAggr%inner,D%mesh,&
+        call Mesh_pl2D_plotAggregate(P%fAggr%inner,D%mesh,&
                         D%A%strong_rowstart,D%A%strong_colnrs,&
                         mctls%assembled_mtx_file, &
-                        caggrnum=cAggr%inner%num, &
+                        caggrnum=P%cAggr%inner%num, &
                       INIT_CONT_END=D_PLPLOT_END)!, &
                       !INIT_CONT_END=D_PLPLOT_CONT)!, &
                                   ! D_PLPLOT_END)
       endif
-      write(stream,*)'# coarse aggregates:',cAggr%inner%nagr
+      write(stream,*)'# coarse aggregates:',P%cAggr%inner%nagr
 
     endif 
   endif
 
+  ! overlap for subdomains
+  if (sctls%overlap<0) then ! autom. overlap from smoothing
+    ol = max(sctls%smoothers,0)
+  else
+    ol = sctls%overlap
+  endif
+
   if (numprocs==1) then
-    DD = Decomposition_from_aggrs(D%A, cAggr%full, fAggr%full, ol)
-    call AggrInfo_Destroy(cAggr)
-    call AggrInfo_Destroy(fAggr)
+    DD = Decomposition_from_aggrs(D%A, P%cAggr%full, P%fAggr%full, ol)
+    call AggrInfo_Destroy(P%cAggr)
+    call AggrInfo_Destroy(P%fAggr)
   else
     DD = Decomposition_full(D%A,D%A_ghost,D%mesh%ninner,ol)
-    ! call Aggrs_writeFile(M, fAggr, cdat, "aggregates.txt")
-    if (sctls%levels>1) call AggrInfo_Destroy(fAggr)
+    ! call Aggrs_writeFile(M, P%fAggr, cdat, "aggregates.txt")
+    if (sctls%levels>1) call AggrInfo_Destroy(P%fAggr)
   end if
 
   ! Testing UMFPACK:

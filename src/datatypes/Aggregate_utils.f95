@@ -1,9 +1,54 @@
+! DOUG - Domain decomposition On Unstructured Grids
+! Copyright (C) 1998-2006 Faculty of Computer Science, University of Tartu and
+! Department of Mathematics, University of Bath
+!
+! This library is free software; you can redistribute it and/or
+! modify it under the terms of the GNU Lesser General Public
+! License as published by the Free Software Foundation; either
+! version 2.1 of the License, or (at your option) any later version.
+!
+! This library is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+! Lesser General Public License for more details.
+!
+! You should have received a copy of the GNU Lesser General Public
+! License along with this library; if not, write to the Free Software
+! Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+! or contact the authors (University of Tartu, Faculty of Computer Science, Chair
+! of Distributed Systems, Liivi 2, 50409 Tartu, Estonia, http://dougdevel.org,
+! mailto:info(at)dougdevel.org)
+
 module Aggregate_utils_mod
   use Aggregate_mod
   use CoarseAllgathers
+  use SpMtx_class
+  use Mesh_class
+  use SpMtx_util
+
   implicit none
 
 contains
+
+  function getLocal(A,M) result(LA)
+    type(SpMtx), intent(in) :: A
+    type(Mesh), intent(in) :: M
+    type(SpMtx) :: LA
+    integer :: i
+    integer,pointer :: indi(:), indj(:)
+    real(kind=rk),pointer :: val(:)
+
+    integer,allocatable :: nodes(:)
+    
+    allocate(nodes(count(M%eptnmap==myrank+1)))
+    nodes = pack((/(i,i=1,size(M%eptnmap))/) , M%eptnmap==myrank+1)
+    call GetGivenRowsElements(A,M%gl_fmap(nodes),indi,indj,val)
+    LA = SpMtx_newInit(size(val),A%nblocks,maxval(indi),maxval(indj),indi=indi,indj=indj,val=val)
+    deallocate(indi,indj,val)
+    !write(stream,*) "---- LA"
+    !call SpMtx_printRaw(LA)
+
+  end function getLocal
 
  !> Write out aggregates to the specified file.
  !! If coarse aggregates are specified then it used to map fine aggregates to 
