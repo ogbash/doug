@@ -242,6 +242,16 @@ endif
         call SpMtx_printRaw(A=A,startnz=A%mtx_bbe(2,2)+1,endnz=A%ol0nnz)
       endif
     endif
+    ! print neighbours
+    if (sctls%verbose>=1) then 
+       write(stream,"(A,I0)") "N neighbours: ", M%nnghbrs
+       do i=1,M%nnghbrs
+          !write(stream,"(A,I0,A,I0,A,I0)") "neighbour ", i, ": ", M%nghbrs(i), ", overlap: ", M%ol_solve(i)%ninds
+          write(stream,"(I0,A,I0,A)",advance="no") M%nghbrs(i)+1, " ", M%ol_inner(i)%ninds+M%ol_outer(i)%ninds, " "
+       end do
+       write(stream,*) ""
+    end if
+
     ! Localise A:
     if (ol<=0) then
       M%ninonol=M%ntobsent

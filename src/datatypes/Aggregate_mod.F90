@@ -115,7 +115,7 @@ CONTAINS
         stat(j)=stat(j)+1
       endif
     enddo
-    if (sctls%verbose>=2) then
+    if (sctls%verbose>=5) then
       do i=1,nagrs
         write(stream,*) &
           'aggregate',i,':',(aggrnodes(j),j=aggrstarts(i),aggrstarts(i+1)-1)
