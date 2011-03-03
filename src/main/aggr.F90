@@ -153,8 +153,12 @@ program main_aggr
     
     ! Testing coarse matrix and aggregation through it:
     if (numprocs>1) then
-      call SpMtx_find_strong(A=D%A,alpha=P%strong_conn1,A_ghost=D%A_ghost,M=D%mesh)
+      
+      call SpMtx_find_strong(A=D%A,alpha=P%strong_conn1,A_ghost=D%A_ghost)
+      call SpMtx_exchange_strong(D%A,D%A_ghost,D%mesh)
+      call SpMtx_symm_strong(D%A,D%A_ghost,.false.)
       call SpMtx_unscale(D%A)
+
       call IntRestBuild(D%A,P%fAggr%inner,Restrict,D%A_ghost)
       CS = CoarseSpace_Init(Restrict)
       call CoarseData_Copy(cdat,cdat_vec)

@@ -830,17 +830,16 @@ print *,'    ========== aggregate ',i,' got removed node by node ============'
 !------------------------------------------------------
 ! Finding strong connections in matrix
 !------------------------------------------------------
-  subroutine SpMtx_find_strong(A,alpha,A_ghost,symmetrise,M)
+  subroutine SpMtx_find_strong(A,alpha,A_ghost,symmetrise)
     Implicit None
     Type(SpMtx),intent(in out) :: A
     float(kind=rk), intent(in) :: alpha
     Type(SpMtx),intent(in out),optional :: A_ghost
-    logical,intent(in),optional :: symmetrise
-    type(Mesh),intent(in),optional :: M
+    logical,optional :: symmetrise
     ! local:
     integer :: i,j,k,start,ending,nnz,ndiags
     logical :: did_scale
-    logical :: simple=.false.,symm=.false.,mirror2ghost=.true.
+    logical :: simple=.false., symm=.false.
     float(kind=rk) :: maxndiag,aa
     did_scale=.false.
     if (A%scaling==D_SpMtx_SCALE_NO.or.A%scaling==D_SpMtx_SCALE_UNDEF) then
@@ -852,10 +851,9 @@ print *,'    ========== aggregate ',i,' got removed node by node ============'
     else
       nnz=A%nnz
     endif
-    if (.not.associated(A%strong)) then
-      allocate(A%strong(nnz))
-    endif
+    
     if (simple) then
+      if (.not.associated(A%strong)) allocate(A%strong(nnz))
       do i=1,nnz
         if (abs(A%val(i))>=alpha) then
           A%strong(i)=.true.
@@ -865,7 +863,8 @@ print *,'    ========== aggregate ',i,' got removed node by node ============'
       enddo
     else ! not the simple case:
       ndiags=max(A%nrows,A%ncols)
-      call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS,sort=.false.)        
+      call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS,sort=.false.) 
+      if (.not.associated(A%strong)) allocate(A%strong(nnz))
       do i=1,A%nrows
         start=A%M_bound(i)
         ending=A%M_bound(i+1)-1
@@ -898,16 +897,26 @@ print *,'    ========== aggregate ',i,' got removed node by node ============'
         enddo
       enddo
     endif
-    !if (did_scale) then
-    !  call SpMtx_unscale(A)
-    !endif
-    if (present(A_ghost).and.associated(A_ghost%indi)) then
-      ! this should only be called once, during local strong calculations
-      call SpMtx_exchange_strong(A,A_ghost,M)
-    end if
     if (present(symmetrise)) then
       symm=symmetrise
     endif
+    call SpMtx_symm_strong(A,A_ghost,symm)
+  end subroutine SpMtx_find_strong
+
+  subroutine SpMtx_symm_strong(A,A_ghost,symm)
+    Type(SpMtx),intent(in out) :: A
+    Type(SpMtx),intent(in out),optional :: A_ghost
+    logical,intent(in) :: symm
+    logical :: mirror2ghost=.true.
+
+    integer :: i,k,nnz
+
+    if (A%mtx_bbe(2,2)>0) then
+      nnz=A%mtx_bbe(2,2)
+    else
+      nnz=A%nnz
+    endif
+
     if (symm) then
       do i=1,nnz
         if (A%arrange_type == D_SpMtx_ARRNG_ROWS) then
@@ -940,7 +949,7 @@ write(stream,*)'symmetrising to strong:',A%indi(i),A%indj(i)
         enddo
       endif
     endif
-  end subroutine SpMtx_find_strong
+  end subroutine SpMtx_symm_strong
   
 !------------------------------------------------------
 End Module SpMtx_aggregation

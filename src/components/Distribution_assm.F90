@@ -363,7 +363,7 @@ endif
     A%ncols=max(0, maxval(A%indj))
     A%arrange_type=D_SpMTX_ARRNG_NO
     if(associated(A%m_bound)) deallocate(A%m_bound) ! without this A_tmp got wrong size of M_bound in pcg()
-    
+    if(associated(A%strong)) deallocate(A%strong)
     if (ol>0) then
       do i=1,A_ghost%nnz
         A_ghost%indi(i)=M%gl_fmap(A_ghost%indi(i))
