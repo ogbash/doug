@@ -1,7 +1,32 @@
-module Distribution_mod
-  use SpMtx_aggregation
+! DOUG - Domain decomposition On Unstructured Grids
+! Copyright (C) 1998-2006 Faculty of Computer Science, University of Tartu and
+! Department of Mathematics, University of Bath
+!
+! This library is free software; you can redistribute it and/or
+! modify it under the terms of the GNU Lesser General Public
+! License as published by the Free Software Foundation; either
+! version 2.1 of the License, or (at your option) any later version.
+!
+! This library is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+! Lesser General Public License for more details.
+!
+! You should have received a copy of the GNU Lesser General Public
+! License along with this library; if not, write to the Free Software
+! Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+! or contact the authors (University of Tartu, Faculty of Computer Science, Chair
+! of Distributed Systems, Liivi 2, 50409 Tartu, Estonia, http://dougdevel.org,
+! mailto:info(at)dougdevel.org)
 
-  Implicit none
+module Distribution_assm_mod
+  use SpMtx_class
+  use SpMtx_aggregation
+  use Graph_class
+  use SpMtx_util
+  use Vect_mod
+
+  implicit none
 
 #include<doug_config.h>
 
@@ -12,10 +37,68 @@ module Distribution_mod
 #define float real
 #endif
 
+  private
+  public :: parallelDistributeAssembledInput
+
 contains
+  !----------------------------------------------------------------
+  !> Distribute assembled matrix and RHS from master to slaves
+  !----------------------------------------------------------------
+  subroutine parallelDistributeAssembledInput(Msh, A, b, A_interf)
+    implicit none
+
+    type(Mesh),     intent(in out) :: Msh !< Mesh
+    type(SpMtx),    intent(in out) :: A !< System matrix
+    float(kind=rk), dimension(:), pointer :: b !< local RHS
+    type(SpMtx),intent(in out),optional :: A_interf !< matrix at interface
+
+    type(AggrInfo) :: aggr
+    integer :: n
+
+    aggr = AggrInfo_New()
+
+    ! ======================
+    ! Read matrix from file
+    ! ======================
+    if (ismaster()) then
+      write(stream,'(a,a)') ' ##### Assembled input file: ##### ', &
+            mctls%assembled_mtx_file
+      call ReadInSparseAssembled(A,trim(mctls%assembled_mtx_file))
+      allocate(b(A%nrows))
+      if (len_trim(mctls%assembled_rhs_file)>0) then
+        write(stream,'(a,a)') ' ##### Assembled RHS file: ##### ', &
+              mctls%assembled_rhs_file
+        call Vect_ReadFromFile(b, trim(mctls%assembled_rhs_file), mctls%assembled_rhs_format)
+      else
+        b=1.0_rk
+      end if
+    endif
+
+    ! =====================
+    ! Build mesh structure/distribute
+    ! =====================
+    if (numprocs==1) then
+      n=sqrt(1.0_rk*A%nrows)
+      if (n*n /= A%nrows) then
+        write (stream,*) 'Not a Cartesian Mesh!!!'
+        Msh=Mesh_New()
+        Msh%ngf=A%nrows
+        Msh%nlf=A%nrows
+        Msh%ninner=Msh%ngf
+      else
+        write (stream,*) 'Cartesian Mesh!!!'
+        call Mesh_BuildSquare(Msh,n)
+        Msh%ninner=Msh%ngf
+      endif
+    else ! numprocs>1
+      Msh=Mesh_New()
+      call SpMtx_DistributeAssembled(A,b,A_interf,Msh,aggr)
+    endif
+
+    call AggrInfo_Destroy(aggr)
+  end subroutine parallelDistributeAssembledInput
+
   subroutine SpMtx_DistributeAssembled(A,b,A_ghost,M,aggr)
-    use Graph_class
-    use Mesh_class
     implicit none
 
     type(SpMtx),intent(inout)           :: A,A_ghost
@@ -290,7 +373,7 @@ endif
     A%ncols=max(0, maxval(A%indj))
     A%arrange_type=D_SpMTX_ARRNG_NO
     if(associated(A%m_bound)) deallocate(A%m_bound) ! without this A_tmp got wrong size of M_bound in pcg()
-    
+    if(associated(A%strong)) deallocate(A%strong)
     if (ol>0) then
       do i=1,A_ghost%nnz
         A_ghost%indi(i)=M%gl_fmap(A_ghost%indi(i))
@@ -324,5 +407,4 @@ endif
       !call DOUG_abort('testing nodal graph partitioning',0)
     endif
   end subroutine SpMtx_DistributeAssembled
-
-end module Distribution_mod
+end module Distribution_assm_mod

@@ -48,7 +48,6 @@ Module Aggregate_mod
   type AggrInfo
     type(Aggrs) :: inner !< aggregates (on all inner freedoms)
     type(Aggrs) :: full !< aggr with holes painted over
-    type(Aggrs) :: expanded !< aggr + neighbours' on overlap
   end type AggrInfo
 
   logical :: debu = .false.
@@ -71,7 +70,6 @@ CONTAINS
     
     aggr%inner = Aggrs_New()
     aggr%full = Aggrs_New()
-    aggr%expanded = Aggrs_New()
   end function AggrInfo_New
 
   subroutine AggrInfo_Destroy(aggr)
@@ -79,7 +77,6 @@ CONTAINS
 
     call Destruct_Aggrs(aggr%inner)
     call Destruct_Aggrs(aggr%full)
-    call Destruct_Aggrs(aggr%expanded)
   end subroutine AggrInfo_Destroy
 
   subroutine Form_Aggr(aggr,nagrs,n,radius,nisolated,aggrnum)

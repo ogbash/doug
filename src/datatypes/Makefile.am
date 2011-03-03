@@ -1,7 +1,7 @@
 
 libdoug_la_SOURCES += \
 	datatypes/Aggregate_mod.F90 \
-	datatypes/Aggregate_utils.f90 \
+	datatypes/Aggregate_utils.f95 \
 	datatypes/Graph.f90 \
 	datatypes/Decomposition.f90 \
 	datatypes/Points2D.F90 \
@@ -12,8 +12,7 @@ libdoug_la_SOURCES += \
 	datatypes/DenseMtx.F90 \
 	datatypes/Hash.f90 \
 	datatypes/BHeap.f90 \
-	datatypes/Vect.F90 \
-	datatypes/Distribution.F90
+	datatypes/Vect.F90
 
 libdoug_la_SOURCES += \
 	datatypes/SpMtx/SpMtx_class.F90 \

@@ -246,6 +246,9 @@ CONTAINS
     M%val(1:Mnnz) = val
     deallocate(val,indj,indi)    
     deallocate(el)
+
+    ! destroy strong
+    if (associated(M%strong)) deallocate(M%strong)
   end subroutine SpMtx_arrange
 
 !------------------------------------------------------
@@ -1009,6 +1012,7 @@ CONTAINS
       allocate(A%M_bound(1))
       A%M_bound(1)=1
     end if
+    
     A%arrange_type=D_SpMtx_ARRNG_ROWS
 
     ! TODO: distribute only needed freedoms
