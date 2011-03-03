@@ -1,80 +1,24 @@
-! DOUG - Domain decomposition On Unstructured Grids
-! Copyright (C) 1998-2006 Faculty of Computer Science, University of Tartu and
-! Department of Mathematics, University of Bath
-!
-! This library is free software; you can redistribute it and/or
-! modify it under the terms of the GNU Lesser General Public
-! License as published by the Free Software Foundation; either
-! version 2.1 of the License, or (at your option) any later version.
-!
-! This library is distributed in the hope that it will be useful,
-! but WITHOUT ANY WARRANTY; without even the implied warranty of
-! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-! Lesser General Public License for more details.
-!
-! You should have received a copy of the GNU Lesser General Public
-! License along with this library; if not, write to the Free Software
-! Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-! or contact the authors (University of Tartu, Faculty of Computer Science, Chair
-! of Distributed Systems, Liivi 2, 50409 Tartu, Estonia, http://dougdevel.org,
-! mailto:info(at)dougdevel.org)
-
-module main_drivers
-
-  use doug_utils
-  use Graph_class
-  use Mesh_class
+module Distribution_elem_mod
+  use Vect_mod
   use Mesh_plot_mod
   use ElemMtxs_mods
-  use SpMtx_mods
-  use Vect_mod
-  use DenseMtx_mod
-  use Distribution_mod
+  use SpMtx_util
 
   implicit none
 
 #include<doug_config.h>
 
+! "on-the-fly" real/complex picking
 #ifdef D_COMPLEX
 #define float complex
 #else
 #define float real
 #endif
 
-  public :: &
-       parallelDistributeInput, &
-       parallelAssembleFromElemInput ! TODO: make private, changing test_SpMtx_symmetry_at_pmvm first
-       
+  private
+  public :: parallelAssembleFromElemInput
+
 contains
-
-  !----------------------------------------------------------------
-  !> Distributes data, chooses algorithm based on input type
-  !----------------------------------------------------------------
-  subroutine parallelDistributeInput(input_type, M, A, b, nparts, part_opts, A_interf)
-    implicit none
-
-    integer,        intent(in)     :: input_type !< Input Type
-    type(Mesh),     intent(in out) :: M !< Mesh
-    type(SpMtx),    intent(out) :: A !< System matrix
-    float(kind=rk), dimension(:), pointer :: b !< local RHS
-    ! Partitioning
-    integer, intent(in) :: nparts !< number of parts to partition a mesh
-    integer, dimension(6), intent(in) :: part_opts !< partition options (see METIS manual)
-    type(SpMtx),intent(in out),optional :: A_interf !< matrix at interface
-
-    A_interf = SpMtx_New()
-
-    select case (input_type)
-    case (DCTL_INPUT_TYPE_ELEMENTAL)
-       ! ELEMENTAL
-       call parallelAssembleFromElemInput(M,A,b,nparts,part_opts,A_interf)
-    case (DCTL_INPUT_TYPE_ASSEMBLED)
-       ! ASSEMBLED
-       call parallelDistributeAssembledInput(M,A,b,A_interf)
-    case default
-       call DOUG_abort('[DOUG main] : Unrecognised input type.', -1)
-    end select
-  end subroutine parallelDistributeInput
 
   !----------------------------------------------------------------
   !> Parallel assemble of system matrix and RHS from elemental input
@@ -231,63 +175,5 @@ contains
     Msh%ninner=Msh%nlf
 
   end subroutine parallelAssembleFromElemInput
-
-
-  !----------------------------------------------------------------
-  !> Distribute assembled matrix and RHS from master to slaves
-  !----------------------------------------------------------------
-  subroutine parallelDistributeAssembledInput(Msh, A, b, A_interf)
-    implicit none
-
-    type(Mesh),     intent(in out) :: Msh !< Mesh
-    type(SpMtx),    intent(in out) :: A !< System matrix
-    float(kind=rk), dimension(:), pointer :: b !< local RHS
-    type(SpMtx),intent(in out),optional :: A_interf !< matrix at interface
-
-    type(AggrInfo) :: aggr
-    integer :: n
-
-    aggr = AggrInfo_New()
-
-    ! ======================
-    ! Read matrix from file
-    ! ======================
-    if (ismaster()) then
-      write(stream,'(a,a)') ' ##### Assembled input file: ##### ', &
-            mctls%assembled_mtx_file
-      call ReadInSparseAssembled(A,trim(mctls%assembled_mtx_file))
-      allocate(b(A%nrows))
-      if (len_trim(mctls%assembled_rhs_file)>0) then
-        write(stream,'(a,a)') ' ##### Assembled RHS file: ##### ', &
-              mctls%assembled_rhs_file
-        call Vect_ReadFromFile(b, trim(mctls%assembled_rhs_file), mctls%assembled_rhs_format)
-      else
-        b=1.0_rk
-      end if
-    endif
-
-    ! =====================
-    ! Build mesh structure/distribute
-    ! =====================
-    if (numprocs==1) then
-      n=sqrt(1.0_rk*A%nrows)
-      if (n*n /= A%nrows) then
-        write (stream,*) 'Not a Cartesian Mesh!!!'
-        Msh=Mesh_New()
-        Msh%ngf=A%nrows
-        Msh%nlf=A%nrows
-        Msh%ninner=Msh%ngf
-      else
-        write (stream,*) 'Cartesian Mesh!!!'
-        call Mesh_BuildSquare(Msh,n)
-        Msh%ninner=Msh%ngf
-      endif
-    else ! numprocs>1
-      Msh=Mesh_New()
-      call SpMtx_DistributeAssembled(A,b,A_interf,Msh,aggr)
-    endif
-
-    call AggrInfo_Destroy(aggr)
-  end subroutine parallelDistributeAssembledInput
-
-end module main_drivers
+  
+end module Distribution_elem_mod

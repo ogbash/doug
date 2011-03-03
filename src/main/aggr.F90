@@ -64,8 +64,9 @@
 program main_aggr
 
   use doug
-  use main_drivers
+  use Distribution_mod
   use Mesh_class
+  use Mesh_plot_mod
   use SpMtx_mods
   use Vect_mod
   use DenseMtx_mod
@@ -89,16 +90,12 @@ program main_aggr
 #define float real
 #endif
 
-  type(Mesh)     :: M  !< Mesh
-
-  type(SpMtx)    :: A,A_ghost  !< System matrix (parallel sparse matrix)
   type(SpMtx)    :: AC  !< coarse matrix
   type(SpMtx)    :: LA  !< matrix without outer nodes
   type(SpMtx)    :: Restrict !< Restriction matrix (for operation)
   type(SumOfInversedSubMtx) :: B_RCS !< B matrix for the Robust Coarse Spaces
   !type(SpMtx)    :: Rest_cmb !< Restriction matrix (for coarse matrix build)
 
-  float(kind=rk), dimension(:), pointer :: b  !< local RHS
   float(kind=rk), dimension(:), pointer :: xl !< local solution vector
   float(kind=rk), dimension(:), pointer :: x  !< global solution on master
   float(kind=rk), dimension(:), pointer :: sol, rhs  !< for testing solver
@@ -127,7 +124,8 @@ program main_aggr
 
   type(AggrInfo) :: fAggr !< fine aggregates
   type(AggrInfo) :: cAggr !< coarse aggregates
-  type(Decomposition) :: DD !< domain decomposition
+  type(Distribution) :: D !< mesh and matrix distribution
+  type(Decomposition) :: DD !< domains
   type(RobustPreconditionMtx) :: C
   type(CoarseSpace) :: CS
   ! Parallel coarse level
@@ -139,7 +137,7 @@ program main_aggr
   ! Master participates in calculations as well
   nparts = numprocs
 
-  call parallelDistributeInput(sctls%input_type,M,A,b,nparts,part_opts,A_ghost)
+  D = Distribution_NewInit(sctls%input_type,nparts,part_opts)
 
   ! overlap for subdomains
   if (sctls%overlap<0) then ! autom. overlap from smoothing
@@ -181,26 +179,26 @@ program main_aggr
     if (numprocs > 1) then
       ! we need to create aggregates only on inner nodes, so use local matrix LA
       !  instead of expanded (to overlap) local matrix A
-      LA = getLocal(A,M)
+      LA = getLocal(D%A,D%mesh)
       call SpMtx_find_strong(A=LA,alpha=strong_conn1)
       call SpMtx_aggregate(LA,fAggr,aggr_radius1, &
            minaggrsize=min_asize1,       &
            maxaggrsize=max_asize1,       &
            alpha=strong_conn1,           &
-           M=M,                          &
+           M=D%mesh,                          &
            plotting=plotting)
       call SpMtx_unscale(LA)
     else
       ! non-parallel case use the whole matrix
-      call SpMtx_find_strong(A=A,alpha=strong_conn1)
-      call SpMtx_aggregate(A,fAggr,aggr_radius1, &
+      call SpMtx_find_strong(A=D%A,alpha=strong_conn1)
+      call SpMtx_aggregate(D%A,fAggr,aggr_radius1, &
             minaggrsize=min_asize1,       &
             maxaggrsize=max_asize1,       &
             alpha=strong_conn1,           &
-            M=M,                          &
+            M=D%mesh,                          &
             plotting=plotting)
-      call SpMtx_unscale(A)
-      !call Aggrs_readFile_fine(A%aggr, "aggregates.txt")
+      call SpMtx_unscale(D%A)
+      !call Aggrs_readFile_fine(D%A%aggr, "aggregates.txt")
     end if
     ! profile info
     if(pstream/=0) then
@@ -208,14 +206,14 @@ program main_aggr
     end if
 
     !if (sctls%plotting>=2) then
-    !   call SpMtx_writeLogicalValues(A, A%strong, 'strong.txt')
+    !   call SpMtx_writeLogicalValues(A, D%A%strong, 'strong.txt')
     !end if
 
-    call Mesh_printInfo(M)
+    call Mesh_printInfo(D%mesh)
     
-    if (numprocs==1.and.sctls%plotting==2.and.M%nell>0) then
-      call Mesh_pl2D_plotAggregate(fAggr%inner,M,&
-                      A%strong_rowstart,A%strong_colnrs,&
+    if (numprocs==1.and.sctls%plotting==2.and.D%mesh%nell>0) then
+      call Mesh_pl2D_plotAggregate(fAggr%inner,D%mesh,&
+                      D%A%strong_rowstart,D%A%strong_colnrs,&
                       mctls%assembled_mtx_file, &
                                  INIT_CONT_END=D_PLPLOT_INIT)
                                  !D_PLPLOT_END)
@@ -223,13 +221,13 @@ program main_aggr
     
     ! Testing coarse matrix and aggregation through it:
     if (numprocs>1) then
-      call SpMtx_find_strong(A=A,alpha=strong_conn1,A_ghost=A_ghost,M=M)
-      call SpMtx_unscale(A)
-      call IntRestBuild(A,fAggr%inner,Restrict,A_ghost)
+      call SpMtx_find_strong(A=D%A,alpha=strong_conn1,A_ghost=D%A_ghost,M=D%mesh)
+      call SpMtx_unscale(D%A)
+      call IntRestBuild(D%A,fAggr%inner,Restrict,D%A_ghost)
       CS = CoarseSpace_Init(Restrict)
       call CoarseData_Copy(cdat,cdat_vec)
-      call CoarseSpace_Expand(CS,Restrict,M,cdat)
-      call CoarseMtxBuild(A,cdat%LAC,Restrict,M%ninner,A_ghost)
+      call CoarseSpace_Expand(CS,Restrict,D%mesh,cdat)
+      call CoarseMtxBuild(D%A,cdat%LAC,Restrict,D%mesh%ninner,D%A_ghost)
       call KeepGivenRowIndeces(Restrict, (/(i,i=1,fAggr%inner%nagr)/))
 
       if (sctls%verbose>3.and.cdat%LAC%nnz<400) then
@@ -241,16 +239,16 @@ program main_aggr
 
     else 
       ! non-parallel
-      call IntRestBuild(A,fAggr%inner,Restrict)
+      call IntRestBuild(D%A,fAggr%inner,Restrict)
 
       if (sctls%coarse_method<=1) then ! if not specified or ==1
-         call CoarseMtxBuild(A,AC,Restrict,M%ninner)
+         call CoarseMtxBuild(D%A,AC,Restrict,D%mesh%ninner)
 
       else if (sctls%coarse_method==2) then
          ! use the Robust Coarse Spaces algorithm
-         B_RCS = CoarseProjectionMtxsBuild(A,Restrict,fAggr%inner%nagr)
-         allocate(rhs_1(A%nrows))
-         allocate(g(A%ncols))
+         B_RCS = CoarseProjectionMtxsBuild(D%A,Restrict,fAggr%inner%nagr)
+         allocate(rhs_1(D%A%nrows))
+         allocate(g(D%A%ncols))
 
          rhs_1 = 1.0
          call pcg_forRCS(B_RCS,rhs_1,g)
@@ -260,7 +258,7 @@ program main_aggr
          end if
 
          call RobustRestrictMtxBuild(B_RCS,g,Restrict)
-         call CoarseMtxBuild(A,AC,Restrict,M%ninner)
+         call CoarseMtxBuild(D%A,AC,Restrict,D%mesh%ninner)
 
       else
          write(stream,'(A," ",I2)') 'Wrong coarse method', sctls%coarse_method
@@ -285,7 +283,7 @@ program main_aggr
       if (sctls%radius2>0) then
         aggr_radius2=sctls%radius2
       else
-         n=sqrt(1.0_rk*A%nrows)
+         n=sqrt(1.0_rk*D%A%nrows)
          aggr_radius2=nint(3*sqrt(dble(n))/(2*aggr_radius1+1)-1)
          write (stream,*) 'Coarse aggregation radius aggr_radius2 =',aggr_radius2
       endif
@@ -318,11 +316,11 @@ program main_aggr
       if (sctls%plotting==2) then
          call Aggr_writeFile(fAggr%inner, 'aggr2.txt', cAggr%inner)
       end if
-      if (sctls%plotting==2.and.M%nell>0) then
+      if (sctls%plotting==2.and.D%mesh%nell>0) then
         !print *,'press Key<Enter>'
         !read *,str
-        call Mesh_pl2D_plotAggregate(fAggr%inner,M,&
-                        A%strong_rowstart,A%strong_colnrs,&
+        call Mesh_pl2D_plotAggregate(fAggr%inner,D%mesh,&
+                        D%A%strong_rowstart,D%A%strong_colnrs,&
                         mctls%assembled_mtx_file, &
                         caggrnum=cAggr%inner%num, &
                       INIT_CONT_END=D_PLPLOT_END)!, &
@@ -335,41 +333,41 @@ program main_aggr
   endif
 
   if (numprocs==1) then
-    DD = Decomposition_from_aggrs(A, cAggr%full, fAggr%full, ol)
+    DD = Decomposition_from_aggrs(D%A, cAggr%full, fAggr%full, ol)
     call AggrInfo_Destroy(cAggr)
     call AggrInfo_Destroy(fAggr)
   else
-    DD = Decomposition_full(A,A_ghost,M%ninner,ol)
+    DD = Decomposition_full(D%A,D%A_ghost,D%mesh%ninner,ol)
     ! call Aggrs_writeFile(M, fAggr, cdat, "aggregates.txt")
     if (sctls%levels>1) call AggrInfo_Destroy(fAggr)
   end if
 
   ! Testing UMFPACK:
-  allocate(sol(A%nrows))
-  allocate(rhs(A%ncols))
+  allocate(sol(D%A%nrows))
+  allocate(rhs(D%A%ncols))
 
   ! Solve the system
-  allocate(xl(M%nlf))
+  allocate(xl(D%mesh%nlf))
   xl = 0.0_rk
 
   select case(sctls%solver)
   case (DCTL_SOLVE_CG)
      ! Conjugate gradient
-     call cg(A, b, xl, M, solinf=resStat, resvects_=.true.)
+     call cg(D%A, D%rhs, xl, D%mesh, solinf=resStat, resvects_=.true.)
      !call cg(A, b, xl, M, solinf=resStat)
   case (DCTL_SOLVE_PCG)
      ! Preconditioned conjugate gradient
      t1 = MPI_WTIME()
      if (sctls%levels==2) then
        write(stream,*)'calling pcg_weigs with coarse matrix'
-       call pcg_weigs(A=A,b=b,x=xl,Msh=M,DomDec=DD,it=it,cond_num=cond_num, &
-            A_interf_=A_ghost, &
+       call pcg_weigs(A=D%A,b=D%rhs,x=xl,Msh=D%mesh,DomDec=DD,it=it,cond_num=cond_num, &
+            A_interf_=D%A_ghost, &
             CoarseMtx_=AC,Restrict=Restrict, &
             refactor_=.true.)
      else
        write(stream,*)'calling pcg_weigs'
-       call pcg_weigs(A, b, xl, M,DD,it,cond_num, &
-            A_interf_=A_ghost, refactor_=.true.)
+       call pcg_weigs(D%A, D%rhs, xl, D%mesh,DD,it,cond_num, &
+            A_interf_=D%A_ghost, refactor_=.true.)
      endif
      t=MPI_WTIME()-t1
      write(stream,*) 'time spent in pcg():',t
@@ -385,10 +383,10 @@ program main_aggr
   if (numprocs>1) then
     ! Assemble result on master
     if (ismaster()) then
-       print *, "freedoms", M%ngf
-      allocate(x(M%ngf)); x = 0.0_rk
+       print *, "freedoms", D%mesh%ngf
+      allocate(x(D%mesh%ngf)); x = 0.0_rk
     end if
-    call Vect_Gather(xl, x, M)
+    call Vect_Gather(xl, x, D%mesh)
     if (ismaster().and.sctls%verbose>2.and.(size(x) <= 100)) &
       call Vect_Print(x, 'sol > ')
     if (ismaster()) then
@@ -404,10 +402,9 @@ program main_aggr
 
 
   ! Destroy objects
-  call Mesh_Destroy(M)
-  call SpMtx_Destroy(A)
+  call Mesh_Destroy(D%mesh)
+  call SpMtx_Destroy(D%A)
   call ConvInf_Destroy(resStat)
-  if (associated(b)) deallocate(b)
   if (associated(xl)) deallocate(xl)
   if (associated(x)) deallocate(x)
   if (associated(sol)) deallocate(sol)

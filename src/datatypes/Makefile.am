@@ -12,8 +12,7 @@ libdoug_la_SOURCES += \
 	datatypes/DenseMtx.F90 \
 	datatypes/Hash.f90 \
 	datatypes/BHeap.f90 \
-	datatypes/Vect.F90 \
-	datatypes/Distribution.F90
+	datatypes/Vect.F90
 
 libdoug_la_SOURCES += \
 	datatypes/SpMtx/SpMtx_class.F90 \

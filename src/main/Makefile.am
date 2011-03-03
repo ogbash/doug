@@ -5,7 +5,6 @@
 bin_PROGRAMS = doug_geom doug_aggr
 
 doug_geom_SOURCES = \
-	main_drivers.F90 \
 	DOUG.f90 \
 	geom.F90
 
@@ -13,7 +12,6 @@ doug_geom_FCFLAGS=-I.. @FCFLAGS_F95@
 doug_geom_LDADD=../libdoug.la
 
 doug_aggr_SOURCES = \
-	main_drivers.F90 \
 	DOUG.f90 \
 	aggr_util.f95 \
 	aggr.F90

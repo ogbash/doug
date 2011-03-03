@@ -29,8 +29,9 @@
 program main_geom
 
   use doug
-  use main_drivers
+  use Distribution_mod
   use Mesh_class
+  use Mesh_plot_mod
   use SpMtx_mods
   use Vect_mod
   use DenseMtx_mod
@@ -52,13 +53,9 @@ program main_geom
 #define float real
 #endif
 
-  type(Mesh), target     :: M  !< Mesh
-
-  type(SpMtx)    :: A, A_interf  ! System matrix (parallel sparse matrix)
   type(SpMtx)    :: AC  ! Coarse matrix
   type(SpMtx)    :: Restrict ! Restriction matrix
 
-  float(kind=rk), dimension(:), pointer :: b  ! local RHS
   float(kind=rk), dimension(:), pointer :: xl ! local solution vector
   float(kind=rk), dimension(:), pointer :: x  ! global solution on master
 
@@ -75,6 +72,7 @@ program main_geom
   real(kind=rk), dimension(:), pointer :: r, y
   float(kind=rk), dimension(:), pointer :: yc, gyc, ybuf
 
+  type(Distribution) :: D !< mesh and matrix distribution
   type(Decomposition) :: DD !< domains
 
   ! Aggregation
@@ -98,7 +96,7 @@ program main_geom
   ! Master participates in calculations as well
   nparts = numprocs
 
-  call parallelDistributeInput(sctls%input_type,M,A,b,nparts,part_opts,A_interf)
+  D = Distribution_NewInit(sctls%input_type,nparts,part_opts)
 
   if(pstream/=0) write(pstream, "(I0,':distribute time:',F0.3)") myrank, MPI_WTIME()-t1
 
@@ -108,11 +106,11 @@ program main_geom
   else
     ol = sctls%overlap
   endif
-  DD = Decomposition_full(A,A_interf,M%ninner,ol)
+  DD = Decomposition_full(D%A,D%A_ghost,D%mesh%ninner,ol)
 
   ! conversion from elemental form to assembled matrix wanted?
   if (mctls%dump_matrix_only.eqv..true.) then
-     call SpMtx_writeMatrix(A)
+     call SpMtx_writeMatrix(D%A)
      call DOUG_Finalize()
      stop
   end if
@@ -130,16 +128,16 @@ program main_geom
     if (ismaster()) then
       if (sctls%verbose>0) write (stream,*) "Building coarse grid"
 
-      call CreateCoarse(M,C)
+      call CreateCoarse(D%mesh,C)
 
       if (sctls%plotting>0) then
-          call Mesh_pl2D_plotMesh(M,D_PLPLOT_INIT)
+          call Mesh_pl2D_plotMesh(D%mesh,D_PLPLOT_INIT)
           call CoarseGrid_pl2D_plotMesh(C,D_PLPLOT_END)
       endif
 
       if (sctls%verbose>1) &
            write (stream,*) "Sending parts of the coarse grid to other threads"   
-      call SendCoarse(C,M,LC)
+      call SendCoarse(C,D%mesh,LC)
 
 !      if (sctls%verbose>1) write (stream,*) "Creating a local coarse grid"
 !      call CoarseGrid_Destroy(LC)
@@ -151,34 +149,34 @@ program main_geom
 
     else
       if (sctls%verbose>0) write (stream,*) "Recieving coarse grid data"
-      call  ReceiveCoarse(LC, M)
+      call  ReceiveCoarse(LC, D%mesh)
     endif       
       if (sctls%plotting>1 .and. ismaster()) call CoarseGrid_pl2D_plotMesh(LC)
 
       if (sctls%verbose>0) write (stream,*) "Creating Restriction matrix"
-      call CreateRestrict(LC,M,Restrict)
+      call CreateRestrict(LC,D%mesh,Restrict)
 
       if (sctls%verbose>1) write (stream,*) "Cleaning Restriction matrix"
-      call CleanCoarse(LC,Restrict,M)
+      call CleanCoarse(LC,Restrict,D%mesh)
 
       if (sctls%verbose>0)  write (stream,*) "Building coarse matrix"
-      call CoarseMtxBuild(A,cdat%LAC,Restrict,M%ninner)
+      call CoarseMtxBuild(D%A,cdat%LAC,Restrict,D%mesh%ninner)
 
       if (sctls%verbose>1) write (stream, *) "Stripping the restriction matrix"
-      call StripRestrict(M,Restrict)
+      call StripRestrict(D%mesh,Restrict)
 
       if (sctls%verbose>0) write (stream,*) "Transmitting local-to-global maps"
 
-      allocate(cdat%cdisps(M%nparts+1))
-      cdat%send=SendData_New(M%nparts)
+      allocate(cdat%cdisps(D%mesh%nparts+1))
+      cdat%send=SendData_New(D%mesh%nparts)
       cdat%lg_cfmap=>LC%lg_fmap
       cdat%gl_cfmap=>LC%gl_fmap
-      cdat%nprocs=M%nparts
+      cdat%nprocs=D%mesh%nparts
       cdat%ngfc=LC%ngfc
       cdat%nlfc=LC%nlfc
       cdat%active=.true.
  
-      call AllSendCoarselgmap(LC%lg_fmap,LC%nlfc,M%nparts,&
+      call AllSendCoarselgmap(LC%lg_fmap,LC%nlfc,D%mesh%nparts,&
                               cdat%cdisps,cdat%glg_cfmap,cdat%send)
       call AllRecvCoarselgmap(cdat%send)
 
@@ -186,14 +184,14 @@ program main_geom
   endif
 
   ! Solve the system
-  allocate(xl(M%nlf)); xl = 0.0_rk
+  allocate(xl(D%mesh%nlf)); xl = 0.0_rk
 
   select case(sctls%solver)
   case (DCTL_SOLVE_CG)
 
      ! Conjugate gradient
      !call cg(A, b, xl, M, solinf=resStat, resvects_=.true.)
-     call cg(A, b, xl, M, solinf=resStat)
+     call cg(D%A, D%rhs, xl, D%mesh, solinf=resStat)
 
   case (DCTL_SOLVE_PCG)
 
@@ -204,13 +202,13 @@ program main_geom
 
      if (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL .and. &
                         sctls%levels==2) then
-       call pcg_weigs(A=A,b=b,x=xl,Msh=M,DomDec=DD,it=it,cond_num=cond_num, &
-                      A_interf_=A_interf,CoarseMtx_=AC,Restrict=Restrict, &
+       call pcg_weigs(A=D%A,b=D%rhs,x=xl,Msh=D%mesh,DomDec=DD,it=it,cond_num=cond_num, &
+                      A_interf_=D%A_ghost,CoarseMtx_=AC,Restrict=Restrict, &
                       refactor_=.true.)
 !                     refactor_=.true., cdat_=cdat)
      else
-       call pcg_weigs(A=A,b=b,x=xl,Msh=M,DomDec=DD,it=it,cond_num=cond_num, &
-                        A_interf_=A_interf,refactor_=.true.)
+       call pcg_weigs(A=D%A,b=D%rhs,x=xl,Msh=D%mesh,DomDec=DD,it=it,cond_num=cond_num, &
+                        A_interf_=D%A_ghost,refactor_=.true.)
      endif
 
      write(stream,*) 'time spent in pcg():',MPI_WTIME()-t1
@@ -224,8 +222,8 @@ program main_geom
 
   ! Calculate solution residual (in parallel)
   allocate(r(size(xl)), y(size(xl)))
-  call SpMtx_pmvm(y, A, xl, M)
-  r = y - b
+  call SpMtx_pmvm(y, D%A, xl, D%mesh)
+  r = y - D%rhs
   res_norm_local = Vect_dot_product(r, r)
   deallocate(r, y)
 
@@ -234,9 +232,9 @@ program main_geom
 
   ! Assemble result on master and write it to screen and/or file
   if (ismaster()) then
-     allocate(x(M%ngf)); x = 0.0_rk
+     allocate(x(D%mesh%ngf)); x = 0.0_rk
   end if
-  call Vect_Gather(xl, x, M)
+  call Vect_Gather(xl, x, D%mesh)
   if (ismaster().and.(size(x) <= 100).and.(D_MSGLVL > 0)) &
        call Vect_Print(x, 'solution ')
   if (ismaster()) then
@@ -267,8 +265,8 @@ program main_geom
 !!$  end if
 
   ! Destroy objects
-  call Mesh_Destroy(M)
-  call SpMtx_Destroy(A)
+  call Mesh_Destroy(D%mesh)
+  call SpMtx_Destroy(D%A)
 
   if (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL .and. sctls%levels==2) then
       call SpMtx_Destroy(AC)
@@ -281,7 +279,7 @@ program main_geom
 
   call ConvInf_Destroy(resStat)
   call Vect_cleanUp()
-  deallocate(b, xl)
+  deallocate(D%rhs, xl)
 
   if(pstream/=0) write(pstream, "(I0,':total time:',F0.3)") myrank, MPI_WTIME()-time
 
