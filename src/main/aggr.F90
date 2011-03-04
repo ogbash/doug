@@ -66,6 +66,7 @@ program main_aggr
   use doug
   use Distribution_mod
   use Partitioning_mod
+  use Preconditioner_mod
   use Mesh_class
   use Mesh_plot_mod
   use SpMtx_mods
@@ -114,8 +115,8 @@ program main_aggr
   integer,allocatable :: nodes(:), inds(:)
 
   type(Distribution) :: D !< mesh and matrix distribution
-  type(Decomposition) :: DD !< domains
   type(Partitionings) :: P !< fine and coarse aggregates
+  type(FinePreconditioner) :: FP
   type(RobustPreconditionMtx) :: C
   type(CoarseSpace) :: CS
   ! Parallel coarse level
@@ -243,12 +244,13 @@ program main_aggr
     ol = sctls%overlap
   endif
 
+  FP = FinePreconditioner_New()
   if (numprocs==1) then
-    DD = Decomposition_from_aggrs(D%A, P%cAggr%full, P%fAggr%full, ol)
+    call FinePreconditioner_InitAggrs(FP, D, P, ol)
     call AggrInfo_Destroy(P%cAggr)
     call AggrInfo_Destroy(P%fAggr)
   else
-    DD = Decomposition_full(D%A,D%A_ghost,D%mesh%ninner,ol)
+    call FinePreconditioner_InitFull(FP, D, ol)
     ! call Aggrs_writeFile(M, P%fAggr, cdat, "aggregates.txt")
     if (sctls%levels>1) call AggrInfo_Destroy(P%fAggr)
   end if
@@ -271,13 +273,13 @@ program main_aggr
      t1 = MPI_WTIME()
      if (sctls%levels==2) then
        write(stream,*)'calling pcg_weigs with coarse matrix'
-       call pcg_weigs(A=D%A,b=D%rhs,x=xl,Msh=D%mesh,DomDec=DD,it=it,cond_num=cond_num, &
+       call pcg_weigs(A=D%A,b=D%rhs,x=xl,Msh=D%mesh,DomDec=FP%domains,it=it,cond_num=cond_num, &
             A_interf_=D%A_ghost, &
             CoarseMtx_=AC,Restrict=Restrict, &
             refactor_=.true.)
      else
        write(stream,*)'calling pcg_weigs'
-       call pcg_weigs(D%A, D%rhs, xl, D%mesh,DD,it,cond_num, &
+       call pcg_weigs(D%A, D%rhs, xl, D%mesh,FP%domains,it,cond_num, &
             A_interf_=D%A_ghost, refactor_=.true.)
      endif
      t=MPI_WTIME()-t1

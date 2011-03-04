@@ -1,5 +1,5 @@
 !> Datatypes that hold domain decomposition for Schwarz (first-level) preconidioners.
-module decomposition_mod
+module Decomposition_mod
   use globals
   use Aggregate_mod
   use SpMtx_class
@@ -203,4 +203,4 @@ contains
     onnodes = frontend(nlayers)
   end subroutine Add_layers
 
-end module decomposition_mod
+end module Decomposition_mod
