@@ -19,23 +19,40 @@
 ! of Distributed Systems, Liivi 2, 50409 Tartu, Estonia, http://dougdevel.org,
 ! mailto:info(at)dougdevel.org)
 
-!> Interface file for preconditioner component.
-module Preconditioner_mod
+!> Schwarz preconditioner with complete subsolves.
+module FinePreconditioner_complete_mod
   use Preconditioner_base_mod
-  
+  use subsolvers
+
   implicit none
 
 contains
+  !> Create preconditioner with complete solves.
+  subroutine FinePreconditioner_complete_Init(FP)
+    type(FinePreconditioner),intent(inout) :: FP
+    
+    allocate(FP%complete)
+    FP%complete%factored = .false.
+    FP%complete%nsubsolves = 0
+    FP%complete%subsolve_ids => NULL()
+  end subroutine FinePreconditioner_complete_Init
 
-  ! Apply preconditioner.
-  subroutine FinePreconditioner_Apply(FP, sol, rhs)
-    use FinePreconditioner_complete_mod
+  !> Apply preconditioner.
+  subroutine FinePreconditioner_complete_Apply(FP, sol, rhs)
     type(FinePreconditioner),intent(in) :: FP
     real(kind=rk),dimension(:),pointer :: sol !< solution
     real(kind=rk),dimension(:),pointer :: rhs !< right hand side
+    
+    if (.not.FP%complete%factored) then!{
+      if (sctls%verbose>4) write(stream,*) "Factorizing 1. level"
+      call Factorise_subdomains(FP%domains, FP%distr%A, FP%distr%A_ghost, &
+           FP%complete%subsolve_ids)
+      FP%complete%factored=.false.
+    end if
 
-    ! currently only one implementation
-    call FinePreconditioner_complete_Apply(FP, sol, rhs)
-  end subroutine FinePreconditioner_Apply
+    ! solve
+    if (sctls%verbose>4) write(stream,*) "Solving 1. level"
+    call solve_subdomains(sol,FP%domains,FP%complete%subsolve_ids,rhs)
 
-end module Preconditioner_mod
+  end subroutine FinePreconditioner_complete_Apply
+end module FinePreconditioner_complete_mod

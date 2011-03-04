@@ -42,6 +42,8 @@ program main_geom
   use CreateCoarseGrid
   use CoarseCreateRestrict
   use CoarseMtx_mod
+  use Preconditioner_mod
+  use FinePreconditioner_complete_mod
 
   implicit none
 
@@ -73,7 +75,7 @@ program main_geom
   float(kind=rk), dimension(:), pointer :: yc, gyc, ybuf
 
   type(Distribution) :: D !< mesh and matrix distribution
-  type(Decomposition) :: DD !< domains
+  type(FinePreconditioner) :: FP !< fine preconditioner
 
   ! Aggregation
   integer :: nagrs
@@ -106,7 +108,9 @@ program main_geom
   else
     ol = sctls%overlap
   endif
-  DD = Decomposition_full(D%A,D%A_ghost,D%mesh%ninner,ol)
+  FP = FinePreconditioner_New(D)
+  call FinePreconditioner_InitFull(FP, D, ol)
+  call FinePreconditioner_complete_Init(FP)
 
   ! conversion from elemental form to assembled matrix wanted?
   if (mctls%dump_matrix_only.eqv..true.) then
@@ -202,12 +206,12 @@ program main_geom
 
      if (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL .and. &
                         sctls%levels==2) then
-       call pcg_weigs(A=D%A,b=D%rhs,x=xl,Msh=D%mesh,DomDec=DD,it=it,cond_num=cond_num, &
+       call pcg_weigs(A=D%A,b=D%rhs,x=xl,Msh=D%mesh,finePrec=FP,it=it,cond_num=cond_num, &
                       A_interf_=D%A_ghost,CoarseMtx_=AC,Restrict=Restrict, &
                       refactor_=.true.)
 !                     refactor_=.true., cdat_=cdat)
      else
-       call pcg_weigs(A=D%A,b=D%rhs,x=xl,Msh=D%mesh,DomDec=DD,it=it,cond_num=cond_num, &
+       call pcg_weigs(A=D%A,b=D%rhs,x=xl,Msh=D%mesh,finePrec=FP,it=it,cond_num=cond_num, &
                         A_interf_=D%A_ghost,refactor_=.true.)
      endif
 

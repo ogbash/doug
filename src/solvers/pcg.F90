@@ -29,6 +29,7 @@ module pcg_mod
   use Mesh_class
   use globals
   use subsolvers
+  use Preconditioner_mod
 
   implicit none
 
@@ -48,27 +49,6 @@ module pcg_mod
   real(kind=rk), private, save :: time_preconditioner = 0
 
 contains
-
-  subroutine prec1Level(DD,sol,A,rhs,A_ghost,refactor)
-    implicit none
-    type(Decomposition),intent(inout) :: DD !< domains
-    real(kind=rk),dimension(:),pointer :: sol !< solution
-    type(SpMtx)                        :: A   !< sparse system matrix
-    real(kind=rk),dimension(:),pointer :: rhs !< right hand side
-    type(SpMtx),optional               :: A_ghost  !< matr@interf.
-    logical,intent(inout),optional :: refactor
-
-    if (refactor) then!{
-      if (sctls%verbose>4) write(stream,*) "Factorizing 1. level"
-      call Factorise_subdomains(DD,A,A_ghost)
-      refactor=.false.
-    end if
-
-    ! solve
-    if (sctls%verbose>4) write(stream,*) "Solving 1. level"
-    call solve_subdomains(sol,DD,rhs)
-
-  end subroutine prec1Level
 
   subroutine prec2Level(prepare,A,sol,rhs,res,CoarseMtx_,Restrict,isFirstIter)
     use CoarseAllgathers
@@ -239,7 +219,7 @@ contains
   !-------------------------------
   !> Make preconditioner
   !-------------------------------
-  subroutine preconditioner(sol,A,rhs,M,DD,&
+  subroutine preconditioner(sol,A,rhs,M,finePrec,&
                A_ghost,CoarseMtx_,Restrict,refactor,bugtrack_)
     use CoarseAllgathers
     use CoarseMtx_mod
@@ -249,7 +229,7 @@ contains
     type(SpMtx)                        :: A   !< sparse system matrix
     real(kind=rk),dimension(:),pointer :: rhs !< right hand side
     type(Mesh),intent(in)              :: M   !< Mesh
-    type(Decomposition),intent(inout) :: DD !< domains
+    type(FinePreconditioner),intent(inout) :: finePrec !< fine level preconditioner
     real(kind=rk),dimension(:),pointer :: res !< residual vector, allocated
                                               !! here for multiplicative Schwarz
     type(SpMtx),optional               :: A_ghost  !< matr@interf.
@@ -290,7 +270,7 @@ contains
     end if
 
     ! first level prec
-    call prec1Level(DD,sol,A,rhs,A_ghost,refactor)
+    call FinePreconditioner_apply(finePrec,sol,rhs)
 
     if (sctls%levels>1) then
       call prec2Level(.false.,A,sol,rhs,res,CoarseMtx_,Restrict,isFirstIter)
@@ -317,7 +297,7 @@ contains
   !--------------------------
   !> Preconditioned conjugent gradient method with eigenvalues
   !--------------------------
-  subroutine pcg_weigs (A,b,x,Msh,DomDec,it,cond_num,A_interf_,tol_,maxit_, &
+  subroutine pcg_weigs (A,b,x,Msh,finePrec,it,cond_num,A_interf_,tol_,maxit_, &
        x0_,solinf,resvects_,CoarseMtx_,Restrict,refactor_)
     use CoarseAllgathers
 
@@ -327,7 +307,7 @@ contains
     float(kind=rk),dimension(:),pointer :: b !< right hand side
     float(kind=rk),dimension(:),pointer :: x !< Solution
     type(Mesh),intent(in)               :: Msh !< Mesh - aux data for Ax operation
-    type(Decomposition),intent(inout)   :: DomDec !< Domain decomposition
+    type(FinePreconditioner),intent(inout)   :: finePrec !< fine level preconditioner
 
     integer,intent(out) :: it
     real(kind=rk),intent(out) :: cond_num
@@ -443,7 +423,7 @@ if (bugtrack)call Print_Glob_Vect(r,Msh,'global r===',chk_endind=Msh%ninner)
                             A=A,          &
                           rhs=r,          &
                             M=Msh,        &
-                            DD=DomDec, &
+                            finePrec=finePrec, &
                     A_ghost=A_interf_,  &
                    CoarseMtx_=CoarseMtx_, &
                     Restrict=Restrict,    &

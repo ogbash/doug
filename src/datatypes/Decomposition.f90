@@ -8,8 +8,6 @@ module Decomposition_mod
 
   !> Definition of subdomains and factorizations (solves) of subdomain matrices.
   type Decomposition
-    integer                          :: nsubsolves !< number of subdomain solves
-    integer, dimension(:), pointer   :: subsolve_ids !< numeric object handles of (UMFPACK,...) factorizations
     type(indlist),dimension(:),pointer :: subd !< subdomain indices for each subdomain
   end type Decomposition
 
@@ -24,15 +22,12 @@ contains
   function Decomposition_New() result(DD)
     type(Decomposition) :: DD
 
-    DD%nsubsolves = 0
-    DD%subsolve_ids => NULL()
     DD%subd => NULL()
   end function Decomposition_New
 
   subroutine Decomposition_Destroy(DD)
     type(Decomposition), intent(inout) :: DD
     
-    if (associated(DD%subsolve_ids)) deallocate(DD%subsolve_ids)
     if (associated(DD%subd))    deallocate(DD%subd)
   end subroutine Decomposition_Destroy
 
@@ -77,9 +72,6 @@ contains
     allocate(nodes(nnodes))
 
     DD = Decomposition_New()
-    DD%nsubsolves=1
-    allocate(DD%subsolve_ids(1))
-    DD%subsolve_ids=0
     allocate(DD%subd(1))
 
     call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS,sort=.false.)
@@ -109,10 +101,6 @@ contains
     allocate(nodes(A%nrows))
 
     DD = Decomposition_New()
-
-    DD%nsubsolves=cAggrs%nagr
-    allocate(DD%subsolve_ids(cAggrs%nagr))
-    DD%subsolve_ids=0
     allocate(DD%subd(cAggrs%nagr))
 
     call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS,sort=.false.)

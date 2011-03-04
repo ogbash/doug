@@ -51,49 +51,50 @@ module subsolvers
 
 contains
 
-  subroutine Solve_subdomains(sol,DD,rhs)
-    type(Decomposition),intent(in) :: DD
+  subroutine Solve_subdomains(sol,DD,subsolve_ids,rhs)
+    type(Decomposition),intent(in) :: DD !< subdomains
+    integer, dimension(:), pointer   :: subsolve_ids !< numeric object handles of (UMFPACK,...) factorizations
     real(kind=rk),dimension(:),pointer :: sol,rhs
+
     ! ----- local: ------
-    logical :: dofactorise
-    integer :: sd,n
+    integer :: sd,n,nsubsolves
 
     real(kind=rk),pointer :: subrhs(:),subsol(:)
 
     ! solve
-    allocate(subrhs(maxval(DD%subd(1:DD%nsubsolves)%ninds)))
-    allocate(subsol(maxval(DD%subd(1:DD%nsubsolves)%ninds)))
-    do sd=1,DD%nsubsolves
+    nsubsolves = size(subsolve_ids)
+    allocate(subrhs(maxval(DD%subd(1:nsubsolves)%ninds)))
+    allocate(subsol(maxval(DD%subd(1:nsubsolves)%ninds)))
+    do sd=1,nsubsolves
       n=DD%subd(sd)%ninds
       subrhs(1:n)=rhs(DD%subd(sd)%inds(1:n))
-      call Fact_solve(fakts(DD%subsolve_ids(sd)),subrhs,subsol)
+      call Fact_solve(fakts(subsolve_ids(sd)),subrhs,subsol)
       sol(DD%subd(sd)%inds(1:n))=sol(DD%subd(sd)%inds(1:n))+subsol(1:n)
     enddo
     deallocate(subrhs,subsol)
 
   end subroutine Solve_subdomains
 
-  subroutine Factorise_subdomains(DD,A,A_ghost)
-    type(Decomposition),intent(inout) :: DD
+  subroutine Factorise_subdomains(DD,A,A_ghost,subsolve_ids)
+    type(Decomposition),intent(in) :: DD
     type(SpMtx),intent(in) :: A
     type(SpMtx),optional :: A_ghost
+    integer, dimension(:), pointer   :: subsolve_ids !< numeric object handles of (UMFPACK,...) factorizations
 
-    integer :: cAggr, ol, i, nagr
+    integer :: cAggr, ol, i, nagr, nsubsolves
     double precision :: t1
 
     setuptime=0.0_rk
     factorisation_time=0.0_rk
     t1 = MPI_WTime()
+    
+    nsubsolves = size(DD%subd)
+    allocate(subsolve_ids(nsubsolves))
+    subsolve_ids = 0
 
-    if (sctls%overlap<0) then ! autom. overlap from smoothing
-      ol = max(sctls%smoothers,0)
-    else
-      ol = sctls%overlap
-    endif
-
-    do i=1,DD%nsubsolves 
+    do i=1,nsubsolves
       setuptime=setuptime+(MPI_WTIME()-t1) ! switchoff clock
-      call Factorise_subdomain(A,DD%subd(i)%inds,DD%subsolve_ids(i),A_ghost)
+      call Factorise_subdomain(A,DD%subd(i)%inds,subsolve_ids(i),A_ghost)
       t1 = MPI_WTIME() ! switchon clock
     end do
 

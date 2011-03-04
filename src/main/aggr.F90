@@ -67,6 +67,7 @@ program main_aggr
   use Distribution_mod
   use Partitioning_mod
   use Preconditioner_mod
+  use FinePreconditioner_complete_mod
   use Mesh_class
   use Mesh_plot_mod
   use SpMtx_mods
@@ -244,13 +245,15 @@ program main_aggr
     ol = sctls%overlap
   endif
 
-  FP = FinePreconditioner_New()
+  FP = FinePreconditioner_New(D)
   if (numprocs==1) then
     call FinePreconditioner_InitAggrs(FP, D, P, ol)
+    call FinePreconditioner_complete_Init(FP)
     call AggrInfo_Destroy(P%cAggr)
     call AggrInfo_Destroy(P%fAggr)
   else
     call FinePreconditioner_InitFull(FP, D, ol)
+    call FinePreconditioner_complete_Init(FP)
     ! call Aggrs_writeFile(M, P%fAggr, cdat, "aggregates.txt")
     if (sctls%levels>1) call AggrInfo_Destroy(P%fAggr)
   end if
@@ -273,13 +276,13 @@ program main_aggr
      t1 = MPI_WTIME()
      if (sctls%levels==2) then
        write(stream,*)'calling pcg_weigs with coarse matrix'
-       call pcg_weigs(A=D%A,b=D%rhs,x=xl,Msh=D%mesh,DomDec=FP%domains,it=it,cond_num=cond_num, &
+       call pcg_weigs(A=D%A,b=D%rhs,x=xl,Msh=D%mesh,finePrec=FP,it=it,cond_num=cond_num, &
             A_interf_=D%A_ghost, &
             CoarseMtx_=AC,Restrict=Restrict, &
             refactor_=.true.)
      else
        write(stream,*)'calling pcg_weigs'
-       call pcg_weigs(D%A, D%rhs, xl, D%mesh,FP%domains,it,cond_num, &
+       call pcg_weigs(D%A, D%rhs, xl, D%mesh,FP,it,cond_num, &
             A_interf_=D%A_ghost, refactor_=.true.)
      endif
      t=MPI_WTIME()-t1
