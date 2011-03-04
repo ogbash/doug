@@ -47,7 +47,7 @@ contains
       if (sctls%verbose>4) write(stream,*) "Factorizing 1. level"
       call Factorise_subdomains(FP%domains, FP%distr%A, FP%distr%A_ghost, &
            FP%complete%subsolve_ids)
-      FP%complete%factored=.false.
+      FP%complete%factored=.true.
     end if
 
     ! solve
