@@ -47,11 +47,18 @@ module Preconditioner_base_mod
   end type FinePreconditioner
 
   ! -------- Coarse preconditioner
+  integer,parameter :: COARSE_PRECONDITIONER_TYPE_NONE=0, &
+       COARSE_PRECONDITIONER_TYPE_SMOOTH=1, &
+       COARSE_PRECONDITIONER_TYPE_GEOMETRIC=2, &
+       COARSE_PRECONDITIONER_TYPE_ROBUST=3
 
   !> Base type for fine level preconditioner.
   type CoarsePreconditioner
+    integer :: type !< coarse preconditioner type
     type(CoarseData) :: cdat !<coarse data -- includes overlap
     type(CoarseData) :: cdat_vec !<coarse data -- w/o overlap, for vector collects
+    type(SpMtx) :: R !< Restriction matrix
+    type(SpMtx) :: AC !< Coarse matrix
 
     ! implementations
     !type(CoarsePreconditioner_smooth),pointer :: smooth
@@ -89,5 +96,12 @@ contains
     FP%domains = Decomposition_from_aggrs(D%A, P%cAggr%full, P%fAggr%full, ol)
 
   end subroutine FinePreconditioner_InitAggrs
+
+  function CoarsePreconditioner_New() result (CP)
+    type(CoarsePreconditioner) :: CP
+
+    CP%type = COARSE_PRECONDITIONER_TYPE_NONE
+
+  end function CoarsePreconditioner_New
 
 end module Preconditioner_base_mod

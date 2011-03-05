@@ -50,7 +50,7 @@ module pcg_mod
 
 contains
 
-  subroutine prec2Level(prepare,A,CP,sol,rhs,res,CoarseMtx_,Restrict,isFirstIter)
+  subroutine prec2Level(prepare,A,CP,sol,rhs,res,isFirstIter)
     use CoarseAllgathers
 
     logical, intent(in) :: prepare
@@ -59,8 +59,6 @@ contains
     real(kind=rk),dimension(:),pointer :: sol !< solution
     real(kind=rk),dimension(:),pointer :: rhs !< right hand side
     real(kind=rk),dimension(:),pointer :: res !< residual vector
-    type(SpMtx) :: CoarseMtx_ !< Coarse matrix
-    type(SpMtx) :: Restrict   !< Restriction matrix
     logical :: isFirstIter
 
     real(kind=rk),dimension(:),pointer,save :: csol,crhs,clrhs,tmpsol2,tmpsol
@@ -90,9 +88,9 @@ contains
         add=.true.
       endif
 
-      call AllSendCoarseMtx(CP%cdat%LAC,CoarseMtx_,CP%cdat%lg_cfmap,&
+      call AllSendCoarseMtx(CP%cdat%LAC,CP%AC,CP%cdat%lg_cfmap,&
            CP%cdat%ngfc,CP%cdat%nprocs,CP%cdat%send)
-      call AllRecvCoarseMtx(CoarseMtx_,CP%cdat%send,add=add) ! Recieve it
+      call AllRecvCoarseMtx(CP%AC,CP%cdat%send,add=add) ! Recieve it
 
     end subroutine prec2Level_exchangeMatrix
 
@@ -105,15 +103,15 @@ contains
 
         ! after coarse matrix is received allocate coarse vectors
         if (associated(crhs)) then
-          if (size(crhs)/=CoarseMtx_%ncols) then
+          if (size(crhs)/=CP%AC%ncols) then
             deallocate(csol)
             deallocate(crhs)
-            allocate(crhs(CoarseMtx_%ncols))
-            allocate(csol(CoarseMtx_%nrows))
+            allocate(crhs(CP%AC%ncols))
+            allocate(csol(CP%AC%nrows))
           endif
         else
-          allocate(crhs(CoarseMtx_%ncols))
-          allocate(csol(CoarseMtx_%nrows))
+          allocate(crhs(CP%AC%ncols))
+          allocate(csol(CP%AC%nrows))
         endif
         ! allocate memory for vector
         if (CP%cdat%active) then
@@ -131,7 +129,7 @@ contains
       if (CP%cdat%active) then
         if (sctls%verbose>6) write(stream,*) "Restricting into local coarse vector", size(clrhs)
         ! Send coarse vector
-        call SpMtx_Ax(clrhs,Restrict,rhs,dozero=.true.) ! restrict <RA>
+        call SpMtx_Ax(clrhs,CP%R,rhs,dozero=.true.) ! restrict <RA>
         if (CP%cdat_vec%active) then
           call AllSendCoarseVector(clrhs,CP%cdat_vec%nprocs,CP%cdat_vec%cdisps,&
                CP%cdat_vec%send,useprev=.not.isFirstIter)
@@ -145,9 +143,9 @@ contains
     subroutine prec2Level_solve()
       if (.not.CP%cdat%active) then ! 1 processor case
         if (sctls%method>1.and.sctls%method/=5) then ! multiplicative Schwarz
-          call SpMtx_Ax(crhs,Restrict,res,dozero=.true.) ! restriction
+          call SpMtx_Ax(crhs,CP%R,res,dozero=.true.) ! restriction
         else
-          call SpMtx_Ax(crhs,Restrict,rhs,dozero=.true.) ! restriction
+          call SpMtx_Ax(crhs,CP%R,rhs,dozero=.true.) ! restriction
         endif
       end if
 
@@ -166,32 +164,32 @@ contains
 
       if (isFirstIter) then
         write (stream,*) &
-             'factorising coarse matrix of size',CoarseMtx_%nrows, &
-             ' and nnz:',CoarseMtx_%nnz
-        CoarseMtx_%subsolve_id=0
+             'factorising coarse matrix of size',CP%AC%nrows, &
+             ' and nnz:',CP%AC%nnz
+        CP%AC%subsolve_id=0
       end if
 
       ! Coarse solve
-      call sparse_singlesolve(CoarseMtx_%subsolve_id,csol,crhs,&
-           nfreds=CoarseMtx_%nrows, &
-           nnz=CoarseMtx_%nnz,        &
-           indi=CoarseMtx_%indi,      &
-           indj=CoarseMtx_%indj,      &
-           val=CoarseMtx_%val)
+      call sparse_singlesolve(CP%AC%subsolve_id,csol,crhs,&
+           nfreds=CP%AC%nrows, &
+           nnz=CP%AC%nnz,        &
+           indi=CP%AC%indi,      &
+           indj=CP%AC%indj,      &
+           val=CP%AC%val)
       if (isFirstIter) then
-        CoarseMtx_%indi=CoarseMtx_%indi+1
-        CoarseMtx_%indj=CoarseMtx_%indj+1
+        CP%AC%indi=CP%AC%indi+1
+        CP%AC%indj=CP%AC%indj+1
       end if
 
       if (CP%cdat_vec%active) then
         call Vect_remap(csol,clrhs,CP%cdat%gl_cfmap,dozero=.true.)
-        call SpMtx_Ax(tmpsol,Restrict,clrhs,dozero=.true.,transp=.true.)
+        call SpMtx_Ax(tmpsol,CP%R,clrhs,dozero=.true.,transp=.true.)
 
       elseif (CP%cdat%active) then
         call Vect_remap(csol,clrhs,CP%cdat%gl_cfmap,dozero=.true.)
-        call SpMtx_Ax(tmpsol,Restrict,clrhs,dozero=.true.,transp=.true.)
+        call SpMtx_Ax(tmpsol,CP%R,clrhs,dozero=.true.,transp=.true.)
       else
-        call SpMtx_Ax(tmpsol,Restrict,csol,dozero=.true.,transp=.true.) ! interpolation
+        call SpMtx_Ax(tmpsol,CP%R,csol,dozero=.true.,transp=.true.) ! interpolation
       endif
 
       if (sctls%method==1) then
@@ -220,7 +218,7 @@ contains
   !> Make preconditioner
   !-------------------------------
   subroutine preconditioner(sol,A,rhs,M,finePrec,coarsePrec,&
-               A_ghost,CoarseMtx_,Restrict,refactor,bugtrack_)
+               A_ghost,refactor,bugtrack_)
     use CoarseAllgathers
     use CoarseMtx_mod
     use Vect_mod
@@ -234,8 +232,6 @@ contains
     real(kind=rk),dimension(:),pointer :: res !< residual vector, allocated
                                               !! here for multiplicative Schwarz
     type(SpMtx),optional               :: A_ghost  !< matr@interf.
-    type(SpMtx),optional               :: CoarseMtx_ !< Coarse matrix
-    type(SpMtx),optional               :: Restrict   !< Restriction matrix
     logical,intent(inout),optional :: refactor
     logical,optional                   :: bugtrack_
     ! ----- local: ------
@@ -267,14 +263,14 @@ contains
     endif
       
     if (sctls%levels>1) then
-      call prec2Level(.true.,A,coarsePrec,sol,rhs,res,CoarseMtx_,Restrict,isFirstIter)
+      call prec2Level(.true.,A,coarsePrec,sol,rhs,res,isFirstIter)
     end if
 
     ! first level prec
     call FinePreconditioner_apply(finePrec,sol,rhs)
 
     if (sctls%levels>1) then
-      call prec2Level(.false.,A,coarsePrec,sol,rhs,res,CoarseMtx_,Restrict,isFirstIter)
+      call prec2Level(.false.,A,coarsePrec,sol,rhs,res,isFirstIter)
     end if
 
     time_preconditioner = time_preconditioner + MPI_WTime()-t1
@@ -299,7 +295,7 @@ contains
   !> Preconditioned conjugent gradient method with eigenvalues
   !--------------------------
   subroutine pcg_weigs (A,b,x,Msh,finePrec,coarsePrec,it,cond_num,A_interf_,tol_,maxit_, &
-       x0_,solinf,resvects_,CoarseMtx_,Restrict,refactor_)
+       x0_,solinf,resvects_,refactor_)
     use CoarseAllgathers
 
     implicit none
@@ -321,8 +317,6 @@ contains
     float(kind=rk), dimension(:), intent(in), optional :: x0_ !< Initial guess
     type(ConvInf),            intent(in out), optional :: solinf !< Solution statistics
     logical,                      intent(in), optional :: resvects_ !< Fill in the 'resvect' or not
-    type(SpMtx),optional                               :: CoarseMtx_ !< Coarse matrix
-    type(SpMtx),optional                               :: Restrict !< Restriction mtx
     logical,intent(in),optional                        :: refactor_
     
     ! Local variables
@@ -428,8 +422,6 @@ if (bugtrack)call Print_Glob_Vect(r,Msh,'global r===',chk_endind=Msh%ninner)
                             finePrec=finePrec, &
                             coarsePrec=coarsePrec, &
                     A_ghost=A_interf_,  &
-                   CoarseMtx_=CoarseMtx_, &
-                    Restrict=Restrict,    &
                     refactor=refactor,   &
                     bugtrack_=bugtrack)
 

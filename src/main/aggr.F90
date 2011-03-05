@@ -91,8 +91,6 @@ program main_aggr
 #define float real
 #endif
 
-  type(SpMtx)    :: AC  !< coarse matrix
-  type(SpMtx)    :: Restrict !< Restriction matrix (for operation)
   type(SumOfInversedSubMtx) :: B_RCS !< B matrix for the Robust Coarse Spaces
   !type(SpMtx)    :: Rest_cmb !< Restriction matrix (for coarse matrix build)
 
@@ -123,8 +121,6 @@ program main_aggr
   type(CoarseSpace) :: CS
   integer,pointer :: aggrnum(:)
   integer :: nagr
-  ! Parallel coarse level
-  !type(CoarseData) :: CP%cdat -- 
 
   ! Init DOUG
   call DOUG_Init()
@@ -156,8 +152,10 @@ program main_aggr
                                  !D_PLPLOT_END)
     endif
     
+    CP = CoarsePreconditioner_New()
     ! Testing coarse matrix and aggregation through it:
     if (numprocs>1) then
+      CP%type = COARSE_PRECONDITIONER_TYPE_SMOOTH
       allocate(aggrnum(D%mesh%nlf))
       nagr = P%fAggr%inner%nagr
       aggrnum = 0
@@ -169,30 +167,33 @@ program main_aggr
       call SpMtx_symm_strong(D%A,D%A_ghost,.false.)
       call SpMtx_unscale(D%A)
 
-      call IntRestBuild(D%A,P%fAggr%inner,Restrict,D%A_ghost)
-      CS = CoarseSpace_Init(Restrict)
+      call IntRestBuild(D%A,P%fAggr%inner,CP%R,D%A_ghost)
+      CS = CoarseSpace_Init(CP%R)
       call CoarseData_Copy(CP%cdat,CP%cdat_vec)
-      call CoarseSpace_Expand(CS,Restrict,D%mesh,CP%cdat)
-      call CoarseMtxBuild(D%A,CP%cdat%LAC,Restrict,D%mesh%ninner,D%A_ghost)
-      call KeepGivenRowIndeces(Restrict, (/(i,i=1,P%fAggr%inner%nagr)/))
+      call CoarseSpace_Expand(CS,CP%R,D%mesh,CP%cdat)
+      call CoarseMtxBuild(D%A,CP%cdat%LAC,CP%R,D%mesh%ninner,D%A_ghost)
+      call KeepGivenRowIndeces(CP%R, (/(i,i=1,P%fAggr%inner%nagr)/))
 
       if (sctls%verbose>3.and.CP%cdat%LAC%nnz<400) then
-        write(stream,*)'Restrict (local) is:=================='
-        call SpMtx_printRaw(A=Restrict)
+        write(stream,*)'CP%R (local) is:=================='
+        call SpMtx_printRaw(A=CP%R)
         write(stream,*)'A coarse (local) is:=================='
         call SpMtx_printRaw(A=CP%cdat%LAC)
       endif
 
     else 
       ! non-parallel
-      call IntRestBuild(D%A,P%fAggr%inner,Restrict)
+      call IntRestBuild(D%A,P%fAggr%inner,CP%R)
 
       if (sctls%coarse_method<=1) then ! if not specified or ==1
-         call CoarseMtxBuild(D%A,AC,Restrict,D%mesh%ninner)
+        CP%type = COARSE_PRECONDITIONER_TYPE_SMOOTH
+        call CoarseMtxBuild(D%A,CP%AC,CP%R,D%mesh%ninner)
 
       else if (sctls%coarse_method==2) then
-         ! use the Robust Coarse Spaces algorithm
-         B_RCS = CoarseProjectionMtxsBuild(D%A,Restrict,P%fAggr%inner%nagr)
+        ! use the Robust Coarse Spaces algorithm
+        CP%type = COARSE_PRECONDITIONER_TYPE_ROBUST
+
+         B_RCS = CoarseProjectionMtxsBuild(D%A,CP%R,P%fAggr%inner%nagr)
          allocate(rhs_1(D%A%nrows))
          allocate(g(D%A%ncols))
 
@@ -203,23 +204,23 @@ program main_aggr
             write (stream, *) "Solution g = ", g
          end if
 
-         call RobustRestrictMtxBuild(B_RCS,g,Restrict)
-         call CoarseMtxBuild(D%A,AC,Restrict,D%mesh%ninner)
+         call RobustRestrictMtxBuild(B_RCS,g,CP%R)
+         call CoarseMtxBuild(D%A,CP%AC,CP%R,D%mesh%ninner)
 
       else
          write(stream,'(A," ",I2)') 'Wrong coarse method', sctls%coarse_method
          call DOUG_abort('Error in aggr', -1)
       endif
            
-      if (sctls%verbose>3.and.AC%nnz<400) then
+      if (sctls%verbose>3.and.CP%AC%nnz<400) then
         write(stream,*)'A coarse is:=================='
-        call SpMtx_printRaw(A=AC)
+        call SpMtx_printRaw(A=CP%AC)
       endif
     endif
    
     ! coarse aggregates
     if (numprocs==1) then
-      call Partitionings_CreateCoarse(P,D,AC)
+      call Partitionings_CreateCoarse(P,D,CP%AC)
       !call Aggrs_readFile_coarse(P%cAggr, "aggregates.txt")
 
       ! profile info
@@ -282,17 +283,11 @@ program main_aggr
   case (DCTL_SOLVE_PCG)
      ! Preconditioned conjugate gradient
      t1 = MPI_WTIME()
-     if (sctls%levels==2) then
-       write(stream,*)'calling pcg_weigs with coarse matrix'
-       call pcg_weigs(A=D%A,b=D%rhs,x=xl,Msh=D%mesh,finePrec=FP,coarsePrec=CP,it=it,cond_num=cond_num, &
-            A_interf_=D%A_ghost, &
-            CoarseMtx_=AC,Restrict=Restrict, &
+     write(stream,*)'calling pcg_weigs'
+     call pcg_weigs(A=D%A,b=D%rhs,x=xl,Msh=D%mesh,&
+          finePrec=FP,coarsePrec=CP,&
+          it=it,cond_num=cond_num, A_interf_=D%A_ghost, &
             refactor_=.true.)
-     else
-       write(stream,*)'calling pcg_weigs'
-       call pcg_weigs(D%A, D%rhs, xl, D%mesh,FP,CP,it,cond_num, &
-            A_interf_=D%A_ghost, refactor_=.true.)
-     endif
      t=MPI_WTIME()-t1
      write(stream,*) 'time spent in pcg():',t
      t1=total_setup_time()

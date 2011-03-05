@@ -55,9 +55,6 @@ program main_geom
 #define float real
 #endif
 
-  type(SpMtx)    :: AC  ! Coarse matrix
-  type(SpMtx)    :: Restrict ! Restriction matrix
-
   float(kind=rk), dimension(:), pointer :: xl ! local solution vector
   float(kind=rk), dimension(:), pointer :: x  ! global solution on master
 
@@ -131,7 +128,9 @@ program main_geom
 
     if (ismaster()) then
       if (sctls%verbose>0) write (stream,*) "Building coarse grid"
-
+      CP = CoarsePreconditioner_New()
+      CP%type = COARSE_PRECONDITIONER_TYPE_GEOMETRIC
+      
       call CreateCoarse(D%mesh,C)
 
       if (sctls%plotting>0) then
@@ -158,16 +157,16 @@ program main_geom
       if (sctls%plotting>1 .and. ismaster()) call CoarseGrid_pl2D_plotMesh(LC)
 
       if (sctls%verbose>0) write (stream,*) "Creating Restriction matrix"
-      call CreateRestrict(LC,D%mesh,Restrict)
+      call CreateRestrict(LC,D%mesh,CP%R)
 
       if (sctls%verbose>1) write (stream,*) "Cleaning Restriction matrix"
-      call CleanCoarse(LC,Restrict,D%mesh)
+      call CleanCoarse(LC,CP%R,D%mesh)
 
       if (sctls%verbose>0)  write (stream,*) "Building coarse matrix"
-      call CoarseMtxBuild(D%A,CP%cdat%LAC,Restrict,D%mesh%ninner)
+      call CoarseMtxBuild(D%A,CP%cdat%LAC,CP%R,D%mesh%ninner)
 
       if (sctls%verbose>1) write (stream, *) "Stripping the restriction matrix"
-      call StripRestrict(D%mesh,Restrict)
+      call StripRestrict(D%mesh,CP%R)
 
       if (sctls%verbose>0) write (stream,*) "Transmitting local-to-global maps"
 
@@ -204,16 +203,9 @@ program main_geom
 
      t1 = MPI_WTIME()
 
-     if (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL .and. &
-                        sctls%levels==2) then
-       call pcg_weigs(A=D%A,b=D%rhs,x=xl,Msh=D%mesh,finePrec=FP,coarsePrec=CP,it=it,cond_num=cond_num, &
-                      A_interf_=D%A_ghost,CoarseMtx_=AC,Restrict=Restrict, &
-                      refactor_=.true.)
-!                     refactor_=.true., cdat_=CP%cdat)
-     else
-       call pcg_weigs(A=D%A,b=D%rhs,x=xl,Msh=D%mesh,finePrec=FP,coarsePrec=CP,it=it,cond_num=cond_num, &
-                        A_interf_=D%A_ghost,refactor_=.true.)
-     endif
+     call pcg_weigs(A=D%A,b=D%rhs,x=xl,Msh=D%mesh,finePrec=FP,coarsePrec=CP,it=it,cond_num=cond_num, &
+          A_interf_=D%A_ghost, &
+          refactor_=.true.)
 
      write(stream,*) 'time spent in pcg():',MPI_WTIME()-t1
      if(pstream/=0) write(pstream, "(I0,':pcg time:',F0.3)") myrank, MPI_WTIME()-t1
@@ -273,8 +265,8 @@ program main_geom
   call SpMtx_Destroy(D%A)
 
   if (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL .and. sctls%levels==2) then
-      call SpMtx_Destroy(AC)
-      call SpMtx_Destroy(Restrict)
+      call SpMtx_Destroy(CP%AC)
+      call SpMtx_Destroy(CP%R)
 !      call SpMtx_Destroy(Res_aux)
       call SendData_Destroy(CP%cdat%send)
 
