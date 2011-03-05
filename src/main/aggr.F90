@@ -68,6 +68,8 @@ program main_aggr
   use Partitioning_mod
   use Preconditioner_mod
   use FinePreconditioner_complete_mod
+  use CoarsePreconditioner_smooth_mod
+  use CoarsePreconditioner_robust_mod
   use Mesh_class
   use Mesh_plot_mod
   use SpMtx_mods
@@ -78,8 +80,6 @@ program main_aggr
   use Aggregate_utils_mod
   use CoarseMtx_mod
   use CoarseAllgathers
-  use RobustCoarseMtx_mod
-  use pcgRobust_mod
 
   implicit none
 
@@ -91,13 +91,9 @@ program main_aggr
 #define float real
 #endif
 
-  type(SumOfInversedSubMtx) :: B_RCS !< B matrix for the Robust Coarse Spaces
-  !type(SpMtx)    :: Rest_cmb !< Restriction matrix (for coarse matrix build)
-
   float(kind=rk), dimension(:), pointer :: xl !< local solution vector
   float(kind=rk), dimension(:), pointer :: x  !< global solution on master
   float(kind=rk), dimension(:), pointer :: sol, rhs  !< for testing solver
-  real(kind=rk), pointer :: rhs_1(:), g(:)
 
   ! Partitioning
   integer               :: nparts !< number of partitons to partition a mesh
@@ -117,10 +113,6 @@ program main_aggr
   type(Partitionings) :: P !< fine and coarse aggregates
   type(FinePreconditioner) :: FP
   type(CoarsePreconditioner) :: CP
-  type(RobustPreconditionMtx) :: C
-  type(CoarseSpace) :: CS
-  integer,pointer :: aggrnum(:)
-  integer :: nagr
 
   ! Init DOUG
   call DOUG_Init()
@@ -154,70 +146,18 @@ program main_aggr
     
     CP = CoarsePreconditioner_New()
     ! Testing coarse matrix and aggregation through it:
-    if (numprocs>1) then
-      CP%type = COARSE_PRECONDITIONER_TYPE_SMOOTH
-      allocate(aggrnum(D%mesh%nlf))
-      nagr = P%fAggr%inner%nagr
-      aggrnum = 0
-      aggrnum(1:D%mesh%ninner) = P%fAggr%inner%num
-      call setup_aggr_cdat(CP%cdat, CP%cdat_vec, nagr, D%mesh%ninner,aggrnum,D%mesh)
-      
-      call SpMtx_find_strong(A=D%A,alpha=P%strong_conn1,A_ghost=D%A_ghost)
-      call SpMtx_exchange_strong(D%A,D%A_ghost,D%mesh)
-      call SpMtx_symm_strong(D%A,D%A_ghost,.false.)
-      call SpMtx_unscale(D%A)
+    if (sctls%coarse_method<=1) then ! if not specified or ==1
+      call CoarsePreconditioner_smooth_Init(CP, D, P)
 
-      call IntRestBuild(D%A,P%fAggr%inner,CP%R,D%A_ghost)
-      CS = CoarseSpace_Init(CP%R)
-      call CoarseData_Copy(CP%cdat,CP%cdat_vec)
-      call CoarseSpace_Expand(CS,CP%R,D%mesh,CP%cdat)
-      call CoarseMtxBuild(D%A,CP%cdat%LAC,CP%R,D%mesh%ninner,D%A_ghost)
-      call KeepGivenRowIndeces(CP%R, (/(i,i=1,P%fAggr%inner%nagr)/))
+    else if (sctls%coarse_method==2) then
+      ! use the Robust Coarse Spaces algorithm
+      call CoarsePreconditioner_robust_Init(CP, D, P)
 
-      if (sctls%verbose>3.and.CP%cdat%LAC%nnz<400) then
-        write(stream,*)'CP%R (local) is:=================='
-        call SpMtx_printRaw(A=CP%R)
-        write(stream,*)'A coarse (local) is:=================='
-        call SpMtx_printRaw(A=CP%cdat%LAC)
-      endif
-
-    else 
-      ! non-parallel
-      call IntRestBuild(D%A,P%fAggr%inner,CP%R)
-
-      if (sctls%coarse_method<=1) then ! if not specified or ==1
-        CP%type = COARSE_PRECONDITIONER_TYPE_SMOOTH
-        call CoarseMtxBuild(D%A,CP%AC,CP%R,D%mesh%ninner)
-
-      else if (sctls%coarse_method==2) then
-        ! use the Robust Coarse Spaces algorithm
-        CP%type = COARSE_PRECONDITIONER_TYPE_ROBUST
-
-         B_RCS = CoarseProjectionMtxsBuild(D%A,CP%R,P%fAggr%inner%nagr)
-         allocate(rhs_1(D%A%nrows))
-         allocate(g(D%A%ncols))
-
-         rhs_1 = 1.0
-         call pcg_forRCS(B_RCS,rhs_1,g)
-
-         if(sctls%verbose>5) then
-            write (stream, *) "Solution g = ", g
-         end if
-
-         call RobustRestrictMtxBuild(B_RCS,g,CP%R)
-         call CoarseMtxBuild(D%A,CP%AC,CP%R,D%mesh%ninner)
-
-      else
-         write(stream,'(A," ",I2)') 'Wrong coarse method', sctls%coarse_method
-         call DOUG_abort('Error in aggr', -1)
-      endif
-           
-      if (sctls%verbose>3.and.CP%AC%nnz<400) then
-        write(stream,*)'A coarse is:=================='
-        call SpMtx_printRaw(A=CP%AC)
-      endif
+    else
+      write(stream,'(A," ",I2)') 'Wrong coarse method', sctls%coarse_method
+      call DOUG_abort('Error in aggr', -1)
     endif
-   
+              
     ! coarse aggregates
     if (numprocs==1) then
       call Partitionings_CreateCoarse(P,D,CP%AC)

@@ -31,19 +31,14 @@ program main_geom
   use doug
   use Distribution_mod
   use Mesh_class
-  use Mesh_plot_mod
   use SpMtx_mods
   use Vect_mod
   use DenseMtx_mod
   use solvers_mod
-  use CoarseGrid_class
-  use TransmitCoarse
   use CoarseAllgathers
-  use CreateCoarseGrid
-  use CoarseCreateRestrict
-  use CoarseMtx_mod
   use Preconditioner_mod
   use FinePreconditioner_complete_mod
+  use CoarsePreconditioner_geometric_mod
 
   implicit none
 
@@ -74,13 +69,6 @@ program main_geom
   type(Distribution) :: D !< mesh and matrix distribution
   type(FinePreconditioner) :: FP !< fine preconditioner
   type(CoarsePreconditioner) :: CP !< coarse level preconditioner
-
-  ! Aggregation
-  integer :: nagrs
-  integer, dimension(:), allocatable :: aggrnum
-  type(CoarseGrid) :: LC,C
-  integer, pointer :: glg_cfmap(:)
-  integer, allocatable :: cdisps(:),sends(:)
 
   !DEBUG
   integer :: k
@@ -116,74 +104,11 @@ program main_geom
      stop
   end if
   ! Geometric coarse grid processing
+  CP = CoarsePreconditioner_New()
   if (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL .and. sctls%levels==2) then
-    t1 = MPI_WTime()
-    ! Init some mandatory values if they arent given
-    if (mctls%cutbal<=0) mctls%cutbal=1
-    if (mctls%maxnd==-1) mctls%maxnd=500
-    if (mctls%maxcie==-1) mctls%maxcie=75
-    if (mctls%center_type==-1) mctls%center_type=1 ! geometric
-    if (sctls%interpolation_type==-1) sctls%interpolation_type=1 ! multilinear
-    sctls%smoothers=0 ! only way it works
-
-    if (ismaster()) then
-      if (sctls%verbose>0) write (stream,*) "Building coarse grid"
-      CP = CoarsePreconditioner_New()
-      CP%type = COARSE_PRECONDITIONER_TYPE_GEOMETRIC
-      
-      call CreateCoarse(D%mesh,C)
-
-      if (sctls%plotting>0) then
-          call Mesh_pl2D_plotMesh(D%mesh,D_PLPLOT_INIT)
-          call CoarseGrid_pl2D_plotMesh(C,D_PLPLOT_END)
-      endif
-
-      if (sctls%verbose>1) &
-           write (stream,*) "Sending parts of the coarse grid to other threads"   
-      call SendCoarse(C,D%mesh,LC)
-
-!      if (sctls%verbose>1) write (stream,*) "Creating a local coarse grid"
-!      call CoarseGrid_Destroy(LC)
-!      call CreateLocalCoarse(C,M,LC)
-
-      ! deallocating coarse grid
-      nullify(C%coords) ! as LC uses that
-      call CoarseGrid_Destroy(C)
-
-    else
-      if (sctls%verbose>0) write (stream,*) "Recieving coarse grid data"
-      call  ReceiveCoarse(LC, D%mesh)
-    endif       
-      if (sctls%plotting>1 .and. ismaster()) call CoarseGrid_pl2D_plotMesh(LC)
-
-      if (sctls%verbose>0) write (stream,*) "Creating Restriction matrix"
-      call CreateRestrict(LC,D%mesh,CP%R)
-
-      if (sctls%verbose>1) write (stream,*) "Cleaning Restriction matrix"
-      call CleanCoarse(LC,CP%R,D%mesh)
-
-      if (sctls%verbose>0)  write (stream,*) "Building coarse matrix"
-      call CoarseMtxBuild(D%A,CP%cdat%LAC,CP%R,D%mesh%ninner)
-
-      if (sctls%verbose>1) write (stream, *) "Stripping the restriction matrix"
-      call StripRestrict(D%mesh,CP%R)
-
-      if (sctls%verbose>0) write (stream,*) "Transmitting local-to-global maps"
-
-      allocate(CP%cdat%cdisps(D%mesh%nparts+1))
-      CP%cdat%send=SendData_New(D%mesh%nparts)
-      CP%cdat%lg_cfmap=>LC%lg_fmap
-      CP%cdat%gl_cfmap=>LC%gl_fmap
-      CP%cdat%nprocs=D%mesh%nparts
-      CP%cdat%ngfc=LC%ngfc
-      CP%cdat%nlfc=LC%nlfc
-      CP%cdat%active=.true.
- 
-      call AllSendCoarselgmap(LC%lg_fmap,LC%nlfc,D%mesh%nparts,&
-                              CP%cdat%cdisps,CP%cdat%glg_cfmap,CP%cdat%send)
-      call AllRecvCoarselgmap(CP%cdat%send)
-
-      if(pstream/=0) write(pstream, "(I0,':coarse time:',F0.3)") myrank, MPI_WTIME()-t1
+    t1 = MPI_WTime()    
+    call CoarsePreconditioner_geometric_Init(CP, D)
+    if(pstream/=0) write(pstream, "(I0,':coarse time:',F0.3)") myrank, MPI_WTIME()-t1
   endif
 
   ! Solve the system
@@ -241,36 +166,14 @@ program main_geom
      deallocate(x)
   end if
 
-!call MPI_BARRIER(MPI_COMM_WORLD,i)
-!call DOUG_abort('... testing ...',-1)
-
-
-
-!!$  if (ismaster()) then
-!!$     open(51, FILE='pcg.sol', FORM='UNFORMATTED')
-!!$     write(51) (x(i),i=1,size(x))
-!!$     allocate(xchk(size(x)), r(size(x)), y(size(x)))
-!!$     xchk = 0.0_rk; r = 0.0_rk; y = 0.0_rk
-!!$     read(51) (xchk(i),i=1,size(x))
-!!$     call SpMtx_mvm(A, xchk, y)
-!!$     r = b - y
-!!$     call Vect_Print(r,'residual :: ')
-!!$     write(stream,*) 'dsqrt(res_norm) =',dsqrt(dot_product(r,r))
-!!$     deallocate(xchk, r, y)
-!!$     close(51)
-!!$  end if
-
   ! Destroy objects
   call Mesh_Destroy(D%mesh)
   call SpMtx_Destroy(D%A)
 
   if (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL .and. sctls%levels==2) then
-      call SpMtx_Destroy(CP%AC)
-      call SpMtx_Destroy(CP%R)
-!      call SpMtx_Destroy(Res_aux)
-      call SendData_Destroy(CP%cdat%send)
-
-      call CoarseGrid_Destroy(LC)
+    call SpMtx_Destroy(CP%AC)
+    call SpMtx_Destroy(CP%R)
+    call SendData_Destroy(CP%cdat%send)
   endif
 
   call ConvInf_Destroy(resStat)
