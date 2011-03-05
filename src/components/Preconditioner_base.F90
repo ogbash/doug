@@ -24,9 +24,12 @@ module Preconditioner_base_mod
   use Decomposition_mod 
   use Distribution_mod
   use Partitioning_mod
+  use CoarseAllgathers
   use globals
  
   implicit none
+
+  ! -------- Fine preconditioner
 
   !> Data for the complete 1-level preconditioner
   type FinePreconditioner_complete
@@ -42,6 +45,17 @@ module Preconditioner_base_mod
     ! implementations
     type(FinePreconditioner_complete),pointer :: complete
   end type FinePreconditioner
+
+  ! -------- Coarse preconditioner
+
+  !> Base type for fine level preconditioner.
+  type CoarsePreconditioner
+    type(CoarseData) :: cdat !<coarse data -- includes overlap
+    type(CoarseData) :: cdat_vec !<coarse data -- w/o overlap, for vector collects
+
+    ! implementations
+    !type(CoarsePreconditioner_smooth),pointer :: smooth
+  end type CoarsePreconditioner
 
 contains
 

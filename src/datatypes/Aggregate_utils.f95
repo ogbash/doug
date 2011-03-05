@@ -111,7 +111,7 @@ contains
    call MPI_Gatherv(M%lg_fmap, M%ninner, MPI_INTEGER, &
         locs, sizes, disps, MPI_INTEGER, &
         0, MPI_COMM_WORLD, ierr)
-   call MPI_Gatherv(cdat%lg_cfmap(fAggr%inner%num), size(fAggr%inner%num), MPI_INTEGER, &
+   call MPI_Gatherv(cdata%lg_cfmap(fAggr%inner%num), size(fAggr%inner%num), MPI_INTEGER, &
         nodes, sizes, disps, MPI_INTEGER, &
         0, MPI_COMM_WORLD, ierr)
 

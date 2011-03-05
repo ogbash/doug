@@ -118,10 +118,13 @@ program main_aggr
   type(Distribution) :: D !< mesh and matrix distribution
   type(Partitionings) :: P !< fine and coarse aggregates
   type(FinePreconditioner) :: FP
+  type(CoarsePreconditioner) :: CP
   type(RobustPreconditionMtx) :: C
   type(CoarseSpace) :: CS
+  integer,pointer :: aggrnum(:)
+  integer :: nagr
   ! Parallel coarse level
-  !type(CoarseData) :: cdat -- moved into the module itself...
+  !type(CoarseData) :: CP%cdat -- 
 
   ! Init DOUG
   call DOUG_Init()
@@ -155,6 +158,11 @@ program main_aggr
     
     ! Testing coarse matrix and aggregation through it:
     if (numprocs>1) then
+      allocate(aggrnum(D%mesh%nlf))
+      nagr = P%fAggr%inner%nagr
+      aggrnum = 0
+      aggrnum(1:D%mesh%ninner) = P%fAggr%inner%num
+      call setup_aggr_cdat(CP%cdat, CP%cdat_vec, nagr, D%mesh%ninner,aggrnum,D%mesh)
       
       call SpMtx_find_strong(A=D%A,alpha=P%strong_conn1,A_ghost=D%A_ghost)
       call SpMtx_exchange_strong(D%A,D%A_ghost,D%mesh)
@@ -163,16 +171,16 @@ program main_aggr
 
       call IntRestBuild(D%A,P%fAggr%inner,Restrict,D%A_ghost)
       CS = CoarseSpace_Init(Restrict)
-      call CoarseData_Copy(cdat,cdat_vec)
-      call CoarseSpace_Expand(CS,Restrict,D%mesh,cdat)
-      call CoarseMtxBuild(D%A,cdat%LAC,Restrict,D%mesh%ninner,D%A_ghost)
+      call CoarseData_Copy(CP%cdat,CP%cdat_vec)
+      call CoarseSpace_Expand(CS,Restrict,D%mesh,CP%cdat)
+      call CoarseMtxBuild(D%A,CP%cdat%LAC,Restrict,D%mesh%ninner,D%A_ghost)
       call KeepGivenRowIndeces(Restrict, (/(i,i=1,P%fAggr%inner%nagr)/))
 
-      if (sctls%verbose>3.and.cdat%LAC%nnz<400) then
+      if (sctls%verbose>3.and.CP%cdat%LAC%nnz<400) then
         write(stream,*)'Restrict (local) is:=================='
         call SpMtx_printRaw(A=Restrict)
         write(stream,*)'A coarse (local) is:=================='
-        call SpMtx_printRaw(A=cdat%LAC)
+        call SpMtx_printRaw(A=CP%cdat%LAC)
       endif
 
     else 
@@ -254,7 +262,7 @@ program main_aggr
   else
     call FinePreconditioner_InitFull(FP, D, ol)
     call FinePreconditioner_complete_Init(FP)
-    ! call Aggrs_writeFile(M, P%fAggr, cdat, "aggregates.txt")
+    ! call Aggrs_writeFile(M, P%fAggr, CP%cdat, "aggregates.txt")
     if (sctls%levels>1) call AggrInfo_Destroy(P%fAggr)
   end if
 
@@ -276,13 +284,13 @@ program main_aggr
      t1 = MPI_WTIME()
      if (sctls%levels==2) then
        write(stream,*)'calling pcg_weigs with coarse matrix'
-       call pcg_weigs(A=D%A,b=D%rhs,x=xl,Msh=D%mesh,finePrec=FP,it=it,cond_num=cond_num, &
+       call pcg_weigs(A=D%A,b=D%rhs,x=xl,Msh=D%mesh,finePrec=FP,coarsePrec=CP,it=it,cond_num=cond_num, &
             A_interf_=D%A_ghost, &
             CoarseMtx_=AC,Restrict=Restrict, &
             refactor_=.true.)
      else
        write(stream,*)'calling pcg_weigs'
-       call pcg_weigs(D%A, D%rhs, xl, D%mesh,FP,it,cond_num, &
+       call pcg_weigs(D%A, D%rhs, xl, D%mesh,FP,CP,it,cond_num, &
             A_interf_=D%A_ghost, refactor_=.true.)
      endif
      t=MPI_WTIME()-t1

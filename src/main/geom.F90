@@ -76,6 +76,7 @@ program main_geom
 
   type(Distribution) :: D !< mesh and matrix distribution
   type(FinePreconditioner) :: FP !< fine preconditioner
+  type(CoarsePreconditioner) :: CP !< coarse level preconditioner
 
   ! Aggregation
   integer :: nagrs
@@ -83,7 +84,6 @@ program main_geom
   type(CoarseGrid) :: LC,C
   integer, pointer :: glg_cfmap(:)
   integer, allocatable :: cdisps(:),sends(:)
-  !type(CoarseData) :: cdat -- is defined now inside the module...
 
   !DEBUG
   integer :: k
@@ -164,25 +164,25 @@ program main_geom
       call CleanCoarse(LC,Restrict,D%mesh)
 
       if (sctls%verbose>0)  write (stream,*) "Building coarse matrix"
-      call CoarseMtxBuild(D%A,cdat%LAC,Restrict,D%mesh%ninner)
+      call CoarseMtxBuild(D%A,CP%cdat%LAC,Restrict,D%mesh%ninner)
 
       if (sctls%verbose>1) write (stream, *) "Stripping the restriction matrix"
       call StripRestrict(D%mesh,Restrict)
 
       if (sctls%verbose>0) write (stream,*) "Transmitting local-to-global maps"
 
-      allocate(cdat%cdisps(D%mesh%nparts+1))
-      cdat%send=SendData_New(D%mesh%nparts)
-      cdat%lg_cfmap=>LC%lg_fmap
-      cdat%gl_cfmap=>LC%gl_fmap
-      cdat%nprocs=D%mesh%nparts
-      cdat%ngfc=LC%ngfc
-      cdat%nlfc=LC%nlfc
-      cdat%active=.true.
+      allocate(CP%cdat%cdisps(D%mesh%nparts+1))
+      CP%cdat%send=SendData_New(D%mesh%nparts)
+      CP%cdat%lg_cfmap=>LC%lg_fmap
+      CP%cdat%gl_cfmap=>LC%gl_fmap
+      CP%cdat%nprocs=D%mesh%nparts
+      CP%cdat%ngfc=LC%ngfc
+      CP%cdat%nlfc=LC%nlfc
+      CP%cdat%active=.true.
  
       call AllSendCoarselgmap(LC%lg_fmap,LC%nlfc,D%mesh%nparts,&
-                              cdat%cdisps,cdat%glg_cfmap,cdat%send)
-      call AllRecvCoarselgmap(cdat%send)
+                              CP%cdat%cdisps,CP%cdat%glg_cfmap,CP%cdat%send)
+      call AllRecvCoarselgmap(CP%cdat%send)
 
       if(pstream/=0) write(pstream, "(I0,':coarse time:',F0.3)") myrank, MPI_WTIME()-t1
   endif
@@ -206,12 +206,12 @@ program main_geom
 
      if (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL .and. &
                         sctls%levels==2) then
-       call pcg_weigs(A=D%A,b=D%rhs,x=xl,Msh=D%mesh,finePrec=FP,it=it,cond_num=cond_num, &
+       call pcg_weigs(A=D%A,b=D%rhs,x=xl,Msh=D%mesh,finePrec=FP,coarsePrec=CP,it=it,cond_num=cond_num, &
                       A_interf_=D%A_ghost,CoarseMtx_=AC,Restrict=Restrict, &
                       refactor_=.true.)
-!                     refactor_=.true., cdat_=cdat)
+!                     refactor_=.true., cdat_=CP%cdat)
      else
-       call pcg_weigs(A=D%A,b=D%rhs,x=xl,Msh=D%mesh,finePrec=FP,it=it,cond_num=cond_num, &
+       call pcg_weigs(A=D%A,b=D%rhs,x=xl,Msh=D%mesh,finePrec=FP,coarsePrec=CP,it=it,cond_num=cond_num, &
                         A_interf_=D%A_ghost,refactor_=.true.)
      endif
 
@@ -276,7 +276,7 @@ program main_geom
       call SpMtx_Destroy(AC)
       call SpMtx_Destroy(Restrict)
 !      call SpMtx_Destroy(Res_aux)
-      call SendData_Destroy(cdat%send)
+      call SendData_Destroy(CP%cdat%send)
 
       call CoarseGrid_Destroy(LC)
   endif
