@@ -192,6 +192,8 @@ contains
     M%strong_colnrs => NULL()
     M%diag => NULL()
 
+    M%subsolve_id = -1
+
   end function SpMtx_New
 
 !> \code

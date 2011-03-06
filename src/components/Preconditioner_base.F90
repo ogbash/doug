@@ -58,6 +58,7 @@ module Preconditioner_base_mod
     type(CoarseData) :: cdat !<coarse data -- includes overlap
     type(CoarseData) :: cdat_vec !<coarse data -- w/o overlap, for vector collects
     type(SpMtx) :: R !< Restriction matrix
+    logical :: ready !< whether coarse matrix values are exchanged
     type(SpMtx) :: AC !< Coarse matrix
 
     ! implementations
@@ -101,6 +102,9 @@ contains
     type(CoarsePreconditioner) :: CP
 
     CP%type = COARSE_PRECONDITIONER_TYPE_NONE
+    CP%R = SpMtx_New()
+    CP%ready = .false.
+    CP%AC = SpMtx_New()
 
   end function CoarsePreconditioner_New
 

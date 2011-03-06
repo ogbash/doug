@@ -224,10 +224,9 @@ program main_aggr
      ! Preconditioned conjugate gradient
      t1 = MPI_WTIME()
      write(stream,*)'calling pcg_weigs'
-     call pcg_weigs(A=D%A,b=D%rhs,x=xl,Msh=D%mesh,&
+     call pcg_weigs(D, x=xl,&
           finePrec=FP,coarsePrec=CP,&
-          it=it,cond_num=cond_num, A_interf_=D%A_ghost, &
-            refactor_=.true.)
+          it=it,cond_num=cond_num)
      t=MPI_WTIME()-t1
      write(stream,*) 'time spent in pcg():',t
      t1=total_setup_time()

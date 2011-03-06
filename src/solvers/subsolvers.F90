@@ -260,7 +260,13 @@ contains
     else
       docheck=.false.
     endif
-    if (id<=0) call factorise(id,nfreds,nnz,indi,indj,val)
+    if (id<=0) then
+      write(stream,*) indi
+      call factorise(id,nfreds,nnz,indi,indj,val)
+      write(stream,*) indi
+      indi=indi+1
+      indj=indj+1
+    end if
 
     t1=MPI_WTIME()      
     call Fact_Solve(fakts(id), rhs, sol)

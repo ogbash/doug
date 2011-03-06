@@ -256,7 +256,7 @@ contains
 
     end subroutine
 
-    subroutine AllSendCoarseVector(xl,nproc,cdisps,send,useprev)
+    subroutine AllSendCoarseVector(xl,nproc,cdisps,send)
         use RealKind
         use SpMtx_class
         use Mesh_class
@@ -270,12 +270,10 @@ contains
         integer, intent(in) :: cdisps(:)
         !> A variable for passing info to AllRecvCoarseVector
         type(SendData), intent(out) :: send
-        !> Assume that fbuf is already allocated and rsizes filled correctly
-        logical, intent(in), optional :: useprev
 
         if (sctls%verbose>6) write(stream,*) "Sending local coarse vector"
 
-        if (.not.present(useprev).or..not.useprev) then
+        if (.not.associated(send%fbuf)) then
             ! Calc the size of my data
             send%ssize=cdisps(myrank+2)-cdisps(myrank+1)
             send%rsizes=cdisps(2:nproc+1)-cdisps(1:nproc)

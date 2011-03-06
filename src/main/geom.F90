@@ -128,9 +128,7 @@ program main_geom
 
      t1 = MPI_WTIME()
 
-     call pcg_weigs(A=D%A,b=D%rhs,x=xl,Msh=D%mesh,finePrec=FP,coarsePrec=CP,it=it,cond_num=cond_num, &
-          A_interf_=D%A_ghost, &
-          refactor_=.true.)
+     call pcg_weigs(D,x=xl,finePrec=FP,coarsePrec=CP,it=it,cond_num=cond_num)
 
      write(stream,*) 'time spent in pcg():',MPI_WTIME()-t1
      if(pstream/=0) write(pstream, "(I0,':pcg time:',F0.3)") myrank, MPI_WTIME()-t1
