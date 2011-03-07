@@ -66,6 +66,7 @@ program main_aggr
   use doug
   use Distribution_mod
   use Partitioning_mod
+  use Partitioning_aggr_mod
   use Preconditioner_mod
   use FinePreconditioner_complete_mod
   use CoarsePreconditioner_smooth_mod
@@ -124,7 +125,7 @@ program main_aggr
 
   if (sctls%levels>1.or.(numprocs==1.and.sctls%levels==1)) then !todo remove
     P = Partitionings_New()
-    call Partitionings_CreateFine(P,D)
+    call Partitionings_aggr_InitFine(P,D)
     ! profile info
     if(pstream/=0) then
       write(pstream, "(I0,':fine aggregates:',I0)") myrank, P%fAggr%inner%nagr
@@ -160,7 +161,7 @@ program main_aggr
               
     ! coarse aggregates
     if (numprocs==1) then
-      call Partitionings_CreateCoarse(P,D,CP%AC)
+      call Partitionings_aggr_InitCoarse(P,D,CP%AC)
       !call Aggrs_readFile_coarse(P%cAggr, "aggregates.txt")
 
       ! profile info
