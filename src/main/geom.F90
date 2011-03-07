@@ -30,6 +30,8 @@ program main_geom
 
   use doug
   use Distribution_mod
+  use Partitioning_mod
+  use Partitioning_full_mod
   use Mesh_class
   use SpMtx_mods
   use Vect_mod
@@ -67,6 +69,7 @@ program main_geom
   float(kind=rk), dimension(:), pointer :: yc, gyc, ybuf
 
   type(Distribution) :: D !< mesh and matrix distribution
+  type(Partitionings) :: P !< mesh partitionings
   type(FinePreconditioner) :: FP !< fine preconditioner
   type(CoarsePreconditioner) :: CP !< coarse level preconditioner
 
@@ -87,6 +90,10 @@ program main_geom
 
   if(pstream/=0) write(pstream, "(I0,':distribute time:',F0.3)") myrank, MPI_WTIME()-t1
 
+  ! create partitionings
+  P = Partitionings_New()
+  call Partitionings_full_InitCoarse(P,D)
+
   ! create subdomains
   if (sctls%overlap<0) then ! autom. overlap from smoothing
     ol = max(sctls%smoothers,0)
@@ -94,7 +101,7 @@ program main_geom
     ol = sctls%overlap
   endif
   FP = FinePreconditioner_New(D)
-  call FinePreconditioner_InitFull(FP, D, ol)
+  call FinePreconditioner_Init(FP, D, P, ol)
   call FinePreconditioner_complete_Init(FP)
 
   ! conversion from elemental form to assembled matrix wanted?

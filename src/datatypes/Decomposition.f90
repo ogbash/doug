@@ -15,7 +15,6 @@ module Decomposition_mod
   public :: Decomposition, &
        Decomposition_New, &
        Decomposition_Destroy, &
-       Decomposition_full, &
        Add_layers
 contains
 
@@ -42,7 +41,6 @@ contains
 
     ! count number of nodes in the domain
     nnodes = count(eptnmap==iDomain)
-    write(stream,*)  "...",nnodes
 
     inode = 0
     do i=1,size(eptnmap)
@@ -53,37 +51,6 @@ contains
     end do
     
   end subroutine Get_nodes
-
-  !> Create one domain that covers all (innner) nodes.
-  function Decomposition_full(A,A_ghost,ninner,ol) result(DD)
-    type(SpMtx),intent(inout) :: A
-    type(SpMtx),intent(in) :: A_ghost
-    integer,intent(in) :: ol !< overlap
-    integer,intent(in) :: ninner !< number of inner nodes
-    !integer,intent(in) :: nlf !< number of local nodes
-    type(Decomposition) ::  DD
-
-    integer,allocatable :: nodes(:)
-    integer :: nnodes, nnodes_exp, i
-
-    if (sctls%verbose>1) write(stream,*) "Creating single domain from process region", A%nrows, A_ghost%nrows
-
-    nnodes = max(A%nrows, A_ghost%nrows)
-    allocate(nodes(nnodes))
-
-    DD = Decomposition_New()
-    allocate(DD%subd(1))
-
-    call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS,sort=.false.)
-    nodes(1:ninner) = (/ (i,i=1,ninner) /)
-    call Add_layers(A%m_bound,A%indj,nodes,ninner,ol,nnodes_exp)
-
-    ! keep indlist:
-    allocate(DD%subd(1)%inds(nnodes_exp))
-    DD%subd(1)%ninds=nnodes_exp
-    DD%subd(1)%inds(1:nnodes_exp)=nodes(1:nnodes_exp)
-
-  end function Decomposition_full
 
   !> Add several layers of nodes to the existing set of nodes using mesh graph adjacency matrix.
   subroutine Add_layers(adjBounds,adjValues,nodes,nnodes,nlayers,onnodes)

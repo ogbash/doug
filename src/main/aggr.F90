@@ -67,6 +67,7 @@ program main_aggr
   use Distribution_mod
   use Partitioning_mod
   use Partitioning_aggr_mod
+  use Partitioning_full_mod
   use Preconditioner_mod
   use FinePreconditioner_complete_mod
   use CoarsePreconditioner_smooth_mod
@@ -188,6 +189,10 @@ program main_aggr
     endif 
   endif
 
+  if (numprocs>1) then
+    call Partitionings_full_InitCoarse(P,D)
+  end if
+
   ! overlap for subdomains
   if (sctls%overlap<0) then ! autom. overlap from smoothing
     ol = max(sctls%smoothers,0)
@@ -196,14 +201,12 @@ program main_aggr
   endif
 
   FP = FinePreconditioner_New(D)
+  call FinePreconditioner_Init(FP, D, P, ol)
+  call FinePreconditioner_complete_Init(FP)
   if (numprocs==1) then
-    call FinePreconditioner_InitAggrs(FP, D, P, ol)
-    call FinePreconditioner_complete_Init(FP)
     call AggrInfo_Destroy(P%cAggr)
     call AggrInfo_Destroy(P%fAggr)
   else
-    call FinePreconditioner_InitFull(FP, D, ol)
-    call FinePreconditioner_complete_Init(FP)
     ! call Aggrs_writeFile(M, P%fAggr, CP%cdat, "aggregates.txt")
     if (sctls%levels>1) call AggrInfo_Destroy(P%fAggr)
   end if

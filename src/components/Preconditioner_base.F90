@@ -77,21 +77,11 @@ contains
 
   end function FinePreconditioner_New
 
-  !> Initialize preconditioner with one domain for the full process region.
-  subroutine FinePreconditioner_InitFull(FP, D, ol)
-    type(FinePreconditioner),intent(inout) :: FP
-    type(Distribution),intent(inout) :: D !< fine grid and matrix
-    integer,intent(in) :: ol !< overlap
-
-    FP%domains = Decomposition_full(D%A,D%A_ghost,D%mesh%ninner,ol)
-
-  end subroutine FinePreconditioner_InitFull
-
   !> Initialize preconditioner with several subdomains from coarse aggregates.
-  subroutine FinePreconditioner_InitAggrs(FP, D, P, ol)
+  subroutine FinePreconditioner_Init(FP, D, P, ol)
     type(FinePreconditioner),intent(inout) :: FP
     type(Distribution),intent(inout) :: D !< fine grid and matrix
-    type(Partitionings),intent(in) :: P !< fine and coarse aggregates
+    type(Partitionings),intent(in) :: P !< fine and coarse partitions
     integer,intent(in) :: ol !< overlap
 
     integer :: nnodes_exp, nnodes, start, iPart
@@ -115,9 +105,7 @@ contains
     enddo
     deallocate(nodes)
 
-    !Decomposition_from_aggrs(D%A, P%cAggr%full, P%fAggr%full, ol)
-
-  end subroutine FinePreconditioner_InitAggrs
+  end subroutine FinePreconditioner_Init
 
   function CoarsePreconditioner_New() result (CP)
     type(CoarsePreconditioner) :: CP
