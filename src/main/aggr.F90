@@ -191,6 +191,7 @@ program main_aggr
 
   else ! 1 level, several procs
     ! required for metis coarse subdomains
+    P = Partitionings_New()
     call Partitionings_aggr_InitFine(P,D)
   endif
 
