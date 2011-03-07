@@ -42,6 +42,7 @@ contains
     type(SpMtx)    :: LA  !< matrix without outer nodes
     integer :: plotting
     integer :: min_asize1, max_asize1
+    integer :: nnodes
 
 
     ! ------- Create fine aggregates
@@ -105,8 +106,12 @@ contains
       ! set partitions
       P%fPart%nnodes = D%mesh%ninner
       P%fPart%nparts = P%fAggr%full%nagr
-      allocate(P%fPart%num(P%fPart%nnodes))
-      P%fPart%num = P%fAggr%full%num
+      allocate(P%fPart%starts(P%fPart%nparts+1))
+      allocate(P%fPart%nodes(P%fPart%nnodes))
+
+      p%fPart%starts = P%fAggr%full%starts
+      p%fPart%nodes = P%fAggr%full%nodes
+
     end if
 
   end subroutine Partitionings_aggr_InitFine
@@ -122,7 +127,7 @@ contains
     type(Distribution),intent(inout) :: D !< mesh and data distribution
     type(SpMtx),intent(inout) :: AC !< Coarse matrix
 
-    integer :: n, cAggr, nnodes, i
+    integer :: n, cAggr, nnodes, start, end
     integer,allocatable :: nodes(:)
     integer :: aggr_radius2, min_asize2, max_asize2
 
@@ -169,17 +174,20 @@ contains
       ! set partitions
       P%cPart%nnodes = D%mesh%ninner
       P%cPart%nparts = P%cAggr%full%nagr
-      allocate(P%cPart%num(P%cPart%nnodes))
-      allocate(nodes(P%cPart%nnodes))
+      allocate(P%cPart%starts(P%cPart%nparts+1))
+      allocate(P%cPart%nodes(P%cPart%nnodes))
 
+      allocate(nodes(P%cPart%nnodes))
+      P%cPart%starts(1) = 1
       do cAggr=1,P%cAggr%full%nagr ! loop over coarse aggregates
         call Get_aggregate_nodes(cAggr,P%cAggr%full,P%fAggr%full,P%cPart%nnodes,nodes,nnodes)
-        do i=1,nnodes
-          P%cPart%num(nodes(i)) = cAggr
-        end do
+        start = P%cPart%starts(cAggr)
+        end = start+nnodes
+        P%cPart%starts(cAggr+1) = end
+        P%cPart%nodes(start:end+nnodes-1) = nodes(1:nnodes)
       end do
-
       deallocate(nodes)
+
     end if
 
   end subroutine Partitionings_aggr_InitCoarse

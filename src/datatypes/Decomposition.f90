@@ -16,7 +16,7 @@ module Decomposition_mod
        Decomposition_New, &
        Decomposition_Destroy, &
        Decomposition_full, &
-       Decomposition_from_aggrs
+       Add_layers
 contains
 
   function Decomposition_New() result(DD)
@@ -84,37 +84,6 @@ contains
     DD%subd(1)%inds(1:nnodes_exp)=nodes(1:nnodes_exp)
 
   end function Decomposition_full
-
-  !> Create domains from coarse aggregates.
-  function Decomposition_from_aggrs(A, cAggrs, fAggrs, ol) result(DD)
-    type(SpMtx),intent(inout) :: A
-    type(Aggrs),intent(in) :: cAggrs
-    type(Aggrs),intent(in) :: fAggrs
-    integer,intent(in) :: ol !< overlap
-    type(Decomposition) ::  DD
-
-    integer,allocatable :: nodes(:)
-    integer :: nnodes, nnodes_exp, icAggr
-
-    if (sctls%verbose>1) write(stream,*) "Creating domains from coarse aggregates"
-
-    allocate(nodes(A%nrows))
-
-    DD = Decomposition_New()
-    allocate(DD%subd(cAggrs%nagr))
-
-    call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS,sort=.false.)
-    do icAggr=1,cAggrs%nagr ! loop over coarse aggregates
-       call Get_aggregate_nodes(icAggr,cAggrs,fAggrs,A%nrows,nodes,nnodes)
-       call Add_layers(A%m_bound,A%indj,nodes,nnodes,ol,nnodes_exp)
-
-       ! keep indlist:
-       allocate(DD%subd(icAggr)%inds(nnodes_exp))
-       DD%subd(icAggr)%ninds=nnodes_exp
-       DD%subd(icAggr)%inds(1:nnodes_exp)=nodes(1:nnodes_exp)
-    enddo
-
-  end function Decomposition_from_aggrs
 
   !> Add several layers of nodes to the existing set of nodes using mesh graph adjacency matrix.
   subroutine Add_layers(adjBounds,adjValues,nodes,nnodes,nlayers,onnodes)

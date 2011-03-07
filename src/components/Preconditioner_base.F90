@@ -94,7 +94,28 @@ contains
     type(Partitionings),intent(in) :: P !< fine and coarse aggregates
     integer,intent(in) :: ol !< overlap
 
-    FP%domains = Decomposition_from_aggrs(D%A, P%cAggr%full, P%fAggr%full, ol)
+    integer :: nnodes_exp, nnodes, start, iPart
+    integer,allocatable :: nodes(:)
+
+    FP%domains = Decomposition_New()
+    allocate(FP%domains%subd(P%cPart%nparts))
+
+    allocate(nodes(D%mesh%nlf))
+    call SpMtx_arrange(D%A,D_SpMtx_ARRNG_ROWS,sort=.false.)
+    do iPart=1,P%cPart%nparts ! loop over coarse partitions
+      start = P%cPart%starts(iPart)
+      nnodes = P%cPart%starts(iPart+1) - start
+      nodes(1:nnodes) = P%cPart%nodes(start:start+nnodes-1)
+      call Add_layers(D%A%m_bound,D%A%indj,nodes,nnodes,ol,nnodes_exp)
+
+      ! keep indlist:
+      allocate(FP%domains%subd(iPart)%inds(nnodes_exp))
+      FP%domains%subd(iPart)%ninds=nnodes_exp
+      FP%domains%subd(iPart)%inds(1:nnodes_exp)=nodes(1:nnodes_exp)
+    enddo
+    deallocate(nodes)
+
+    !Decomposition_from_aggrs(D%A, P%cAggr%full, P%fAggr%full, ol)
 
   end subroutine FinePreconditioner_InitAggrs
 
