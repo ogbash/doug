@@ -62,6 +62,7 @@ mysql-database:
 #  solver=1,2
 #  method=1
 #  levels=1,2
+#  num_subdomains=1,2
 #  processors=1,4
 #  overlaps=-1
 #  smoothers=0,1
@@ -167,14 +168,15 @@ def main(testResults):
                 solvers = map(int, conf.get(testconfname, "solver").split(","))
                 methods = map(int, conf.get(testconfname, "method").split(","))
                 levels = map(int, conf.get(testconfname, "levels").split(","))
+                nsubdomains = map(int, conf.get(testconfname, "num_subdomains").split(","))
                 processors = map(int, conf.get(testconfname, "processors").split(","))
                 executables = conf.get(testconfname, "executables").split(",")
                 overlaps = map(int, conf.get(testconfname, "overlaps").split(","))
                 smoothers = map(int, conf.get(testconfname, "smoothers").split(","))
 
-                testtuples = generateTuples(solvers, methods, levels, processors, executables, overlaps, smoothers)
+                testtuples = generateTuples(solvers, methods, levels, nsubdomains, processors, executables, overlaps, smoothers)
 
-                for solver,method,level,nproc,executable,overlap,smoother in testtuples:
+                for solver,method,level,nsubdomain,nproc,executable,overlap,smoother in testtuples:
                     dougControlFile = doug.execution.ControlFile(filename=ctrlfname, basedir=os.path.dirname(ctrlfname))
                     dougConfig = DOUGConfigParser(name='DOUG execution parameters')
                     # set/copy doug configuration from tests configuration
@@ -190,6 +192,7 @@ def main(testResults):
                     dougConfig.set('doug-controls', 'solver', str(solver))
                     dougConfig.set('doug-controls', 'method', str(method))
                     dougConfig.set('doug-controls', 'levels', str(level))
+                    dougConfig.set('doug-controls', 'num_subdomains', str(nsubdomain))
                     dougConfig.set('doug', 'nproc', str(nproc))
                     dougConfig.set('doug', 'executable', executable)
                     dougConfig.set('doug-controls', 'overlap', str(overlap))
