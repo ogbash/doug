@@ -41,7 +41,7 @@ contains
 
     type(SpMtx)    :: LA  !< matrix without outer nodes
     integer :: plotting
-    integer :: min_asize1, max_asize1
+    integer :: min_asize1
     integer :: nnodes
 
 
@@ -67,9 +67,9 @@ contains
         min_asize1=0.5_rk*(2*P%aggr_radius1+1)**2
       endif
       if (sctls%maxasize1>0) then
-        max_asize1=sctls%maxasize1
+        P%max_asize1=sctls%maxasize1
       else
-        max_asize1=(2*P%aggr_radius1+1)**2
+        P%max_asize1=(2*P%aggr_radius1+1)**2
       endif
       if (numprocs>1) then
         plotting=0
@@ -85,7 +85,7 @@ contains
         call SpMtx_find_strong(A=LA,alpha=P%strong_conn1)
         call SpMtx_aggregate(LA,P%fAggr,P%aggr_radius1, &
              minaggrsize=min_asize1,       &
-             maxaggrsize=max_asize1,       &
+             maxaggrsize=P%max_asize1,       &
              alpha=p%strong_conn1,           &
              M=D%mesh,                          &
              plotting=plotting)
@@ -95,7 +95,7 @@ contains
         call SpMtx_find_strong(A=D%A,alpha=P%strong_conn1)
         call SpMtx_aggregate(D%A,P%fAggr,P%aggr_radius1, &
              minaggrsize=min_asize1,       &
-             maxaggrsize=max_asize1,       &
+             maxaggrsize=P%max_asize1,       &
              alpha=P%strong_conn1,           &
              M=D%mesh,                          &
              plotting=plotting)
@@ -184,7 +184,7 @@ contains
         start = P%cPart%starts(cAggr)
         end = start+nnodes
         P%cPart%starts(cAggr+1) = end
-        P%cPart%nodes(start:end+nnodes-1) = nodes(1:nnodes)
+        P%cPart%nodes(start:end-1) = nodes(1:nnodes)
       end do
       deallocate(nodes)
 

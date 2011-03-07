@@ -2569,12 +2569,15 @@ CONTAINS
     integer :: i,k,s,s1,sadjncy,c1,c2
     integer, dimension(:), pointer :: counter,nneig
     integer, dimension(:,:), allocatable :: neigs
+    integer :: nnodes
 
     !At first, find, which are the neighbouring aggregates
     allocate(neigs(maxaggrsize,aggr%inner%nagr))
     allocate(nneig(aggr%inner%nagr))
+    nnodes = size(aggr%inner%num)
     nneig=0
     do i=1,A%nnz
+      if (A%indi(i)>nnodes.or.A%indj(i)>nnodes) cycle
       if (A%indi(i)<A%indj(i)) then
         c1=aggr%inner%num(A%indi(i))
         c2=aggr%inner%num(A%indj(i))

@@ -757,6 +757,7 @@ print *,'    ========== aggregate ',i,' got removed node by node ============'
              TAG_EXCHANGE_STRONG, MPI_COMM_WORLD, status, ierr)
         ninds = strong_recvs(i)%ninds
         bufpos = 0
+        if (ninds==0) cycle
         call MPI_Unpack(inbuffer, bufsize, bufpos, indi(nnz+1), ninds,&
              MPI_INTEGER, MPI_COMM_WORLD, ierr)
         if (ierr/=0) call DOUG_abort("MPI UnPack of matrix elements failed")
@@ -785,6 +786,7 @@ print *,'    ========== aggregate ',i,' got removed node by node ============'
       bufpos = 0
       do i=1,M%nnghbrs
         ninds = strong_recvs(i)%ninds
+        if (ninds==0) cycle
         call MPI_ISend(strong(nnz+1), ninds, MPI_LOGICAL, M%nghbrs(i), &
              TAG_EXCHANGE_STRONG, MPI_COMM_WORLD, outreqs(i), ierr)
         nnz = nnz+ninds
@@ -797,6 +799,7 @@ print *,'    ========== aggregate ',i,' got removed node by node ============'
       nnz = 0
       do i=1,M%nnghbrs
         ninds = strong_sends(i)%ninds
+        if (ninds==0) cycle
         call MPI_Recv(strongval_recvs(nnz+1), ninds, MPI_LOGICAL,M%nghbrs(i),&
              TAG_EXCHANGE_STRONG, MPI_COMM_WORLD, status, ierr)
         ! overwrite local strong value with remote

@@ -68,6 +68,7 @@ program main_aggr
   use Partitioning_mod
   use Partitioning_aggr_mod
   use Partitioning_full_mod
+  use Partitioning_metis_mod
   use Preconditioner_mod
   use FinePreconditioner_complete_mod
   use CoarsePreconditioner_smooth_mod
@@ -187,10 +188,16 @@ program main_aggr
       write(stream,*)'# coarse aggregates:',P%cAggr%inner%nagr
 
     endif 
+
+  else ! 1 level, several procs
+    ! required for metis coarse subdomains
+    call Partitionings_aggr_InitFine(P,D)
   endif
 
   if (numprocs>1) then
-    call Partitionings_full_InitCoarse(P,D)
+    !call Partitionings_full_InitCoarse(P,D)
+    if (sctls%num_subdomains<=0) sctls%num_subdomains=1
+    call Partitionings_metis_InitCoarse(P,D,sctls%num_subdomains)
   end if
 
   ! overlap for subdomains

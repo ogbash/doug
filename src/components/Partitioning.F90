@@ -51,7 +51,7 @@ module Partitioning_mod
     
     ! implementations
     float(kind=rk) :: strong_conn1, strong_conn2
-    integer :: aggr_radius1
+    integer :: aggr_radius1, max_asize1
     type(AggrInfo) :: fAggr !< fine aggregates
     type(AggrInfo) :: cAggr !< coarse aggregates
   end type Partitionings
