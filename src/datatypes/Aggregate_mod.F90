@@ -158,6 +158,37 @@ CONTAINS
     aggr%nisolated=0
   end subroutine Destruct_Aggrs
 
+  !> Get coarse aggregate node numbers (which are also domain node numbers).
+  subroutine Get_aggregate_nodes(cAggr,cAggrs,fAggrs,maxnodes, nodes, nnodes)
+    type(Aggrs),intent(in) :: cAggrs
+    type(Aggrs),intent(in) :: fAggrs
+    integer,intent(in) :: cAggr
+    integer,intent(in) :: maxnodes
+    integer,intent(inout) :: nodes(:)
+    integer,intent(out) :: nnodes
+
+    integer,dimension(:),allocatable :: nodeLoc ! node location in nodes array
+    integer :: ifAggr, fAggr, inode, node
+
+    allocate(nodeLoc(maxnodes))
+    nodeLoc = 0
+    nnodes = 0
+
+    nodeLoc=0
+    nnodes=0
+    do ifAggr=cAggrs%starts(cAggr),cAggrs%starts(cAggr+1)-1 ! look through fine agrs.
+      fAggr=cAggrs%nodes(ifAggr) ! fine aggregate numbers
+      do inode=fAggrs%starts(fAggr),fAggrs%starts(fAggr+1)-1 ! loop over nodes in aggr.
+        node=fAggrs%nodes(inode) ! node number
+        if (nodeLoc(node)==0) then
+           nnodes=nnodes+1
+           nodeLoc(node)=nnodes
+           nodes(nnodes)=node
+        endif
+      enddo
+    enddo
+  end subroutine Get_aggregate_nodes
+
   function node_neighood_fits(innode,neighood,nneigs,nodes, &
                               stat,rowstart,colnrs) result(ok)
     Implicit None

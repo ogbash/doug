@@ -101,7 +101,14 @@ contains
         call SpMtx_unscale(D%A)
         !call Aggrs_readFile_fine(D%A%aggr, "aggregates.txt")
       end if
+
+      ! set partitions
+      P%fPart%nnodes = D%mesh%ninner
+      P%fPart%nparts = P%fAggr%full%nagr
+      allocate(P%fPart%num(P%fPart%nnodes))
+      P%fPart%num = P%fAggr%full%num
     end if
+
   end subroutine Partitionings_aggr_InitFine
 
   ! Create fine partitionings using aggregate method.
@@ -115,7 +122,8 @@ contains
     type(Distribution),intent(inout) :: D !< mesh and data distribution
     type(SpMtx),intent(inout) :: AC !< Coarse matrix
 
-    integer :: n
+    integer :: n, cAggr, nnodes, i
+    integer,allocatable :: nodes(:)
     integer :: aggr_radius2, min_asize2, max_asize2
 
     call Partitionings_aggr_InitFine(P,D)
@@ -158,6 +166,20 @@ contains
            aggr_fine=P%fAggr)
       call SpMtx_unscale(AC)
 
+      ! set partitions
+      P%cPart%nnodes = D%mesh%ninner
+      P%cPart%nparts = P%cAggr%full%nagr
+      allocate(P%cPart%num(P%cPart%nnodes))
+      allocate(nodes(P%cPart%nnodes))
+
+      do cAggr=1,P%cAggr%full%nagr ! loop over coarse aggregates
+        call Get_aggregate_nodes(cAggr,P%cAggr%full,P%fAggr%full,P%cPart%nnodes,nodes,nnodes)
+        do i=1,nnodes
+          P%cPart%num(nodes(i)) = cAggr
+        end do
+      end do
+
+      deallocate(nodes)
     end if
 
   end subroutine Partitionings_aggr_InitCoarse

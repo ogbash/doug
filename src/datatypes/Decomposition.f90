@@ -105,7 +105,7 @@ contains
 
     call SpMtx_arrange(A,D_SpMtx_ARRNG_ROWS,sort=.false.)
     do icAggr=1,cAggrs%nagr ! loop over coarse aggregates
-       call Get_aggregate_nodes(icAggr,A%nrows,nodes,nnodes)
+       call Get_aggregate_nodes(icAggr,cAggrs,fAggrs,A%nrows,nodes,nnodes)
        call Add_layers(A%m_bound,A%indj,nodes,nnodes,ol,nnodes_exp)
 
        ! keep indlist:
@@ -114,35 +114,6 @@ contains
        DD%subd(icAggr)%inds(1:nnodes_exp)=nodes(1:nnodes_exp)
     enddo
 
-  contains
-    !> Get coarse aggregate node numbers (which are also domain node numbers).
-    subroutine Get_aggregate_nodes(cAggr, maxnodes, nodes, nnodes)
-      integer,intent(in) :: cAggr
-      integer,intent(in) :: maxnodes
-      integer,intent(inout) :: nodes(:)
-      integer,intent(out) :: nnodes
-
-      integer,dimension(:),allocatable :: nodeLoc ! node location in nodes array
-      integer :: ifAggr, fAggr, inode, node
-
-      allocate(nodeLoc(maxnodes))
-      nodeLoc = 0
-      nnodes = 0
-
-      nodeLoc=0
-      nnodes=0
-      do ifAggr=cAggrs%starts(cAggr),cAggrs%starts(cAggr+1)-1 ! look through fine agrs.
-         fAggr=cAggrs%nodes(ifAggr) ! fine aggregate numbers
-         do inode=fAggrs%starts(fAggr),fAggrs%starts(fAggr+1)-1 ! loop over nodes in aggr.
-            node=fAggrs%nodes(inode) ! node number
-            if (nodeLoc(node)==0) then
-              nnodes=nnodes+1
-              nodeLoc(node)=nnodes
-              nodes(nnodes)=node
-            endif
-         enddo
-      enddo
-    end subroutine Get_aggregate_nodes
   end function Decomposition_from_aggrs
 
   !> Add several layers of nodes to the existing set of nodes using mesh graph adjacency matrix.

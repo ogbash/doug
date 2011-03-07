@@ -37,7 +37,7 @@ module Partitioning_mod
   type Partitioning
      integer :: nnodes !< number of nodes
      integer :: nparts !< number of partitions
-     integer,pointer :: partitions !< partition numbers for nodes
+     integer,pointer :: num(:) !< partition numbers for nodes
   end type Partitioning
   
   !> Partitionings of the mesh into regions.
@@ -64,7 +64,7 @@ contains
     type(Partitioning) :: P
     P%nnodes = -1
     P%nparts = -1
-    P%partitions => NULL()
+    P%num => NULL()
   end function Partitioning_New
 
   !> Initialize partitionings.
