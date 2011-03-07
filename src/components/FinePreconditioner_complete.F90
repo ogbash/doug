@@ -39,7 +39,7 @@ contains
 
   !> Apply preconditioner.
   subroutine FinePreconditioner_complete_Apply(FP, sol, rhs)
-    type(FinePreconditioner),intent(in) :: FP
+    type(FinePreconditioner),intent(inout) :: FP
     real(kind=rk),dimension(:),pointer :: sol !< solution
     real(kind=rk),dimension(:),pointer :: rhs !< right hand side
     
