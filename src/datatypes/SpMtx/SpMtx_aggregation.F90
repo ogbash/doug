@@ -366,10 +366,6 @@ CONTAINS
       fullaggrnum=aggrnum(1:A%nrows)
       full_nagrs_new=max(0, maxval(fullaggrnum))
       call Form_Aggr(aggr%inner,nagrs,n,neighood,nisolated,aggrnum)
-      ! communicate the neighbours' aggregate numbers and renumber:
-      if (numprocs>1) then 
-        call setup_aggr_cdat(nagrs,n,aggrnum,M)
-      endif
     elseif (toosmall) then ! }{
       ! build the aggregate reference structure
       allocate(aggrsize(nagrs)) ! the initial aggr sizes
@@ -584,9 +580,6 @@ print *,'    ========== aggregate ',i,' got removed node by node ============'
                    radius=neighood,           &
                 nisolated=n-naggregatednodes, &
                   aggrnum=aggrnum)
-      if (numprocs>1) then 
-        call setup_aggr_cdat(nagrs_new,n,aggrnum,M)
-      endif
       deallocate(connweightsums) ! weight sums to each colour!
       deallocate(colsaround) ! lists the colors
       deallocate(structnodes)
@@ -605,46 +598,46 @@ print *,'    ========== aggregate ',i,' got removed node by node ============'
     deallocate(fullaggrnum)
     deallocate(aggrnum)
     
-    if (plot==1.or.plot==3) then
-      if (numprocs>1) then
-        if (ismaster()) then
-          allocate(aggrnum(M%ngf))
-          allocate(owner(M%ngf))
-        end if
-        call Integer_Vect_Gather(aggr%inner%num,aggrnum,M,owner)
-        if (ismaster()) then
-          call color_print_aggrs(M%ngf,aggrnum,overwrite=.false.,owner=owner)
-          deallocate(owner,aggrnum)
-        endif
-      else
-        if (.not.present(aggr_fine)) then
-          if (plot==3) then
-            call color_print_aggrs(A%nrows,aggr%inner%num,overwrite=.true.)
-          else
-            write(stream,*)' fine aggregates:'
-            call color_print_aggrs(A%nrows,aggr%inner%num)
-            if (.not.aggrarefull) then
-              write(stream,*)' FULL fine aggregates:'
-              call color_print_aggrs(A%nrows,aggr%full%num)
-            endif
-          endif
-        else
-          if (plot==3) then
-            call color_print_aggrs(size(aggr_fine%full%nodes),aggr_fine%full%num,aggr%inner%num,overwrite=.true.)
-          else
-            write(stream,*)' coarse aggregates:'
-            call color_print_aggrs(size(aggr_fine%full%nodes),aggr_fine%inner%num,aggr%inner%num)
-            if (.not.aggrarefull) then
-              write(stream,*)' FULL coarse aggregates:'
-              call color_print_aggrs(size(aggr_fine%full%nodes),aggr_fine%full%num,aggr%full%num)
-            endif
-          endif
-        endif
-      endif
-    endif
-    if (plot==3) then
-      deallocate(moviecols)
-    endif
+    ! if (plot==1.or.plot==3) then
+    !   if (numprocs>1) then
+    !     if (ismaster()) then
+    !       allocate(aggrnum(M%ngf))
+    !       allocate(owner(M%ngf))
+    !     end if
+    !     call Integer_Vect_Gather(aggr%inner%num,aggrnum,M,owner)
+    !     if (ismaster()) then
+    !       call color_print_aggrs(M%ngf,aggrnum,overwrite=.false.,owner=owner)
+    !       deallocate(owner,aggrnum)
+    !     endif
+    !   else
+    !     if (.not.present(aggr_fine)) then
+    !       if (plot==3) then
+    !         call color_print_aggrs(A%nrows,aggr%inner%num,overwrite=.true.)
+    !       else
+    !         write(stream,*)' fine aggregates:'
+    !         call color_print_aggrs(A%nrows,aggr%inner%num)
+    !         if (.not.aggrarefull) then
+    !           write(stream,*)' FULL fine aggregates:'
+    !           call color_print_aggrs(A%nrows,aggr%full%num)
+    !         endif
+    !       endif
+    !     else
+    !       if (plot==3) then
+    !         call color_print_aggrs(size(aggr_fine%full%nodes),aggr_fine%full%num,aggr%inner%num,overwrite=.true.)
+    !       else
+    !         write(stream,*)' coarse aggregates:'
+    !         call color_print_aggrs(size(aggr_fine%full%nodes),aggr_fine%inner%num,aggr%inner%num)
+    !         if (.not.aggrarefull) then
+    !           write(stream,*)' FULL coarse aggregates:'
+    !           call color_print_aggrs(size(aggr_fine%full%nodes),aggr_fine%full%num,aggr%full%num)
+    !         endif
+    !       endif
+    !     endif
+    !   endif
+    ! endif
+    ! if (plot==3) then
+    !   deallocate(moviecols)
+    ! endif
   end subroutine SpMtx_aggregate
 
   subroutine SpMtx_exchange_strong(A,A_ghost,M)
@@ -764,6 +757,7 @@ print *,'    ========== aggregate ',i,' got removed node by node ============'
              TAG_EXCHANGE_STRONG, MPI_COMM_WORLD, status, ierr)
         ninds = strong_recvs(i)%ninds
         bufpos = 0
+        if (ninds==0) cycle
         call MPI_Unpack(inbuffer, bufsize, bufpos, indi(nnz+1), ninds,&
              MPI_INTEGER, MPI_COMM_WORLD, ierr)
         if (ierr/=0) call DOUG_abort("MPI UnPack of matrix elements failed")
@@ -792,6 +786,7 @@ print *,'    ========== aggregate ',i,' got removed node by node ============'
       bufpos = 0
       do i=1,M%nnghbrs
         ninds = strong_recvs(i)%ninds
+        if (ninds==0) cycle
         call MPI_ISend(strong(nnz+1), ninds, MPI_LOGICAL, M%nghbrs(i), &
              TAG_EXCHANGE_STRONG, MPI_COMM_WORLD, outreqs(i), ierr)
         nnz = nnz+ninds
@@ -804,6 +799,7 @@ print *,'    ========== aggregate ',i,' got removed node by node ============'
       nnz = 0
       do i=1,M%nnghbrs
         ninds = strong_sends(i)%ninds
+        if (ninds==0) cycle
         call MPI_Recv(strongval_recvs(nnz+1), ninds, MPI_LOGICAL,M%nghbrs(i),&
              TAG_EXCHANGE_STRONG, MPI_COMM_WORLD, status, ierr)
         ! overwrite local strong value with remote

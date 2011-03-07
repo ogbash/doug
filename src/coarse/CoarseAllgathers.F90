@@ -74,11 +74,8 @@ module CoarseAllgathers
         type(SpMtx) :: R        !< Restriction matrix
  
         type(SendData) :: send          !< Auxilliary struct for sending data
-   end type
+    end type CoarseData
 
-   type(CoarseData), save :: cdat !<coarse data -- includes overlap
-   type(CoarseData), save :: cdat_vec !<coarse data -- w/o overlap, for vector
-                                !                              collects
 contains
   subroutine CoarseData_Copy(cdata, cdata2)
     type(CoarseData),intent(inout) :: cdata
@@ -259,7 +256,7 @@ contains
 
     end subroutine
 
-    subroutine AllSendCoarseVector(xl,nproc,cdisps,send,useprev)
+    subroutine AllSendCoarseVector(xl,nproc,cdisps,send)
         use RealKind
         use SpMtx_class
         use Mesh_class
@@ -273,12 +270,10 @@ contains
         integer, intent(in) :: cdisps(:)
         !> A variable for passing info to AllRecvCoarseVector
         type(SendData), intent(out) :: send
-        !> Assume that fbuf is already allocated and rsizes filled correctly
-        logical, intent(in), optional :: useprev
 
         if (sctls%verbose>6) write(stream,*) "Sending local coarse vector"
 
-        if (.not.present(useprev).or..not.useprev) then
+        if (.not.associated(send%fbuf)) then
             ! Calc the size of my data
             send%ssize=cdisps(myrank+2)-cdisps(myrank+1)
             send%rsizes=cdisps(2:nproc+1)-cdisps(1:nproc)
@@ -511,12 +506,16 @@ contains
 
     end subroutine CleanCoarse 
 
-  subroutine setup_aggr_cdat(nagrs,n,aggrnum,M)
+  subroutine setup_aggr_cdat(cdat, cdat_vec, nagrs,n,aggrnum,M)
     use globals
     !use CoarseAllgathers
     use Mesh_class
     use SpMtx_operation
-    Implicit None
+    implicit none
+
+    type(CoarseData),intent(out) :: cdat
+    type(CoarseData),intent(out) :: cdat_vec
+
     integer :: nagrs ! number of aggregates (may increase here)
     integer, intent(in) :: n ! number of unknowns
     integer, dimension(:), pointer :: aggrnum ! larger due ghost freedoms

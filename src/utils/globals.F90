@@ -86,6 +86,7 @@ module globals
      integer       :: solver           = -1
      integer       :: method           = -1
      integer       :: coarse_method    = -1
+     integer       :: num_subdomains   = -1
      integer       :: levels           = -1
      integer       :: overlap          = -1
      integer       :: smoothers        = -1

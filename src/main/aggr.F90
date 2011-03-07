@@ -66,6 +66,13 @@ program main_aggr
   use doug
   use Distribution_mod
   use Partitioning_mod
+  use Partitioning_aggr_mod
+  use Partitioning_full_mod
+  use Partitioning_metis_mod
+  use Preconditioner_mod
+  use FinePreconditioner_complete_mod
+  use CoarsePreconditioner_smooth_mod
+  use CoarsePreconditioner_robust_mod
   use Mesh_class
   use Mesh_plot_mod
   use SpMtx_mods
@@ -76,8 +83,6 @@ program main_aggr
   use Aggregate_utils_mod
   use CoarseMtx_mod
   use CoarseAllgathers
-  use RobustCoarseMtx_mod
-  use pcgRobust_mod
 
   implicit none
 
@@ -89,15 +94,9 @@ program main_aggr
 #define float real
 #endif
 
-  type(SpMtx)    :: AC  !< coarse matrix
-  type(SpMtx)    :: Restrict !< Restriction matrix (for operation)
-  type(SumOfInversedSubMtx) :: B_RCS !< B matrix for the Robust Coarse Spaces
-  !type(SpMtx)    :: Rest_cmb !< Restriction matrix (for coarse matrix build)
-
   float(kind=rk), dimension(:), pointer :: xl !< local solution vector
   float(kind=rk), dimension(:), pointer :: x  !< global solution on master
   float(kind=rk), dimension(:), pointer :: sol, rhs  !< for testing solver
-  real(kind=rk), pointer :: rhs_1(:), g(:)
 
   ! Partitioning
   integer               :: nparts !< number of partitons to partition a mesh
@@ -114,12 +113,9 @@ program main_aggr
   integer,allocatable :: nodes(:), inds(:)
 
   type(Distribution) :: D !< mesh and matrix distribution
-  type(Decomposition) :: DD !< domains
   type(Partitionings) :: P !< fine and coarse aggregates
-  type(RobustPreconditionMtx) :: C
-  type(CoarseSpace) :: CS
-  ! Parallel coarse level
-  !type(CoarseData) :: cdat -- moved into the module itself...
+  type(FinePreconditioner) :: FP
+  type(CoarsePreconditioner) :: CP
 
   ! Init DOUG
   call DOUG_Init()
@@ -131,7 +127,7 @@ program main_aggr
 
   if (sctls%levels>1.or.(numprocs==1.and.sctls%levels==1)) then !todo remove
     P = Partitionings_New()
-    call Partitionings_CreateFine(P,D)
+    call Partitionings_aggr_InitFine(P,D)
     ! profile info
     if(pstream/=0) then
       write(pstream, "(I0,':fine aggregates:',I0)") myrank, P%fAggr%inner%nagr
@@ -151,65 +147,23 @@ program main_aggr
                                  !D_PLPLOT_END)
     endif
     
+    CP = CoarsePreconditioner_New()
     ! Testing coarse matrix and aggregation through it:
-    if (numprocs>1) then
-      
-      call SpMtx_find_strong(A=D%A,alpha=P%strong_conn1,A_ghost=D%A_ghost)
-      call SpMtx_exchange_strong(D%A,D%A_ghost,D%mesh)
-      call SpMtx_symm_strong(D%A,D%A_ghost,.false.)
-      call SpMtx_unscale(D%A)
+    if (sctls%coarse_method<=1) then ! if not specified or ==1
+      call CoarsePreconditioner_smooth_Init(CP, D, P)
 
-      call IntRestBuild(D%A,P%fAggr%inner,Restrict,D%A_ghost)
-      CS = CoarseSpace_Init(Restrict)
-      call CoarseData_Copy(cdat,cdat_vec)
-      call CoarseSpace_Expand(CS,Restrict,D%mesh,cdat)
-      call CoarseMtxBuild(D%A,cdat%LAC,Restrict,D%mesh%ninner,D%A_ghost)
-      call KeepGivenRowIndeces(Restrict, (/(i,i=1,P%fAggr%inner%nagr)/))
+    else if (sctls%coarse_method==2) then
+      ! use the Robust Coarse Spaces algorithm
+      call CoarsePreconditioner_robust_Init(CP, D, P)
 
-      if (sctls%verbose>3.and.cdat%LAC%nnz<400) then
-        write(stream,*)'Restrict (local) is:=================='
-        call SpMtx_printRaw(A=Restrict)
-        write(stream,*)'A coarse (local) is:=================='
-        call SpMtx_printRaw(A=cdat%LAC)
-      endif
-
-    else 
-      ! non-parallel
-      call IntRestBuild(D%A,P%fAggr%inner,Restrict)
-
-      if (sctls%coarse_method<=1) then ! if not specified or ==1
-         call CoarseMtxBuild(D%A,AC,Restrict,D%mesh%ninner)
-
-      else if (sctls%coarse_method==2) then
-         ! use the Robust Coarse Spaces algorithm
-         B_RCS = CoarseProjectionMtxsBuild(D%A,Restrict,P%fAggr%inner%nagr)
-         allocate(rhs_1(D%A%nrows))
-         allocate(g(D%A%ncols))
-
-         rhs_1 = 1.0
-         call pcg_forRCS(B_RCS,rhs_1,g)
-
-         if(sctls%verbose>5) then
-            write (stream, *) "Solution g = ", g
-         end if
-
-         call RobustRestrictMtxBuild(B_RCS,g,Restrict)
-         call CoarseMtxBuild(D%A,AC,Restrict,D%mesh%ninner)
-
-      else
-         write(stream,'(A," ",I2)') 'Wrong coarse method', sctls%coarse_method
-         call DOUG_abort('Error in aggr', -1)
-      endif
-           
-      if (sctls%verbose>3.and.AC%nnz<400) then
-        write(stream,*)'A coarse is:=================='
-        call SpMtx_printRaw(A=AC)
-      endif
+    else
+      write(stream,'(A," ",I2)') 'Wrong coarse method', sctls%coarse_method
+      call DOUG_abort('Error in aggr', -1)
     endif
-   
+              
     ! coarse aggregates
     if (numprocs==1) then
-      call Partitionings_CreateCoarse(P,D,AC)
+      call Partitionings_aggr_InitCoarse(P,D,CP%AC)
       !call Aggrs_readFile_coarse(P%cAggr, "aggregates.txt")
 
       ! profile info
@@ -234,7 +188,17 @@ program main_aggr
       write(stream,*)'# coarse aggregates:',P%cAggr%inner%nagr
 
     endif 
+
+  else ! 1 level, several procs
+    ! required for metis coarse subdomains
+    call Partitionings_aggr_InitFine(P,D)
   endif
+
+  if (numprocs>1) then
+    !call Partitionings_full_InitCoarse(P,D)
+    if (sctls%num_subdomains<=0) sctls%num_subdomains=1
+    call Partitionings_metis_InitCoarse(P,D,sctls%num_subdomains)
+  end if
 
   ! overlap for subdomains
   if (sctls%overlap<0) then ! autom. overlap from smoothing
@@ -243,13 +207,14 @@ program main_aggr
     ol = sctls%overlap
   endif
 
+  FP = FinePreconditioner_New(D)
+  call FinePreconditioner_Init(FP, D, P, ol)
+  call FinePreconditioner_complete_Init(FP)
   if (numprocs==1) then
-    DD = Decomposition_from_aggrs(D%A, P%cAggr%full, P%fAggr%full, ol)
     call AggrInfo_Destroy(P%cAggr)
     call AggrInfo_Destroy(P%fAggr)
   else
-    DD = Decomposition_full(D%A,D%A_ghost,D%mesh%ninner,ol)
-    ! call Aggrs_writeFile(M, P%fAggr, cdat, "aggregates.txt")
+    ! call Aggrs_writeFile(M, P%fAggr, CP%cdat, "aggregates.txt")
     if (sctls%levels>1) call AggrInfo_Destroy(P%fAggr)
   end if
 
@@ -269,17 +234,10 @@ program main_aggr
   case (DCTL_SOLVE_PCG)
      ! Preconditioned conjugate gradient
      t1 = MPI_WTIME()
-     if (sctls%levels==2) then
-       write(stream,*)'calling pcg_weigs with coarse matrix'
-       call pcg_weigs(A=D%A,b=D%rhs,x=xl,Msh=D%mesh,DomDec=DD,it=it,cond_num=cond_num, &
-            A_interf_=D%A_ghost, &
-            CoarseMtx_=AC,Restrict=Restrict, &
-            refactor_=.true.)
-     else
-       write(stream,*)'calling pcg_weigs'
-       call pcg_weigs(D%A, D%rhs, xl, D%mesh,DD,it,cond_num, &
-            A_interf_=D%A_ghost, refactor_=.true.)
-     endif
+     write(stream,*)'calling pcg_weigs'
+     call pcg_weigs(D, x=xl,&
+          finePrec=FP,coarsePrec=CP,&
+          it=it,cond_num=cond_num)
      t=MPI_WTIME()-t1
      write(stream,*) 'time spent in pcg():',t
      t1=total_setup_time()

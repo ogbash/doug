@@ -21,7 +21,7 @@
 
 ! Definitions for control file parameters
 
-integer, parameter :: DCTL_NWORDS = 47
+integer, parameter :: DCTL_NWORDS = 48
 character*(50)     :: ctl_words(DCTL_NWORDS)
 
 integer, parameter ::  &
@@ -71,7 +71,8 @@ DCTL_assembled_rhs_format = 43, &
 DCTL_dump_matrix_only     = 44, &
 DCTL_dump_matrix_file     = 45, &
 DCTL_assembled_mtx_format = 46, &
-DCTL_coarse_method        = 47
+DCTL_coarse_method        = 47, &
+DCTL_num_subdomains       = 48
 
 !!$DCTL_matrix_file           =
 !!$DCTL_rhs_file              =
@@ -130,6 +131,7 @@ ctl_words(DCTL_solver)           = 'solver'
 ctl_words(DCTL_method)           = 'method'
 ctl_words(DCTL_coarse_method)    = 'coarse_method'
 ctl_words(DCTL_levels)           = 'levels'
+ctl_words(DCTL_num_subdomains)   = 'num_subdomains'
 ctl_words(DCTL_overlap)          = 'overlap'
 ctl_words(DCTL_smoothers)        = 'smoothers'
 ctl_words(DCTL_radius1)          = 'radius1'

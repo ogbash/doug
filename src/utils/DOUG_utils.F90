@@ -749,6 +749,14 @@ contains
           read(word2, '(i10)') sctls%coarse_method
        endif
 
+    ! num_subdomains
+    elseif (ctl_num.eq.DCTL_num_subdomains) then
+       if (sctls%num_subdomains.ne.-1) then
+          write(6,200) trim(word1), trim(word2)
+       else
+          read(word2, '(i10)') sctls%num_subdomains
+       endif
+
     ! levels
     elseif (ctl_num.eq.DCTL_levels) then
        if (sctls%levels.ne.-1) then
@@ -1163,6 +1171,9 @@ contains
          ctl_words(DCTL_coarse_method)(1:length(ctl_words(DCTL_coarse_method))), &
          sctls%coarse_method
     write(stream,fmti) &
+         ctl_words(DCTL_num_subdomains)(1:length(ctl_words(DCTL_num_subdomains))), &
+         sctls%num_subdomains
+    write(stream,fmti) &
          ctl_words(DCTL_levels)(1:length(ctl_words(DCTL_levels))), &
          sctls%levels
     write(stream,fmti) &
@@ -1373,7 +1384,7 @@ contains
     use globals, only: sctls, D_MPI_SCTLS_TYPE, MPI_rkind
     implicit none
 
-    integer, parameter          :: nblocks = 27  ! Number of type components
+    integer, parameter          :: nblocks = 28  ! Number of type components
     integer, dimension(nblocks) :: types,        &
                                    blocklengths, &
                                    addresses,    &
@@ -1390,10 +1401,10 @@ contains
          MPI_INTEGER, MPI_LOGICAL, &
          MPI_LOGICAL, &
          MPI_INTEGER, MPI_LOGICAL, &
-         MPI_INTEGER/)
+         MPI_INTEGER, MPI_INTEGER/)
 
     blocklengths = (/1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, &
-                     1, 1, 1, 1, 1, 1, 1, 1, 1/)
+                     1, 1, 1, 1, 1, 1, 1, 1, 1, 1/)
 
     call MPI_ADDRESS(sctls%solver,           addresses( 1), ierr)
     call MPI_ADDRESS(sctls%method,           addresses( 2), ierr)
@@ -1422,6 +1433,7 @@ contains
     call MPI_ADDRESS(sctls%interpolation_type, addresses(25), ierr)
     call MPI_ADDRESS(sctls%useAggregatedRHS, addresses(26), ierr)
     call MPI_ADDRESS(sctls%coarse_method,    addresses(27), ierr)
+    call MPI_ADDRESS(sctls%num_subdomains,    addresses(28), ierr)
 
     do i = 1,nblocks
        displacements(i) = addresses(i) - addresses(1)
