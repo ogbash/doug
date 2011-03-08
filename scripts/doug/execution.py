@@ -125,10 +125,11 @@ class DOUGExecution:
         nsubdomains = self.config.getint('doug-controls', 'num_subdomains')
         levels = self.config.getint('doug-controls', 'levels')
         method = self.config.getint('doug-controls', 'method')
+        fine_method = self.config.getint('doug-controls', 'fine_method')
         smoothers = self.config.getint('doug-controls', 'smoothers')
         overlap = self.config.getint('doug-controls', 'overlap')
         
-        LOG.info("solver=%d, method=%d, levels=%d, num_subdomains=%d, nproc=%d, overlap=%d, smoothers=%d" % (solver, method, levels, nsubdomains, nproc, overlap, smoothers))
+        LOG.info("solver=%d, method=%d, levels=%d, fine_method=%d, num_subdomains=%d, nproc=%d, overlap=%d, smoothers=%d" % (solver, method, levels, fine_method, nsubdomains, nproc, overlap, smoothers))
         mpirun = self.config.get("doug", "mpirun")
         main = self.config.get("doug", "executable")
         bindir = self.config.get("doug", "bindir")
