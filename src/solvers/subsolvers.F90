@@ -261,9 +261,7 @@ contains
       docheck=.false.
     endif
     if (id<=0) then
-      write(stream,*) indi
       call factorise(id,nfreds,nnz,indi,indj,val)
-      write(stream,*) indi
       indi=indi+1
       indj=indj+1
     end if

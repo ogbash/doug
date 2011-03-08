@@ -279,7 +279,6 @@ contains
 
       allocate(sends(M%nnghbrs))
       do i=1,M%nnghbrs
-        write(stream,*) "inner", M%ol_inner(i)%inds
         call SpMtx_findColumnElems(iR, M%ol_inner(i)%inds, sends(i)%inds)
         sends(i)%ninds = size(sends(i)%inds)
       end do
