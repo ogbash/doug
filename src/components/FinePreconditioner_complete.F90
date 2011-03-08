@@ -31,6 +31,7 @@ contains
   subroutine FinePreconditioner_complete_Init(FP)
     type(FinePreconditioner),intent(inout) :: FP
     
+    FP%type = FINE_PRECONDITIONER_TYPE_COMPLETE
     allocate(FP%complete)
     FP%complete%factored = .false.
     FP%complete%nsubsolves = 0

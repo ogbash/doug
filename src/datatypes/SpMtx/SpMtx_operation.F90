@@ -1130,12 +1130,14 @@ call MPI_Barrier(MPI_COMM_WORLD,ierr)!todo: remove
     nnz = sum(As%nnz)
 
     C = SpMtx_newInit(nnz)
+    !write(stream,*) nnz, As%nnz, size(As(1)%indi), C%nnz, size(C%indi), size(C%indj)
     from = 1
     do i=1,size(As)
+      if (As(i)%nnz==0) cycle
        to = from + As(i)%nnz - 1
-       C%indi(from:to) = As(i)%indi
-       C%indj(from:to) = As(i)%indj
-       C%val(from:to) = koefs(i)*As(i)%val
+       C%indi(from:to) = As(i)%indi(1:As(i)%nnz)
+       C%indj(from:to) = As(i)%indj(1:As(i)%nnz)
+       C%val(from:to) = koefs(i)*As(i)%val(1:As(i)%nnz)
        from = to+1
     end do
 

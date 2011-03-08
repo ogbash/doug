@@ -83,7 +83,7 @@ contains
     end if
 
     if (numprocs>1) then
-      call KeepGivenRowIndeces(CP%R, (/(i,i=1,P%fAggr%inner%nagr)/))
+      call KeepGivenRowIndeces(CP%R, (/(i,i=1,P%fAggr%inner%nagr)/),.false.)
     end if
 
   end subroutine CoarsePreconditioner_smooth_Init

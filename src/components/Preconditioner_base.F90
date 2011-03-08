@@ -30,6 +30,9 @@ module Preconditioner_base_mod
   implicit none
 
   ! -------- Fine preconditioner
+  integer,parameter :: FINE_PRECONDITIONER_TYPE_NONE=0, &
+       FINE_PRECONDITIONER_TYPE_COMPLETE=1, &
+       FINE_PRECONDITIONER_TYPE_SGS=2
 
   !> Data for the complete 1-level preconditioner
   type FinePreconditioner_complete
@@ -38,12 +41,22 @@ module Preconditioner_base_mod
     integer, dimension(:), pointer   :: subsolve_ids !< numeric object handles of (UMFPACK,...) factorizations
   end type FinePreconditioner_complete
 
+  !> Data for the SGS 1-level preconditioner
+  type FinePreconditioner_sgs
+     integer :: n_iter !< number of Gauss-Seidel iterations
+     type(SpMtx),pointer :: As(:) !< matrices for subdomains
+  end type FinePreconditioner_sgs
+
   !> Base type for fine level preconditioner.
   type FinePreconditioner
+    integer :: type !< fine preconditioner type
     type(Distribution),pointer :: distr !< fine level grid and matrix
     type(Decomposition) :: domains !< local subdomains
     ! implementations
+    !! complete
     type(FinePreconditioner_complete),pointer :: complete
+    !! SGS
+    type(FinePreconditioner_sgs),pointer :: sgs
   end type FinePreconditioner
 
   ! -------- Coarse preconditioner
@@ -71,9 +84,11 @@ contains
     type(Distribution),target :: distr
     type(FinePreconditioner) :: FP
 
+    FP%type = FINE_PRECONDITIONER_TYPE_NONE
     FP%distr => distr
     FP%domains = Decomposition_New()
     FP%complete => NULL()
+    FP%sgs => NULL()
 
   end function FinePreconditioner_New
 

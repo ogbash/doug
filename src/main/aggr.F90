@@ -71,6 +71,7 @@ program main_aggr
   use Partitioning_metis_mod
   use Preconditioner_mod
   use FinePreconditioner_complete_mod
+  use FinePreconditioner_sgs_mod
   use CoarsePreconditioner_smooth_mod
   use CoarsePreconditioner_robust_mod
   use Mesh_class
@@ -211,6 +212,7 @@ program main_aggr
   FP = FinePreconditioner_New(D)
   call FinePreconditioner_Init(FP, D, P, ol)
   call FinePreconditioner_complete_Init(FP)
+  !call FinePreconditioner_sgs_Init(FP,5)
   if (numprocs==1) then
     call AggrInfo_Destroy(P%cAggr)
     call AggrInfo_Destroy(P%fAggr)

@@ -100,6 +100,40 @@ Contains
     deallocate(isin)
   end subroutine SpMtx_findColumnElems
 
+  !> Find matrix elements for the given rows and columns (matrix minor).
+  !! It is responsibility of the caller to free inds array.
+  subroutine SpMtx_findElems(A,x_inds,inds)
+    type(SpMtx),intent(in) :: A
+    integer,intent(in) :: x_inds(:) !< matrix row and column numbers
+    integer,pointer :: inds(:) !< found matrix elements
+
+    logical,dimension(:),pointer :: isin
+    integer :: i,n,nz
+
+    allocate(isin(max(A%nrows,A%ncols)))
+    isin=.false.
+    n=size(x_inds)
+    do i=1,n
+      isin(x_inds(i))=.true.
+    enddo
+    ! count
+    nz=0
+    do i=1,A%nnz
+      if (isin(A%indi(i)).and.isin(A%indj(i))) then
+        nz=nz+1
+      endif
+    enddo
+    allocate(inds(nz))
+    nz = 0
+    do i=1,A%nnz
+      if (isin(A%indi(i)).and.isin(A%indj(i))) then
+        nz=nz+1
+        inds(nz)=i
+      endif
+    enddo
+    deallocate(isin)
+  end subroutine SpMtx_findElems
+
   !> This is similar to KeepGivenRowIndeces() which does not change the matrix, 
   !! but returns 3 arrays instead.
   subroutine GetGivenRowsElements(A,nodes,indi,indj,val)
@@ -117,14 +151,32 @@ Contains
     indj = A%indj(inds)
     val = A%val(inds)
     deallocate(inds)
-
-    call MPI_Barrier(MPI_COMM_WORLD, ierr)
   end subroutine GetGivenRowsElements
 
-  subroutine KeepGivenRowIndeces(A,inds)
+  !> This is similar to KeepGiven[Row,Column]Indeces(), but it does not change the matrix, 
+  !! and returns 3 arrays instead.
+  subroutine GetGivenElements(A,nodes,indi,indj,val)
+    Type(SpMtx),intent(in) :: A ! the fine level matrix
+    integer,dimension(:),intent(in) :: nodes
+    integer,dimension(:),pointer :: indi,indj,inds
+    real(kind=rk),dimension(:),pointer :: val
+    integer :: nz, ierr
+
+    ! copy
+    call SpMtx_findElems(A,nodes,inds)
+    nz = size(inds)
+    allocate(indi(nz),indj(nz),val(nz))
+    indi = A%indi(inds)
+    indj = A%indj(inds)
+    val = A%val(inds)
+    deallocate(inds)
+  end subroutine GetGivenElements
+
+  subroutine KeepGivenRowIndeces(A,inds,keepShape)
     implicit none
     Type(SpMtx),intent(inout) :: A ! the fine level matrix
     integer,dimension(:),intent(in) :: inds
+    logical,intent(in) :: keepShape
     integer,dimension(:),pointer :: indi,indj
     real(kind=rk),dimension(:),pointer :: val
     logical,dimension(:),pointer :: isin
@@ -165,7 +217,9 @@ Contains
       A%val=val
       deallocate(val)
       A%nnz=nz
-      A%nrows=maxval(A%indi)
+      if (.not.keepShape) then
+        A%nrows=maxval(A%indi)
+      end if
     endif
 
     if (A%arrange_type/=D_SPMTX_ARRNG_NO) then

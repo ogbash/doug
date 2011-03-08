@@ -30,12 +30,21 @@ contains
   ! Apply preconditioner.
   subroutine FinePreconditioner_Apply(FP, sol, rhs)
     use FinePreconditioner_complete_mod
+    use FinePreconditioner_sgs_mod
     type(FinePreconditioner),intent(inout) :: FP
     real(kind=rk),dimension(:),pointer :: sol !< solution
     real(kind=rk),dimension(:),pointer :: rhs !< right hand side
 
-    ! currently only one implementation
-    call FinePreconditioner_complete_Apply(FP, sol, rhs)
+    ! delegate to different implementations
+    if (FP%type==FINE_PRECONDITIONER_TYPE_NONE) then
+      sol = rhs
+    else if (FP%type==FINE_PRECONDITIONER_TYPE_COMPLETE) then
+      call FinePreconditioner_complete_Apply(FP, sol, rhs)
+    else if (FP%type==FINE_PRECONDITIONER_TYPE_SGS) then
+      call FinePreconditioner_sgs_Apply(FP, sol, rhs)
+    else
+      call DOUG_abort("Unknown fine preconditioner type")
+    end if
   end subroutine FinePreconditioner_Apply
 
 end module Preconditioner_mod
