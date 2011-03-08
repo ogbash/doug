@@ -21,7 +21,7 @@
 
 ! Definitions for control file parameters
 
-integer, parameter :: DCTL_NWORDS = 48
+integer, parameter :: DCTL_NWORDS = 50
 character*(50)     :: ctl_words(DCTL_NWORDS)
 
 integer, parameter ::  &
@@ -72,7 +72,9 @@ DCTL_dump_matrix_only     = 44, &
 DCTL_dump_matrix_file     = 45, &
 DCTL_assembled_mtx_format = 46, &
 DCTL_coarse_method        = 47, &
-DCTL_num_subdomains       = 48
+DCTL_num_subdomains       = 48, &
+DCTL_fine_method          = 49, &
+DCTL_num_iters            = 50
 
 !!$DCTL_matrix_file           =
 !!$DCTL_rhs_file              =
@@ -129,6 +131,8 @@ ctl_words(DCTL_hanging_nodes)         = 'hanging_nodes' !Do we create hanging no
 ! SHARED:
 ctl_words(DCTL_solver)           = 'solver'
 ctl_words(DCTL_method)           = 'method'
+ctl_words(DCTL_fine_method)      = 'fine_method'
+ctl_words(DCTL_num_iters)        = 'num_iters'
 ctl_words(DCTL_coarse_method)    = 'coarse_method'
 ctl_words(DCTL_levels)           = 'levels'
 ctl_words(DCTL_num_subdomains)   = 'num_subdomains'

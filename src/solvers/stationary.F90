@@ -33,7 +33,7 @@ contains
   subroutine SymGaussSeidel(A,x,rhs,iter)
     type(SpMtx),intent(inout) :: A
     real(kind=rk),intent(in) :: rhs(:) !< right-hand side
-    real(kind=rk),intent(out) :: x(:) !< approximation
+    real(kind=rk),intent(inout) :: x(:) !< approximation
     integer,intent(in) :: iter !< number of iterations
 
     integer :: it,k,i,j

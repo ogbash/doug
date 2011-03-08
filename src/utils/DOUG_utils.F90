@@ -741,6 +741,22 @@ contains
           read(word2, '(i10)') sctls%method
        endif
 
+    ! fine method
+    elseif (ctl_num.eq.DCTL_fine_method) then
+       if (sctls%fine_method.ne.-1) then
+          write(6,200) trim(word1), trim(word2)
+       else
+          read(word2, '(i10)') sctls%fine_method
+       endif
+
+    ! num iterations
+    elseif (ctl_num.eq.DCTL_num_iters) then
+       if (sctls%num_iters.ne.-1) then
+          write(6,200) trim(word1), trim(word2)
+       else
+          read(word2, '(i10)') sctls%num_iters
+       endif
+
     ! coarse method
     elseif (ctl_num.eq.DCTL_coarse_method) then
        if (sctls%coarse_method.ne.-1) then
@@ -1168,6 +1184,12 @@ contains
          ctl_words(DCTL_method)(1:length(ctl_words(DCTL_method))), &
          sctls%method
     write(stream,fmti) &
+         ctl_words(DCTL_fine_method)(1:length(ctl_words(DCTL_fine_method))), &
+         sctls%fine_method
+    write(stream,fmti) &
+         ctl_words(DCTL_num_iters)(1:length(ctl_words(DCTL_num_iters))), &
+         sctls%num_iters
+    write(stream,fmti) &
          ctl_words(DCTL_coarse_method)(1:length(ctl_words(DCTL_coarse_method))), &
          sctls%coarse_method
     write(stream,fmti) &
@@ -1384,7 +1406,7 @@ contains
     use globals, only: sctls, D_MPI_SCTLS_TYPE, MPI_rkind
     implicit none
 
-    integer, parameter          :: nblocks = 28  ! Number of type components
+    integer, parameter          :: nblocks = 30  ! Number of type components
     integer, dimension(nblocks) :: types,        &
                                    blocklengths, &
                                    addresses,    &
@@ -1401,10 +1423,10 @@ contains
          MPI_INTEGER, MPI_LOGICAL, &
          MPI_LOGICAL, &
          MPI_INTEGER, MPI_LOGICAL, &
-         MPI_INTEGER, MPI_INTEGER/)
+         MPI_INTEGER, MPI_INTEGER, MPI_INTEGER, MPI_INTEGER/)
 
     blocklengths = (/1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, &
-                     1, 1, 1, 1, 1, 1, 1, 1, 1, 1/)
+                     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1/)
 
     call MPI_ADDRESS(sctls%solver,           addresses( 1), ierr)
     call MPI_ADDRESS(sctls%method,           addresses( 2), ierr)
@@ -1434,6 +1456,8 @@ contains
     call MPI_ADDRESS(sctls%useAggregatedRHS, addresses(26), ierr)
     call MPI_ADDRESS(sctls%coarse_method,    addresses(27), ierr)
     call MPI_ADDRESS(sctls%num_subdomains,    addresses(28), ierr)
+    call MPI_ADDRESS(sctls%fine_method,    addresses(29), ierr)
+    call MPI_ADDRESS(sctls%num_iters,    addresses(30), ierr)
 
     do i = 1,nblocks
        displacements(i) = addresses(i) - addresses(1)

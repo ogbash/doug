@@ -28,10 +28,12 @@
 !> solver 2
 !> solve_maxiters 300
 !> method 1
+!> fine_method 1
 !> coarse_method 1
 !> levels  2
 !> overlap -1
 !> smoothers 0
+!> num_iters 4 # Gauss-Seidel iterations
 !> input_type 2
 !> symmstruct T
 !> symmnumeric T
@@ -211,8 +213,18 @@ program main_aggr
 
   FP = FinePreconditioner_New(D)
   call FinePreconditioner_Init(FP, D, P, ol)
-  call FinePreconditioner_complete_Init(FP)
-  !call FinePreconditioner_sgs_Init(FP,5)
+  if (sctls%fine_method==FINE_PRECONDITIONER_TYPE_NONE) then
+    ! do nothing
+  else if (sctls%fine_method==FINE_PRECONDITIONER_TYPE_COMPLETE) then
+    call FinePreconditioner_complete_Init(FP)
+  else if (sctls%fine_method==FINE_PRECONDITIONER_TYPE_SGS) then
+    if (sctls%num_iters<=0) sctls%num_iters=3
+    call FinePreconditioner_sgs_Init(FP,sctls%num_iters)
+  else
+    write(stream,'(A," ",I2)') 'Wrong fine method', sctls%fine_method
+    call DOUG_abort('Error in aggr', -1)
+  end if
+
   if (numprocs==1) then
     call AggrInfo_Destroy(P%cAggr)
     call AggrInfo_Destroy(P%fAggr)

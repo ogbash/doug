@@ -85,6 +85,8 @@ module globals
   type SharedCtrlData
      integer       :: solver           = -1
      integer       :: method           = -1
+     integer       :: fine_method      = -1
+     integer       :: num_iters        = -1
      integer       :: coarse_method    = -1
      integer       :: num_subdomains   = -1
      integer       :: levels           = -1
