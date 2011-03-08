@@ -75,8 +75,8 @@ class MysqlTestStore:
     def insertTest(self, testname, time, conf):
         "time - test start time"
         self.cursor.execute("insert into testresults (name, testrun_ID, starttime, "
-                            " executable, inputtype, method, solver, nproc, levels, overlap, smoothers)"
-                            " values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                            " executable, inputtype, method, solver, nproc, levels, fine_method, num_subdomains, overlap, smoothers)"
+                            " values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                             (testname, self.ID, time,
                              conf.get("doug", "executable"),
                              conf.get("doug-controls", "input_type"),
@@ -84,6 +84,8 @@ class MysqlTestStore:
                              conf.get("doug-controls", "solver"),
                              conf.get("doug", "nproc"),
                              conf.get("doug-controls", "levels"),
+                             conf.get("doug-controls", "fine_method"),
+                             conf.get("doug-controls", "num_subdomains"),
                              conf.get("doug-controls", "overlap"),
                              conf.get("doug-controls", "smoothers")))
         ID = self.cursor.lastrowid

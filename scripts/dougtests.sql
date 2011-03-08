@@ -44,6 +44,8 @@ CREATE TABLE `testresults` (
   inputtype int,
   levels int,
   executable varchar(16),
+  fine_method int(11),
+  num_subdomains int(11),
   overlap int(11),
   smoothers int(11),
   iterations int(11),
