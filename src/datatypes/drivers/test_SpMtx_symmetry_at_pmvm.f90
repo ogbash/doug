@@ -99,7 +99,7 @@ program test_SpMtx_symmetry_at_pmvm
   allocate(oldToNewPerm(M%nlf))
   call SpMtx_getOldToNewPerm(A, oldToNewPerm)
   allocate(yl(M%nlf))
-  call pmvmCommStructs_init(A, M) ! Init communication structures
+  !call pmvmCommStructs_init(A, M) ! Init communication structures
   do j = 1,M%ngf
      write(stream,'(a,i3,a)') '=======',j,'======='
      xl = 0.0_rk

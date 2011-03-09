@@ -3,6 +3,7 @@ module Distribution_elem_mod
   use Mesh_plot_mod
   use ElemMtxs_mods
   use SpMtx_util
+  use Distribution_base_mod
 
   implicit none
 
@@ -16,7 +17,7 @@ module Distribution_elem_mod
 #endif
 
   private
-  public :: parallelAssembleFromElemInput
+  public :: parallelAssembleFromElemInput, Distribution_elem_addoverlap
 
 contains
 
@@ -175,5 +176,59 @@ contains
     Msh%ninner=Msh%nlf
 
   end subroutine parallelAssembleFromElemInput
+
+  subroutine Distribution_elem_addoverlap(D,x)
+    type(Distribution),intent(in) :: D
+    float(kind=rk),dimension(:),intent(in out)   :: x ! Vector
+    float(kind=rk),dimension(:),pointer          :: x_tmp ! TMP Vector
+    integer :: i, n, p, count
+    ! MPI
+    integer, dimension(:), pointer :: in_reqs
+    integer                        :: ierr, out_req, status(MPI_STATUS_SIZE)
+    integer, parameter             :: D_TAG_FREE_INTERFFREE = 777
+
+    ! initialise receives
+    allocate(in_reqs(D%mesh%nnghbrs))
+    allocate(x_tmp(size(x))) !TODO: remove this -- should not be needed
+    x_tmp=x
+    do p = 1,D%mesh%nparts
+       if (D%mesh%nfreesend_map(p) /= 0) then
+          i = D%cache%pid2indx(p)
+          n = D%mesh%nfreesend_map(p)
+          call MPI_IRECV(D%cache%inbufs(i)%arr, n, MPI_fkind, &
+               p-1, D_TAG_FREE_INTERFFREE, MPI_COMM_WORLD, in_reqs(i), ierr)
+       end if
+    end do
+    ! Need a barrier?
+    call MPI_Barrier(MPI_COMM_WORLD,ierr)
+    ! nonblockingly send
+    do p = 1,D%mesh%nparts
+       if (D%mesh%nfreesend_map(p) /= 0) then
+          i = D%cache%pid2indx(p)
+          n = D%mesh%nfreesend_map(p)
+          D%cache%outbufs(i)%arr(1:n) = x_tmp(D%cache%fexchindx(1:n,i))
+          call MPI_ISEND(D%cache%outbufs(i)%arr, n, MPI_fkind, &
+               p-1, D_TAG_FREE_INTERFFREE, MPI_COMM_WORLD, out_req, ierr)
+       end if
+    end do
+    ! Need a barrier?
+    call MPI_Barrier(MPI_COMM_WORLD,ierr)
+    !
+    ! ...some work could be done here...
+    !
+    ! wait for neighbours' interface freedoms
+    do while (.true.)
+       call MPI_WAITANY(D%mesh%nnghbrs, in_reqs, i, status, ierr)
+       if (i /= MPI_UNDEFINED) then
+          count = D%mesh%nfreesend_map(D%mesh%nghbrs(i)+1)
+          x(D%cache%fexchindx(1:count,i)) = &
+               x(D%cache%fexchindx(1:count,i)) + D%cache%inbufs(i)%arr
+       else
+          exit
+       end if
+    end do
+    deallocate(x_tmp)
+    deallocate(in_reqs)
+  end subroutine Distribution_elem_addoverlap
   
 end module Distribution_elem_mod

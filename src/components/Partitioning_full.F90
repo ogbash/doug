@@ -22,7 +22,7 @@
 !> Grid partitioning using full local region of process.
 module Partitioning_full_mod
   use Partitioning_mod
-  use Distribution_mod
+  use Distribution_base_mod
 
   implicit none
 

@@ -22,7 +22,7 @@
 !> Grid partitioning using METIS library.
 module Partitioning_metis_mod
   use Partitioning_mod
-  use Distribution_mod
+  use Distribution_base_mod
   use Graph_class
   use SpMtx_arrangement
 

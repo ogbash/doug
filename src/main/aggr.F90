@@ -242,10 +242,6 @@ program main_aggr
   xl = 0.0_rk
 
   select case(sctls%solver)
-  case (DCTL_SOLVE_CG)
-     ! Conjugate gradient
-     call cg(D%A, D%rhs, xl, D%mesh, solinf=resStat, resvects_=.true.)
-     !call cg(A, b, xl, M, solinf=resStat)
   case (DCTL_SOLVE_PCG)
      ! Preconditioned conjugate gradient
      t1 = MPI_WTIME()

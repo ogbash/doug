@@ -22,7 +22,7 @@
 !> Base file for preconditioner component.
 module Preconditioner_base_mod
   use Decomposition_mod 
-  use Distribution_mod
+  use Distribution_base_mod
   use Partitioning_mod
   use CoarseAllgathers
   use globals

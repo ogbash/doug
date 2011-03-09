@@ -23,6 +23,7 @@
 module Distribution_base_mod
   use Mesh_class
   use SpMtx_class
+  use SpMtx_operation
 
   implicit none
 
@@ -34,6 +35,9 @@ module Distribution_base_mod
     type(SpMtx) :: A !< Distributed system matrix
     type(SpMtx) :: A_ghost !< Matrix elements needed for ghost values
     real(kind=rk),pointer :: rhs(:) !< Distributed RHS
+
+    !> Auxilary arrays
+    type(OperationCache) :: cache
   end type Distribution
 
   private
@@ -47,6 +51,8 @@ contains
     D%A = SpMtx_New()
     D%A_ghost = SpMtx_New()
     D%rhs => NULL()
+
+    D%cache%D_PMVM_AUXARRS_INITED = .false.
   end function Distribution_New  
 
 end module Distribution_base_mod

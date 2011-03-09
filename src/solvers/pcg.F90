@@ -30,6 +30,7 @@ module pcg_mod
   use globals
   use subsolvers
   use Preconditioner_mod
+  use Distribution_mod
 
   implicit none
 
@@ -359,14 +360,8 @@ contains
        resvects = .true.
     end if
 
-
-    ! Initialise auxiliary data structures
-    ! to assist with pmvm
-    call pmvmCommStructs_init(D%A, D%mesh)
-
-
 if (bugtrack)call Print_Glob_Vect(x,D%mesh,'global x===')
-    call SpMtx_pmvm(r,D%A,x,D%mesh)
+    call Distribution_pmvm(D,r,x)
 
     r = D%rhs - r
     init_norm = Vect_dot_product(r,r)
@@ -405,7 +400,7 @@ if (bugtrack)call Print_Glob_Vect(r,D%mesh,'global r===',chk_endind=D%mesh%ninne
 
 if (bugtrack)call Print_Glob_Vect(z,D%mesh,'global bef comm z===',chk_endind=D%mesh%ninner)
       if (sctls%method/=0) then
-        call Add_common_interf(z,D%A,D%mesh)
+        call Distribution_addoverlap(D,z)
       endif
 
 !call Print_Glob_Vect(z,D%mesh,'global aft comm z===',chk_endind=D%mesh%ninner)
@@ -419,7 +414,7 @@ if (bugtrack)call Print_Glob_Vect(z,D%mesh,'global bef comm z===',chk_endind=D%m
          beta(it) = rho_curr / rho_prev
          p = z + beta(it) * p
       end if
-      call SpMtx_pmvm(q,D%A, p, D%mesh)
+      call Distribution_pmvm(D,q,p)
 if (bugtrack)call Print_Glob_Vect(q,D%mesh,'global q===')
       ! compute alpha
       alpha(it) = rho_curr / Vect_dot_product(p,q)

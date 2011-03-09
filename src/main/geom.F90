@@ -122,25 +122,11 @@ program main_geom
   allocate(xl(D%mesh%nlf)); xl = 0.0_rk
 
   select case(sctls%solver)
-  case (DCTL_SOLVE_CG)
-
-     ! Conjugate gradient
-     !call cg(A, b, xl, M, solinf=resStat, resvects_=.true.)
-     call cg(D%A, D%rhs, xl, D%mesh, solinf=resStat)
-
   case (DCTL_SOLVE_PCG)
-
-     ! Preconditioned conjugate gradient
-     !call pcg(A, b, xl, M, solinf=resStat, resvects_in=.true.)
-
      t1 = MPI_WTIME()
-
      call pcg_weigs(D,x=xl,finePrec=FP,coarsePrec=CP,it=it,cond_num=cond_num)
-
      write(stream,*) 'time spent in pcg():',MPI_WTIME()-t1
      if(pstream/=0) write(pstream, "(I0,':pcg time:',F0.3)") myrank, MPI_WTIME()-t1
-
-!call Vect_Print(xl,'xl: local solution')
 
   case default
      call DOUG_abort('[DOUG main] : Wrong solution method specified', -1)
@@ -148,7 +134,7 @@ program main_geom
 
   ! Calculate solution residual (in parallel)
   allocate(r(size(xl)), y(size(xl)))
-  call SpMtx_pmvm(y, D%A, xl, D%mesh)
+  call Distribution_pmvm(D,y,xl)
   r = y - D%rhs
   res_norm_local = Vect_dot_product(r, r)
   deallocate(r, y)

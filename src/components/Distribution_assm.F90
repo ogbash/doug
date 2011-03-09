@@ -25,6 +25,7 @@ module Distribution_assm_mod
   use SpMtx_distribution_mod
   use Graph_class
   use SpMtx_util
+  use Distribution_base_mod
   use Vect_mod
 
   implicit none
@@ -39,7 +40,7 @@ module Distribution_assm_mod
 #endif
 
   private
-  public :: parallelDistributeAssembledInput
+  public :: parallelDistributeAssembledInput, Distribution_assm_addoverlap
 
 contains
   !----------------------------------------------------------------
@@ -267,5 +268,79 @@ endif
     endif
     call SpMtx_distributeWithOverlap(A, b, M, ol)
   end subroutine SpMtx_DistributeAssembled
+
+  subroutine Distribution_assm_addoverlap(D,x)
+    type(Distribution),intent(in) :: D
+    float(kind=rk),dimension(:),intent(in out)   :: x ! Vector
+    integer :: i,j,k,n,n2,p,ol,mx
+    ! MPI
+    integer, dimension(:), pointer :: in_reqs
+    integer                        :: ierr, out_req, status(MPI_STATUS_SIZE)
+    integer, parameter             :: D_TAG_FREE_OUTEROL = 778
+    !logical :: takeaverage=.true.
+    logical :: takeaverage=.false.
+    float(kind=rk),dimension(:),pointer,save :: nowners
+
+    if (numprocs==1.or.sctls%input_type/=DCTL_INPUT_TYPE_ASSEMBLED) then
+      return
+    endif
+    ol=max(sctls%overlap,sctls%smoothers)
+    if (ol<1) then
+      return
+    endif
+    if (takeaverage) then
+      if (.not.associated(nowners)) then
+        allocate(nowners(size(x)))
+        nowners=1.0_rk
+        do i=1,D%mesh%nnghbrs
+          n=D%mesh%ol_solve(i)%ninds
+          do j=1,n
+            k=D%mesh%ol_solve(i)%inds(j)
+            nowners(k)=nowners(k)+1.0_rk
+          enddo
+        enddo
+      endif
+    endif
+    allocate(in_reqs(D%mesh%nnghbrs))
+    ! initialise receives
+    do i=1,D%mesh%nnghbrs
+      n=D%mesh%ol_solve(i)%ninds
+      p=D%mesh%nghbrs(i)
+!write(stream,*) '**** starting non-blocking recv from ',p
+      call MPI_IRECV(D%cache%inbufs(i)%arr,n,MPI_fkind, &
+               p,D_TAG_FREE_OUTEROL,MPI_COMM_WORLD,in_reqs(i),ierr)
+    enddo
+    ! non-blocking send:
+    do i=1,D%mesh%nnghbrs
+      n=D%mesh%ol_solve(i)%ninds
+      p=D%mesh%nghbrs(i)
+      D%cache%outbufs(i)%arr(1:n)=x(D%mesh%ol_solve(i)%inds)
+      call MPI_ISEND(D%cache%outbufs(i)%arr,n,MPI_fkind, &
+               p,D_TAG_FREE_OUTEROL,MPI_COMM_WORLD,out_req,ierr)
+!write(stream,*) '**** sending to ',p,D%cache%outbufs(i)%arr(1:n)
+    enddo
+call MPI_Barrier(MPI_COMM_WORLD,ierr)!todo: remove
+    do while (.true.)
+      call MPI_WAITANY(D%mesh%nnghbrs,in_reqs,i,status,ierr)
+      if (i/=MPI_UNDEFINED) then
+        n=D%mesh%ol_solve(i)%ninds
+!write(stream,*)'**** received from ',D%mesh%nghbrs(i),D%cache%inbufs(i)%arr(1:n)
+!write(stream,*)i,'ol_solve%inds are(glob):',D%mesh%lg_fmap(D%mesh%ol_solve(i)%inds)
+!write(stream,*)'BBB before x(5):',x(11)
+        x(D%mesh%ol_solve(i)%inds)=x(D%mesh%ol_solve(i)%inds)+D%cache%inbufs(i)%arr(1:n)
+!write(stream,*)'BBB after x(5):',x(11)
+      else
+        exit
+      endif
+!write(stream,*)'=== the updated vector is:',x
+    enddo
+    if (takeaverage) then
+      do i=1,size(x)
+        if (nowners(i)>1.0_rk) then
+          x(i)=x(i)/nowners(i)
+        endif
+      enddo
+    endif
+  end subroutine Distribution_assm_addoverlap
 
 end module Distribution_assm_mod

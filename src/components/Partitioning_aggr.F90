@@ -32,7 +32,7 @@ contains
   ! Create fine partitionings using aggregate method.
   subroutine Partitionings_aggr_InitFine(P,D)
     use SpMtx_class 
-    use Distribution_mod
+    use Distribution_base_mod
     use Aggregate_utils_mod
     use SpMtx_aggregation
 
@@ -119,7 +119,7 @@ contains
   ! Create fine partitionings using aggregate method.
   subroutine Partitionings_aggr_InitCoarse(P,D,AC)
     use SpMtx_class 
-    use Distribution_mod
+    use Distribution_base_mod
     use Aggregate_utils_mod
     use SpMtx_aggregation
 
