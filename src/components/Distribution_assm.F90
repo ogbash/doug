@@ -22,6 +22,7 @@
 module Distribution_assm_mod
   use SpMtx_class
   use SpMtx_aggregation
+  use SpMtx_distribution_mod
   use Graph_class
   use SpMtx_util
   use Vect_mod
@@ -92,30 +93,29 @@ contains
       endif
     else ! numprocs>1
       Msh=Mesh_New()
-      call SpMtx_DistributeAssembled(A,b,A_interf,Msh,aggr)
+      call SpMtx_DistributeAssembled(A,b,Msh,aggr)
+      call SpMtx_localize(A,A_interf,b,Msh)
     endif
 
     call AggrInfo_Destroy(aggr)
   end subroutine parallelDistributeAssembledInput
 
-  subroutine SpMtx_DistributeAssembled(A,b,A_ghost,M,aggr)
+  !> Distribute matrix and vector with fine aggregates.
+  subroutine SpMtx_DistributeAssembled(A,b,M,aggr)
     implicit none
 
-    type(SpMtx),intent(inout)           :: A,A_ghost
+    type(SpMtx),intent(inout)           :: A
     float(kind=rk),dimension(:),pointer :: b
     type(Mesh)                          :: M
     type(AggrInfo),intent(out)          :: aggr
     !-----------------------
-    integer :: i,j,k,ierr,n,ol
+    integer :: i,j,k,ierr,ol
     integer, dimension(:), pointer :: xadj
     integer, dimension(:), pointer :: adjncy
     integer                        :: nedges
     type(Graph) :: G
     integer, dimension(6) :: part_opts = (/0,0,0,0,0,0/)
-    integer,dimension(:),pointer       :: clrorder,clrstarts
-    integer, dimension(:), allocatable :: ccount !count colors
     integer,dimension(4)           :: buf
-    float(kind=rk),dimension(:),pointer :: b_tmp
     integer, parameter :: ONLY_METIS = 1 ! graph partitioner
     integer, parameter :: AGGRND_METIS = 2 ! rough aggregaion based on n random seeds
     integer,dimension(:),pointer       :: tmpnum,owner
@@ -266,145 +266,6 @@ endif
       call SpMtx_printRaw(A)
     endif
     call SpMtx_distributeWithOverlap(A, b, M, ol)
-
-    !========= count color elements ============
-    if (A%arrange_type==D_SpMtx_ARRNG_ROWS) then
-      n=A%nrows
-    elseif (A%arrange_type==D_SpMtx_ARRNG_COLS) then
-      n=A%ncols
-    else
-      call DOUG_abort('[SpMtx_DistributeAssembled] : matrix not arranged')
-    endif
-
-    allocate(ccount(numprocs))
-    ccount=0
-    do i=1,n
-      ccount(M%eptnmap(i))=ccount(M%eptnmap(i))+1
-    enddo
-    allocate(clrstarts(numprocs+1))
-    clrstarts(1)=1
-    do i=1,numprocs
-      clrstarts(i+1)=clrstarts(i)+ccount(i)
-    end do
-    allocate(clrorder(n))
-    ccount(1:numprocs)=clrstarts(1:numprocs)
-    do i=1,n
-      clrorder(ccount(M%eptnmap(i)))=i
-      ccount(M%eptnmap(i))=ccount(M%eptnmap(i))+1
-    enddo
-    if (sctls%verbose>3.and.A%nrows<200) then 
-      do i=1,numprocs                                                     !
-        write(stream,*)'partition ',i,' is in:', &                        !
-          clrorder(clrstarts(i):clrstarts(i+1)-1)                     !
-      enddo                                                               !
-    endif
-    deallocate(ccount)
-
-    !-------------------------------------------------------------------+
-    if (sctls%verbose>3.and.A%nrows<200) then 
-      write(stream,*)'A after arrange:'
-      call SpMtx_printRaw(A)
-    endif
-    call SpMtx_build_ghost(myrank+1,ol,&
-                             A,A_ghost,M,clrorder,clrstarts) 
-    if (sctls%verbose>3.and.A%nrows<300) then 
-      write(stream,*)'A interf(1,1):'
-      call SpMtx_printRaw(A=A,startnz=A%mtx_bbs(1,1),endnz=A%mtx_bbe(1,1))
-      write(stream,*)'A interf(1,2):'
-      call SpMtx_printRaw(A=A,startnz=A%mtx_bbs(1,2),endnz=A%mtx_bbe(1,2))
-      write(stream,*)'A interf(2,1):'
-      call SpMtx_printRaw(A=A,startnz=A%mtx_bbs(2,1),endnz=A%mtx_bbe(2,1))
-      write(stream,*)'A inner:'
-      call SpMtx_printRaw(A=A,startnz=A%mtx_bbs(2,2),endnz=A%mtx_bbe(2,2))
-      if (ol>0) then
-        write(stream,*)'A ghost:'
-        call SpMtx_printRaw(A_ghost)
-      endif
-      if (A%nnz>A%mtx_bbe(2,2)) then
-        write(stream,*)'A additional in case of ol==0:'
-        call SpMtx_printRaw(A=A,startnz=A%mtx_bbe(2,2)+1,endnz=A%ol0nnz)
-      endif
-    endif
-    ! print neighbours
-    if (sctls%verbose>=1) then 
-       write(stream,"(A,I0)") "N neighbours: ", M%nnghbrs
-       do i=1,M%nnghbrs
-          !write(stream,"(A,I0,A,I0,A,I0)") "neighbour ", i, ": ", M%nghbrs(i), ", overlap: ", M%ol_solve(i)%ninds
-          write(stream,"(I0,A,I0,A)",advance="no") M%nghbrs(i)+1, " ", M%ol_inner(i)%ninds+M%ol_outer(i)%ninds, " "
-       end do
-       write(stream,*) ""
-    end if
-
-    ! Localise A:
-    if (ol<=0) then
-      M%ninonol=M%ntobsent
-      M%indepoutol=M%ninner
-    endif
-    call SpMtx_Build_lggl(A,A_ghost,M)
-    if (sctls%verbose>3) then 
-      write(stream,*)'tobsent:',M%lg_fmap(1:M%ntobsent)
-      write(stream,*)'...nintol:',M%lg_fmap(M%ntobsent+1:M%ninonol)
-      write(stream,*)'...nninner:',M%lg_fmap(M%ninonol+1:M%ninner)
-      write(stream,*)'...indepoutol:',M%lg_fmap(M%ninner+1:M%indepoutol)
-      write(stream,*)'...ghost-freds:',M%lg_fmap(M%indepoutol+1:M%nlf)
-    endif
-    ! Rebuild RHS vector to correspond to local freedoms
-    allocate(b_tmp(M%nlf))
-    do i=1,M%nlf
-      b_tmp(i)=b(M%lg_fmap(i))
-    end do
-    deallocate(b)
-    b=>b_tmp
-    ! Localise matrices and communication arrays
-    do k=1,M%nnghbrs
-      M%ax_recvidx(k)%inds=M%gl_fmap(M%ax_recvidx(k)%inds)
-      M%ax_sendidx(k)%inds=M%gl_fmap(M%ax_sendidx(k)%inds)
-    enddo
-    do k=1,M%nnghbrs
-      M%ol_inner(k)%inds=M%gl_fmap(M%ol_inner(k)%inds)
-      M%ol_outer(k)%inds=M%gl_fmap(M%ol_outer(k)%inds)
-      M%ol_solve(k)%inds=M%gl_fmap(M%ol_solve(k)%inds)
-    enddo
-    do i=1,A%ol0nnz
-      A%indi(i)=M%gl_fmap(A%indi(i))
-      A%indj(i)=M%gl_fmap(A%indj(i))
-    enddo
-    A%nrows=max(0, maxval(A%indi(1:A%nnz)))
-    A%ncols=max(0, maxval(A%indj))
-    A%arrange_type=D_SpMTX_ARRNG_NO
-    if(associated(A%m_bound)) deallocate(A%m_bound) ! without this A_tmp got wrong size of M_bound in pcg()
-    if(associated(A%strong)) deallocate(A%strong)
-    if (ol>0) then
-      do i=1,A_ghost%nnz
-        A_ghost%indi(i)=M%gl_fmap(A_ghost%indi(i))
-        A_ghost%indj(i)=M%gl_fmap(A_ghost%indj(i))
-      enddo
-      A_ghost%nrows=max(0, maxval(A_ghost%indi))
-      A_ghost%ncols=max(0, maxval(A_ghost%indj))
-      call SpMtx_arrange(A_ghost,D_SpMtx_ARRNG_ROWS,sort=.true.)
-    endif
-    if (sctls%verbose>3.and.A%nrows<200) then 
-      write(stream,*)'Localised A interf(1,1):'
-      call SpMtx_printRaw(A=A,startnz=A%mtx_bbs(1,1),endnz=A%mtx_bbe(1,1))
-      write(stream,*)'Localised A interf(1,2):'
-      call SpMtx_printRaw(A=A,startnz=A%mtx_bbs(1,2),endnz=A%mtx_bbe(1,2))
-      write(stream,*)'Localised A interf(2,1):'
-      call SpMtx_printRaw(A=A,startnz=A%mtx_bbs(2,1),endnz=A%mtx_bbe(2,1))
-      write(stream,*)'Localised A inner:'
-      call SpMtx_printRaw(A=A,startnz=A%mtx_bbs(2,2),endnz=A%mtx_bbe(2,2))
-      if (ol>0) then
-        write(stream,*)'Localised A ghost:'
-        call SpMtx_printRaw(A_ghost)
-      endif
-      if (A%nnz>A%mtx_bbe(2,2)) then
-        write(stream,*)'localised A additional in case of ol==0:'
-        call SpMtx_printRaw(A=A,startnz=A%mtx_bbe(2,2)+1,endnz=A%ol0nnz)
-      endif
-      write(stream,*)'gl_fmap:',M%gl_fmap
-      write(stream,*)'gl_fmap(lg_fmap):',M%gl_fmap(M%lg_fmap)
-      write(stream,*)'lg_fmap:',M%lg_fmap
-      !call MPI_BARRIER(MPI_COMM_WORLD,ierr)
-      !call DOUG_abort('testing nodal graph partitioning',0)
-    endif
   end subroutine SpMtx_DistributeAssembled
+
 end module Distribution_assm_mod
