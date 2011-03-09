@@ -19,42 +19,24 @@
 ! of Distributed Systems, Liivi 2, 50409 Tartu, Estonia, http://dougdevel.org,
 ! mailto:info(at)dougdevel.org)
 
-!> Base component for data distribution.
+!> Interface component for data distribution.
 module Distribution_mod
-  use Mesh_class
-  use SpMtx_class
-
+  use Distribution_base_mod
+  use globals
+  use DOUG_utils
+  
   implicit none
 
 #include<doug_config.h>
 
-  !> Component that reads in and distributes data.
-  type Distribution
-    type(Mesh) :: mesh !< Information about mesh and neighbours
-    type(SpMtx) :: A !< Distributed system matrix
-    type(SpMtx) :: A_ghost !< Matrix elements needed for ghost values
-    real(kind=rk),pointer :: rhs(:) !< Distributed RHS
-  end type Distribution
-
-  private
-  public :: Distribution, Distribution_New, Distribution_NewInit
-
 contains
-
-  function Distribution_New() result (D)
-    type(Distribution) :: D
-    D%mesh = Mesh_New()
-    D%A = SpMtx_New()
-    D%A_ghost = SpMtx_New()
-    D%rhs => NULL()
-  end function Distribution_New
-  
   !----------------------------------------------------------------
   !> Distributes data, chooses algorithm based on input type
   !----------------------------------------------------------------
   function Distribution_NewInit(input_type, nparts, part_opts) result(D)
     use Distribution_elem_mod
     use Distribution_assm_mod
+    use Distribution_struct_mod
     implicit none
 
     integer,        intent(in)     :: input_type !< Input Type
@@ -72,6 +54,9 @@ contains
     case (DCTL_INPUT_TYPE_ASSEMBLED)
        ! ASSEMBLED
        call parallelDistributeAssembledInput(D%mesh,D%A,D%rhs,D%A_ghost)
+    case (3)
+       ! GENERATED
+       D = Distribution_struct_NewInit(100)
     case default
        call DOUG_abort('[DOUG main] : Unrecognised input type.', -1)
     end select
