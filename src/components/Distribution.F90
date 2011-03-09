@@ -132,7 +132,8 @@ contains
     integer,   dimension(:), pointer :: counters
     integer :: p,j,h,lf,gf,ge,ptn,indx,n,f,mx
 
-    if (sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED) then
+    if (sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED.or.&
+         sctls%input_type==DCTL_INPUT_TYPE_STRUCTURED) then
         allocate(C%inbufs(M%nnghbrs), C%outbufs(M%nnghbrs))
         do p = 1,M%nnghbrs
           mx=max(M%ax_recvidx(p)%ninds,&

@@ -281,7 +281,7 @@ endif
     logical :: takeaverage=.false.
     float(kind=rk),dimension(:),pointer,save :: nowners
 
-    if (numprocs==1.or.sctls%input_type/=DCTL_INPUT_TYPE_ASSEMBLED) then
+    if (numprocs==1) then
       return
     endif
     ol=max(sctls%overlap,sctls%smoothers)
