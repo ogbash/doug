@@ -34,6 +34,7 @@
 !> overlap -1
 !> smoothers 0
 !> num_iters 4 # Gauss-Seidel iterations
+!> grid_size 100 # Structured grid size
 !> input_type 2
 !> symmstruct T
 !> symmnumeric T

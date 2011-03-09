@@ -757,6 +757,14 @@ contains
           read(word2, '(i10)') sctls%num_iters
        endif
 
+    ! grid size
+    elseif (ctl_num.eq.DCTL_grid_size) then
+       if (sctls%grid_size.ne.-1) then
+          write(6,200) trim(word1), trim(word2)
+       else
+          read(word2, '(i10)') sctls%grid_size
+       endif
+
     ! coarse method
     elseif (ctl_num.eq.DCTL_coarse_method) then
        if (sctls%coarse_method.ne.-1) then
@@ -1190,6 +1198,9 @@ contains
          ctl_words(DCTL_num_iters)(1:length(ctl_words(DCTL_num_iters))), &
          sctls%num_iters
     write(stream,fmti) &
+         ctl_words(DCTL_grid_size)(1:length(ctl_words(DCTL_grid_size))), &
+         sctls%grid_size
+    write(stream,fmti) &
          ctl_words(DCTL_coarse_method)(1:length(ctl_words(DCTL_coarse_method))), &
          sctls%coarse_method
     write(stream,fmti) &
@@ -1406,7 +1417,7 @@ contains
     use globals, only: sctls, D_MPI_SCTLS_TYPE, MPI_rkind
     implicit none
 
-    integer, parameter          :: nblocks = 30  ! Number of type components
+    integer, parameter          :: nblocks = 31  ! Number of type components
     integer, dimension(nblocks) :: types,        &
                                    blocklengths, &
                                    addresses,    &
@@ -1423,10 +1434,11 @@ contains
          MPI_INTEGER, MPI_LOGICAL, &
          MPI_LOGICAL, &
          MPI_INTEGER, MPI_LOGICAL, &
-         MPI_INTEGER, MPI_INTEGER, MPI_INTEGER, MPI_INTEGER/)
+         MPI_INTEGER, MPI_INTEGER, MPI_INTEGER, MPI_INTEGER, &
+	 MPI_INTEGER /)
 
     blocklengths = (/1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, &
-                     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1/)
+                     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1/)
 
     call MPI_ADDRESS(sctls%solver,           addresses( 1), ierr)
     call MPI_ADDRESS(sctls%method,           addresses( 2), ierr)
@@ -1458,6 +1470,7 @@ contains
     call MPI_ADDRESS(sctls%num_subdomains,    addresses(28), ierr)
     call MPI_ADDRESS(sctls%fine_method,    addresses(29), ierr)
     call MPI_ADDRESS(sctls%num_iters,    addresses(30), ierr)
+    call MPI_ADDRESS(sctls%grid_size,    addresses(31), ierr)
 
     do i = 1,nblocks
        displacements(i) = addresses(i) - addresses(1)

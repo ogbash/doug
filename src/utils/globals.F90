@@ -93,6 +93,7 @@ module globals
      integer       :: overlap          = -1
      integer       :: smoothers        = -1
      integer       :: input_type       = -1
+     integer       :: grid_size        = -1
      integer       :: matrix_type      = -1
      integer       :: initial_guess    = -1
      integer       :: number_of_blocks = -1

@@ -47,6 +47,8 @@ contains
 
     D = Distribution_New()
     call Mesh_Init(D%mesh, nell=n*n, ngf=n*n, nsd=-2, mfrelt=-3, nnode=n*n)
+    D%mesh%parted  = .true.
+    D%mesh%nparts  = numprocs
     
     ! number of rows
     nrows = ceiling(sqrt(real(numprocs)))

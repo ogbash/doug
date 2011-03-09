@@ -67,7 +67,8 @@ contains
        call parallelDistributeAssembledInput(D%mesh,D%A,D%rhs,D%A_ghost)
     case (DCTL_INPUT_TYPE_STRUCTURED)
        ! GENERATED
-       D = Distribution_struct_NewInit(10,max(sctls%overlap,sctls%smoothers))
+      if (sctls%grid_size<1) sctls%grid_size=100 
+      D = Distribution_struct_NewInit(sctls%grid_size,max(sctls%overlap,sctls%smoothers))
     case default
        call DOUG_abort('[DOUG main] : Unrecognised input type.', -1)
     end select
