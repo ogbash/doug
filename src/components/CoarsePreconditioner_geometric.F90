@@ -19,7 +19,7 @@
 ! of Distributed Systems, Liivi 2, 50409 Tartu, Estonia, http://dougdevel.org,
 ! mailto:info(at)dougdevel.org)
 
-!> Coarse preconditioner with robust coarse space.
+!> Geometric coarse preconditioner.
 module CoarsePreconditioner_geometric_mod
   use Preconditioner_base_mod
   use CoarseGrid_class

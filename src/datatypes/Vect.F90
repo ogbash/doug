@@ -141,8 +141,8 @@ contains
 !write(stream,*)' .....hash: ################################################'
 !write(stream,*)'M%hscale=',M%hscale
 
-    if (sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED.or.&
-         sctls%input_type==DCTL_INPUT_TYPE_STRUCTURED) then
+    if (sctls%input_type==DISTRIBUTION_TYPE_ASSEMBLED.or.&
+         sctls%input_type==DISTRIBUTION_TYPE_STRUCTURED) then
       ninner=M%ninner
       return
     endif
@@ -183,7 +183,7 @@ contains
 
     integer :: i, j
 
-    if (sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED) then
+    if (sctls%input_type==DISTRIBUTION_TYPE_ASSEMBLED) then
       return
     endif
     if (.not.associated(dot_intf_fmask)) &
@@ -221,8 +221,8 @@ contains
        return
     end if
     
-    if (sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED.or.&
-         sctls%input_type==DCTL_INPUT_TYPE_STRUCTURED) then
+    if (sctls%input_type==DISTRIBUTION_TYPE_ASSEMBLED.or.&
+         sctls%input_type==DISTRIBUTION_TYPE_STRUCTURED) then
       local_res=dot_product(x1(1:ninner),x2(1:ninner))
     else
       ! Interface freedoms defined in 'dot_intf_fmap' + local inner ones

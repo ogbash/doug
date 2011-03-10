@@ -59,13 +59,13 @@ contains
     D = Distribution_New()
 
     select case (input_type)
-    case (DCTL_INPUT_TYPE_ELEMENTAL)
+    case (DISTRIBUTION_TYPE_ELEMENTAL)
        ! ELEMENTAL
        call parallelAssembleFromElemInput(D%mesh,D%A,D%rhs,nparts,part_opts,D%A_ghost)
-    case (DCTL_INPUT_TYPE_ASSEMBLED)
+    case (DISTRIBUTION_TYPE_ASSEMBLED)
        ! ASSEMBLED
        call parallelDistributeAssembledInput(D%mesh,D%A,D%rhs,D%A_ghost)
-    case (DCTL_INPUT_TYPE_STRUCTURED)
+    case (DISTRIBUTION_TYPE_STRUCTURED)
        ! GENERATED
       if (sctls%grid_size<1) sctls%grid_size=100 
       D = Distribution_struct_NewInit(sctls%grid_size,max(sctls%overlap,sctls%smoothers))
@@ -90,8 +90,8 @@ contains
     if (.not.D%cache%D_PMVM_AUXARRS_INITED) &
          call pmvmCommStructs_init(D%A,D%mesh,D%cache)
 
-    if (sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED.or.&
-         sctls%input_type==DCTL_INPUT_TYPE_STRUCTURED) then
+    if (sctls%input_type==DISTRIBUTION_TYPE_ASSEMBLED.or.&
+         sctls%input_type==DISTRIBUTION_TYPE_STRUCTURED) then
       if (D%A%mtx_bbe(2,2)<D%A%nnz) then
         call SpMtx_pmvm_assembled_ol0(y,D%A,x,D%mesh,D%cache)
       else
@@ -109,7 +109,7 @@ contains
     if (numprocs==1) then
       return
     endif
-    if (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL) then
+    if (sctls%input_type==DISTRIBUTION_TYPE_ELEMENTAL) then
       call Distribution_elem_addoverlap(D,x)
     else
       call Distribution_assm_addoverlap(D,x)
@@ -133,8 +133,8 @@ contains
     integer,   dimension(:), pointer :: counters
     integer :: p,j,h,lf,gf,ge,ptn,indx,n,f,mx
 
-    if (sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED.or.&
-         sctls%input_type==DCTL_INPUT_TYPE_STRUCTURED) then
+    if (sctls%input_type==DISTRIBUTION_TYPE_ASSEMBLED.or.&
+         sctls%input_type==DISTRIBUTION_TYPE_STRUCTURED) then
         allocate(C%inbufs(M%nnghbrs), C%outbufs(M%nnghbrs))
         do p = 1,M%nnghbrs
           mx=max(M%ax_recvidx(p)%ninds,&

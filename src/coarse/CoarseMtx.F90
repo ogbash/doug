@@ -506,8 +506,8 @@ contains
                 BT=.true.)
     call SpMtx_Destroy(TT)
     RT = SpMtx_Copy(Restrict)
-    if (sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED.or.&
-         sctls%input_type==DCTL_INPUT_TYPE_STRUCTURED) then
+    if (sctls%input_type==DISTRIBUTION_TYPE_ASSEMBLED.or.&
+         sctls%input_type==DISTRIBUTION_TYPE_STRUCTURED) then
       call KeepGivenColumnIndeces(RT,(/(i,i=1,ninner)/),.TRUE.)
     end if
     AC = SpMtx_AB(A=RT,B=T)

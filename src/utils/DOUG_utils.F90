@@ -26,6 +26,7 @@ module DOUG_utils
 
   use RealKind
   use globals
+  use mparameters
 
   implicit none
 
@@ -1329,7 +1330,7 @@ contains
          ctl_words(DCTL_assembled_rhs_file) &
          (1:length(ctl_words(DCTL_assembled_rhs_file))), &
          trim(mctls%assembled_rhs_file)
-    if (sctls%input_type==DCTL_INPUT_TYPE_ASSEMBLED) then
+    if (sctls%input_type==DISTRIBUTION_TYPE_ASSEMBLED) then
       write(stream,fmtc) &
            ctl_words(DCTL_assembled_mtx_file) &
            (1:length(ctl_words(DCTL_assembled_mtx_file))), &
@@ -1338,7 +1339,7 @@ contains
            ctl_words(DCTL_assembled_mtx_format) &
            (1:length(ctl_words(DCTL_assembled_mtx_format))), &
            mctls%assembled_mtx_format
-    elseif (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL) then
+    elseif (sctls%input_type==DISTRIBUTION_TYPE_ELEMENTAL) then
       write(stream,fmtc) &
            ctl_words(DCTL_info_file)(1:length(ctl_words(DCTL_info_file))), &
            trim(mctls%info_file)

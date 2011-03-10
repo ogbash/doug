@@ -112,7 +112,7 @@ program main_geom
   end if
   ! Geometric coarse grid processing
   CP = CoarsePreconditioner_New()
-  if (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL .and. sctls%levels==2) then
+  if (sctls%input_type==DISTRIBUTION_TYPE_ELEMENTAL .and. sctls%levels==2) then
     t1 = MPI_WTime()    
     call CoarsePreconditioner_geometric_Init(CP, D)
     if(pstream/=0) write(pstream, "(I0,':coarse time:',F0.3)") myrank, MPI_WTIME()-t1
@@ -161,7 +161,7 @@ program main_geom
   call Mesh_Destroy(D%mesh)
   call SpMtx_Destroy(D%A)
 
-  if (sctls%input_type==DCTL_INPUT_TYPE_ELEMENTAL .and. sctls%levels==2) then
+  if (sctls%input_type==DISTRIBUTION_TYPE_ELEMENTAL .and. sctls%levels==2) then
     call SpMtx_Destroy(CP%AC)
     call SpMtx_Destroy(CP%R)
     call SendData_Destroy(CP%cdat%send)

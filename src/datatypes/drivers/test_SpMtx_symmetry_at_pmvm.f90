@@ -69,7 +69,7 @@ program test_SpMtx_symmetry_at_pmvm
 
   ! Select input type
   select case (sctls%input_type)
-  case (DCTL_INPUT_TYPE_ELEMENTAL)
+  case (DISTRIBUTION_TYPE_ELEMENTAL)
 
      ! ELEMENTAL
      ! Distributed system matrix 'A'
@@ -84,7 +84,7 @@ program test_SpMtx_symmetry_at_pmvm
         call Mesh_Destroy(M2)
      end if
 
-  case (DCTL_INPUT_TYPE_ASSEMBLED)
+  case (DISTRIBUTION_TYPE_ASSEMBLED)
 
      ! ASSEMBLED
      !call parallelDistributeAssembled()

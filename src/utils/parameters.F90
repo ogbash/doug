@@ -91,10 +91,6 @@ module parameters
 
   ! Control parameters:
   !
-  ! System matrix input type
-  integer, parameter :: DCTL_INPUT_TYPE_ELEMENTAL = 1
-  integer, parameter :: DCTL_INPUT_TYPE_ASSEMBLED = 2
-  integer, parameter :: DCTL_INPUT_TYPE_STRUCTURED = 3
   ! Solution method
   integer, parameter :: DCTL_SOLVE_CG  = 1
   integer, parameter :: DCTL_SOLVE_PCG = 2

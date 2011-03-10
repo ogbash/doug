@@ -1,5 +1,6 @@
 
 libdoug_la_SOURCES += \
+	components/mparameters.f90 \
 	components/Distribution.F90 \
 	components/Distribution_base.F90 \
 	components/Distribution_elem.F90 \
