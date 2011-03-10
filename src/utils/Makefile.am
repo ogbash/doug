@@ -4,9 +4,7 @@ libdoug_la_SOURCES += \
 	utils/RealKind.F90 \
 	utils/parameters.F90 \
 	utils/globals.F90 \
-	utils/DOUG_utils.F90
-
-EXTRA_DIST += \
+	utils/DOUG_utils.F90 \
 	utils/controls.F90
 
 noinst_PROGRAMS = matrix_gen vector_gen txt2xdr

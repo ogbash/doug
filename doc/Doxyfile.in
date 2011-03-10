@@ -528,7 +528,7 @@ WARN_LOGFILE           =
 INPUT                  = @top_srcdir@/src/datatypes \
                          @top_srcdir@/src/datatypes/ElemMtxs \
                          @top_srcdir@/src/datatypes/SpMtx \
-                         @top_srcdir@/src/datatypes/drivers \
+                         @top_srcdir@/src/components \
                          @top_srcdir@/src/solvers \
                          @top_srcdir@/src/coarse \
                          @top_srcdir@/src/coarse/geom \
@@ -758,7 +758,7 @@ HTML_FOOTER            =
 # the style sheet file to the HTML output directory, so don't put your own 
 # stylesheet in the HTML output directory as well, or it will be erased!
 
-HTML_STYLESHEET        = @srcdir@/doxygen.css
+HTML_STYLESHEET        = 
 
 # If the HTML_ALIGN_MEMBERS tag is set to YES, the members of classes, 
 # files or namespaces will be aligned in HTML using tables. If set to 

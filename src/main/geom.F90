@@ -28,7 +28,6 @@
 
 program main_geom
 
-  use doug
   use Distribution_mod
   use Partitioning_mod
   use Partitioning_full_mod

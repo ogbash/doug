@@ -26,6 +26,7 @@ module DOUG_utils
 
   use RealKind
   use globals
+  use controls
   use mparameters
 
   implicit none
@@ -373,6 +374,8 @@ contains
 
     integer                       :: stream_type = D_INIT_PARALLEL
 
+    call controls_init()
+
     if (present(init_type)) then
        ! Initialize serial DOUG (mainly for testing some drivers)
        if(init_type == D_INIT_SERIAL) then
@@ -571,8 +574,6 @@ contains
     
     integer :: i
     
-    include 'controls.F90'
-
     write(stream,*) 'List of currently supported control parameters:'
     do i = 1, size(ctl_words)
    	  write(stream,*) ctl_words(i)
@@ -711,10 +712,6 @@ contains
                                               ! control parameter (counter)
     integer                   :: i, ival
     logical :: lval
-
-    ! Include control parameters desciption file.
-    ! Defined are: DCTL_*, ctl_words
-    include 'controls.F90'
 
     ! find out which argument it is and set appropriatly
     ! WARN if it is unknown or repeated
@@ -1165,10 +1162,6 @@ contains
     integer       :: j, lens
     character(24) :: fmta, fmti, fmtl, fmtr, fmtc
 
-    ! Include control parameters desciption file.
-    ! Defined are: DCTL_*, ctl_words
-    include 'controls.F90'
-
     lens = length(ctl_words(1))
     do j = 2,DCTL_NWORDS
        if (lens < length(ctl_words(j))) then
@@ -1294,10 +1287,6 @@ contains
 
     integer       :: j, lens
     character(24) :: fmta, fmti, fmtr, fmtc, fmtl
-
-    ! Include control parameters desciption file.
-    ! Defined are: DCTL_*, ctl_words
-    include 'controls.F90'
 
     lens = length(ctl_words(1))
     do j = 2,DCTL_NWORDS

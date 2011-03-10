@@ -66,7 +66,6 @@
 !> \endcode
 program main_aggr
 
-  use doug
   use Distribution_mod
   use Partitioning_mod
   use Partitioning_aggr_mod

@@ -1,5 +1,5 @@
 
-AC_INIT(doug, 0.0.263, [olegus@ut.ee])
+AC_INIT(doug, 0.1, [olegus@ut.ee])
 [pvmaj=`expr "$PACKAGE_VERSION" : '\([0-9]*\)\.[0-9]*'`]
 [pvmin=`expr "$PACKAGE_VERSION" : '[0-9]*\.\([0-9]*\)'`]
 [pvtiny=`expr "$PACKAGE_VERSION" : '[0-9]*\.[0-9]*\.\([0-9]*\)'`]
@@ -7,7 +7,7 @@ AC_DEFINE_UNQUOTED([PACKAGE_VERSION_MAJOR], $pvmaj, [DOUG major version])
 AC_DEFINE_UNQUOTED([PACKAGE_VERSION_MINOR], $pvmin, [DOUG minor version])
 AC_DEFINE_UNQUOTED([PACKAGE_VERSION_TINY], $pvtiny, [DOUG sub-minor version])
 
-AC_CONFIG_SRCDIR([src/main/DOUG.f90])
+AC_CONFIG_SRCDIR([src/main/aggr.F90])
 
 # Specify directory for auxillary build tools (e.g., install-sh,
 # config.sub, config.guess) and M4 files.
