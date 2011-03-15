@@ -9,6 +9,8 @@
 !! \section doc Documentation
 !!
 !! \subsection inout Input/Output
+!! DOUG reads \e control \e file during initialization
+!! - DOUG control parameters are listed in the \ref controls module
 !! - \subpage p_inputformat DOUG input file formats
 !! - DOUG output
 !!

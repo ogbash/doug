@@ -22,64 +22,117 @@
 !> Definitions for control file parameters
 module controls
 
-  !> @var DCTL_method
-  !! Schwarz method: additive, multiplicative
-
   !> number of control parameters
   integer, parameter :: DCTL_NWORDS = 51
+  !> Control parameter name strings
   character*(51)     :: ctl_words(DCTL_NWORDS)
 
-  integer, parameter ::DCTL_solver = 1, & !< solver for outer loop: PCG,...
-       DCTL_method               =  2, & !< Schwarz method: additive, multiplicative
+  !> \name Main parameters
+  !! @{
+  integer, parameter ::  &
+       DCTL_solver = 1, & !< solver for outer loop: (2) PCG
        DCTL_levels               =  3, & !< Preconditioning levels: 1, 2
-       DCTL_overlap              =  4, & !< Schwarz method overlap
-       DCTL_smoothers            =  5, & !< Smoothing steps in smoothed aggregation
-       DCTL_input_type           =  6, & !< Elemental input files, assembled matrix or structured mesh (generated locally)
-       DCTL_matrix_type          =  7, & 
+       DCTL_input_type           =  6, & !< (1) Elemental input files, (2) assembled matrix or (3) structured mesh (generated locally on the fly)
+       DCTL_fine_method          = 49, & !< fine preconditioner: (1) complete, (2) SGS
+       DCTL_coarse_method        = 47  !< coarse preconditer: (1) smoothed, (2) robust
+  !! @}
+
+  !> \name Output
+  !! @{
+  integer, parameter ::  &
+       DCTL_solution_format      = 19, & !< solution file format
+       DCTL_solution_file        = 20, & !< solution file name
+       DCTL_debug                = 27, &
+       DCTL_verbose              = 28, & !< verbose level: 1-3 info, 4-6 debug, 7-. trace
+       DCTL_plotting             = 29
+  !> @}
+
+  !> \name Assembled data input
+  !! @{
+  integer, parameter ::  &
        DCTL_assembled_mtx_file   =  8, & !< Matrix file for assembled input
+       DCTL_assembled_mtx_format = 46, & !< assembled matrix format
+       DCTL_assembled_rhs_file   = 42, & !< assembled rhs file name
+       DCTL_assembled_rhs_format = 43 !< assembled rhs file format
+  !> @}
+
+  !> \name Elemental data input
+  !! @{
+  integer, parameter ::  &
        DCTL_info_file            =  9, & 
        DCTL_freedom_lists_file   = 10, & !< Freedom list file for elemental input
        DCTL_elemmat_rhs_file     = 11, & !< Elemental matrix file for elemental input
        DCTL_coords_file          = 12, & !< Coordinates file for elemental input
        DCTL_freemap_file         = 13, &
-       DCTL_freedom_mask_file    = 14, &
-       DCTL_number_of_blocks     = 15, &
+       DCTL_freedom_mask_file    = 14
+  
+  !> @}
+
+  !> \name Generated mesh (as data input)
+  integer, parameter ::  &
+       DCTL_grid_size            = 51    !< grid size for structured mesh input type
+  !> @}
+
+  !> \name Aggregation
+  !! @{
+  integer, parameter ::  &
        DCTL_strong1              = 16, & !< threshold for fine aggregate smoothing
-       DCTL_strong2              = 17, & !< threshold for coarse aggregate smoothing
-       DCTL_solve_tolerance      = 18, &
-       DCTL_solution_format      = 19, & !< solution file format
-       DCTL_solution_file        = 20, & !< solution file name
+       DCTL_strong2              = 17, & !< threshold for coarse aggregate smoothing  
        DCTL_radius1              = 21, & !< fine aggregates radius
        DCTL_radius2              = 22, & !< coarse aggregates radius
        DCTL_minasize1            = 23, & !< minimum size of a fine aggregate
        DCTL_minasize2            = 24, & !< minimum size of a coarse aggregate
        DCTL_maxasize1            = 25, & !< maximum size of a fine aggregate
-       DCTL_maxasize2            = 26, & !< maximum size of a coarse aggregate
-       DCTL_debug                = 27, &
-       DCTL_verbose              = 28, & !< verbose level: 1-3 info, 4-6 debug, 7-. trace
-       DCTL_plotting             = 29, &
-       DCTL_initial_guess        = 30, &
-       DCTL_start_vec_type       = 31, &
-       DCTL_start_vec_file       = 32, &
-       DCTL_symmstruct           = 33, &
-       DCTL_symmnumeric          = 34, &
-       DCTL_solve_maxiters       = 35, &
+       DCTL_maxasize2            = 26 !< maximum size of a coarse aggregate
+  !> @}
+
+  !> \name Solvers
+  !! @{
+  integer, parameter ::  &
+       DCTL_solve_tolerance      = 18, &
+       DCTL_initial_guess        = 30, & !< not used
+       DCTL_solve_maxiters       = 35
+  !> @}
+
+  !> \name First level preconditioners
+  !! @{
+  integer, parameter ::  &
+       DCTL_method               =  2, & !< Schwarz method: additive, multiplicative
+       DCTL_overlap              =  4, & !< Schwarz method overlap
+       DCTL_num_subdomains       = 48, & !< number of subdomains on each process for Schwarz preconditioner
+       DCTL_num_iters            = 50 !< number of Gauss-Seidel iterations
+
+  !> @}
+
+  !> \name Second level preconditioner: smoothed
+  !! @{
+  integer, parameter ::  &
+       DCTL_smoothers            =  5 !< Smoothing steps in smoothed aggregation
+  !> @}
+
+  !> \name Second level preconditioner: geometric
+  !! @{
+  integer, parameter ::  &
        DCTL_maxcie               = 36, &
        DCTL_maxnd                = 37, &
        DCTL_cutbal               = 38, &
        DCTL_center_type          = 39, &
        DCTL_hanging_nodes        = 40, &
        DCTL_interpolation_type   = 41, &
-       DCTL_assembled_rhs_file   = 42, & !< assembled rhs file name
-       DCTL_assembled_rhs_format = 43, & !< assembled rhs file format
        DCTL_dump_matrix_only     = 44, &
-       DCTL_dump_matrix_file     = 45, &
-       DCTL_assembled_mtx_format = 46, & !< assembled matrix format
-       DCTL_coarse_method        = 47, & !< coarse preconditer: 1-smoothed, 2-robust
-       DCTL_num_subdomains       = 48, & !< number of subdomains on each process for Schwarz preconditioner
-       DCTL_fine_method          = 49, & !< fine preconditioner: 1-complete, 2-SGS
-       DCTL_num_iters            = 50, & !< number of Gauss-Seidel iterations
-       DCTL_grid_size            = 51    !< grid size for structured mesh input type
+       DCTL_dump_matrix_file     = 45
+  !> @}
+
+  !> \name Unsorted
+  !! @{
+  integer, parameter ::  &
+       DCTL_matrix_type          =  7, & !< Not used
+       DCTL_number_of_blocks     = 15, & !< Not really used, set to 1
+       DCTL_start_vec_type       = 31, & !< Not used
+       DCTL_start_vec_file       = 32, & !< Not used
+       DCTL_symmstruct           = 33, & !< Used only in matrix (un)scaling routines
+       DCTL_symmnumeric          = 34 !< Used only in matrix (un)scaling routines
+  !> @}
 
 !!$DCTL_matrix_file           =
 !!$DCTL_rhs_file              =
