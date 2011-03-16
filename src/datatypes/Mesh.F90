@@ -144,7 +144,7 @@ module Mesh_class
     !                  |/                         |/                         |
     !              actual freedoms                |     ghost freedoms       |
 
-     !> \addtogroup domain_decomp 
+     !> \addtogroup p_dd 
      !! @{
      type(indlist),dimension(:),pointer :: ax_recvidx,ax_sendidx
      type(indlist),dimension(:),pointer :: ol_outer !< overlap with each neighbour in his partition

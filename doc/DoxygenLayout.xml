@@ -2,8 +2,8 @@
   <!-- Navigation index tabs for HTML output -->
   <navindex>
     <tab type="mainpage" visible="yes" title=""/>
-    <tab type="pages" visible="yes" title="" intro=""/>
-    <tab type="modules" visible="yes" title="" intro=""/>
+    <tab type="pages" visible="no" title="" intro=""/>
+    <tab type="modules" visible="no" title="" intro=""/>
     <tab type="namespaces" visible="yes" title="Fortran modules">
       <tab type="namespaces" visible="yes" title="" intro=""/>
       <tab type="namespacemembers" visible="yes" title="" intro=""/>

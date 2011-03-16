@@ -7,6 +7,9 @@
 !> <A HREF="http://www.dougdevel.org/wiki">http://www.dougdevel.org/wiki</A>.
 !!
 !! \section doc Documentation
+!! 
+!! - \subpage p_overview
+!! - \subpage p_components - brief overview of the components
 !!
 !! \subsection inout Input/Output
 !! DOUG reads \e control \e file during initialization
@@ -15,15 +18,18 @@
 !! - DOUG output
 !!
 !! \subsection alg Algorithm
-!! - overview
-!! - solvers
+!! - \subpage p_dd - basic ideas of data distribution
+!!   - \subpage p_distributedops - the details of how matrix is stored and matrix-vector operation is performed
+!! - Partitioning
+!!   - \subpage p_aggregation
+!!   - Graph splitting (METIS)
+!! - Solvers
 !!   - PCG
 !!   - UMFPACK
-!! - aggregates
-!! - preconditioners
-!!   - \subpage domain_decomp (first level preconditioner)
-!!   - coarse level preconditioner
-!! - coarse space
-!!   - smoothed
+!! - Preconditioners
+!!   - First level preconditioner
+!!   - Coarse level preconditioner
+!! - Coarse space preconditioners
+!!   - Geometric
+!!   - \subpage p_scs
 !!   - \subpage p_rcs
-!!   - geometric

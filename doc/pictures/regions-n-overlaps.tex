@@ -1,0 +1,70 @@
+\begin{tikzpicture}[gnode/.style={circle,fill,inner sep=1,gray},
+  aline/.style={dotted,line width=1pt,color=blue},
+  cgnode/.style={circle,draw,inner sep=1.5,black,line width=1},
+  dline/.style={dashed,line width=1pt,color=blue}]
+
+% expanded domains
+\begin{scope}
+\clip (0,0)  .. controls +(-.5,.5) and +(-.1,-.5) .. (0,2) 
+  .. controls +(.1,.5) and +(-.5,-.5) .. (2,2)
+   .. controls +(.5,.5) and +(.5,.5) .. (3,0)
+    .. controls +(-.5,-.5) and +(.5,-.5) .. (0,0);
+\fill[pattern color=orange,opacity=0.6, pattern=north west lines] (1.3,1.1) -- (1.65,-0.37) --  (-0.2,-0.35) -- (-0.3,0.9) -- (-.11,1.49) -- cycle ;
+\draw[dline,densely dashed,line width=0.5] (1.3,1.1) -- (1.65,-0.37) --  (-0.2,-0.35) -- (-0.3,0.9) -- (-.11,1.49) -- cycle ;
+\end{scope}
+
+% domain
+\path[draw] (0,0)  .. controls +(-.5,.5) and +(-.1,-.5) .. (0,2) 
+  .. controls +(.1,.5) and +(-.5,-.5) .. (2,2)
+   .. controls +(.5,.5) and +(.5,.5) .. (3,0)
+    .. controls +(-.5,-.5) and +(.5,-.5) .. (0,0);
+
+% aggregate expansion
+\begin{scope}[xscale=1.4, yscale=1.3,xshift=-12.3,yshift=-4.5]
+\filldraw[opacity=0.8,color=blue,densely dotted,pattern=horizontal lines light gray]  (1.2,1) -- (1.67,1.1) -- (1.85,0.35) -- (1.4,-0.) -- cycle ;
+\end{scope}
+
+% aggregates
+\draw[aline]  (1.2,1) -- (1.67,1.1) -- (1.85,0.35) -- (1.4,-0.) ;
+
+\node[fill=white,inner sep=1] at (.6,.5) {$\tilde V_1$};
+\node at (1.6,.5) {$\tilde W_2$};
+
+% domains
+\draw[dline] (1.2,1) -- (1.5,-0.37) ;
+\draw[dline] (1.2,1) -- (-.15,1.37) ;
+\draw[dline] (1.2,1) -- (2.87,1.37) ;
+
+% process regions
+
+% domain
+\begin{scope}[xshift=4cm]
+
+\fill[pattern=north west lines, pattern color=gray] (1.2,1) -- (1.02,1.05) -- (1.25,-0.38) -- (1.5,-0.37);
+\fill[pattern=north east lines, pattern color=orange] (1.2,1) -- (1.38,1.05) -- (1.75,-0.35) -- (1.5,-0.37);
+\fill[color=blue!30] (1.2,1) -- (1.38,1.04) --  (1.35,1.15) --  (1.08,1.23) -- (1.0,1.2) -- (1.02,1.06) -- cycle ;
+
+% domains
+\draw[dline] (1.2,1) -- (1.5,-0.37) ;
+\draw[dline] (1.2,1) -- (-.15,1.37) ;
+\draw[dline] (1.2,1) -- (2.87,1.37) ;
+
+\draw[dline,densely dashed,line width=0.5] (1.35,1.15) -- (1.75,-0.37) (-.11,1.6) -- (1.35,1.15) ;
+\draw[dline,densely dashed,line width=0.5] (1.0,1.2) -- (1.25,-0.38) (2.75,1.57) -- (1.0,1.2) ;
+
+\path[draw] (0,0)  .. controls +(-.5,.5) and +(-.1,-.5) .. (0,2) 
+  .. controls +(.1,.5) and +(-.5,-.5) .. (2,2)
+   .. controls +(.5,.5) and +(.5,.5) .. (3,0)
+    .. controls +(-.5,-.5) and +(.5,-.5) .. (0,0);
+
+\node[anchor=north east] (u1) at (1.45,-0.5) {$ U_1 \cap \tilde U_2$};
+\draw (u1) -- (1.3,0);
+\node[anchor=north west] (u2) at (1.55,-0.5) {$\tilde U_1 \cap U_2$};
+\draw (u2) -- (1.5,0);
+\node[anchor=south] (u3) at (1.5,2.1) {$(\tilde{U}_{1}\setminus U_{1})\cap(\tilde{U}_{2}\setminus U_{2})$};
+\draw (u3) -- (1.2,1.1);
+
+\end{scope}
+
+
+\end{tikzpicture}
