@@ -97,7 +97,7 @@ module controls
   !> \name First level preconditioners
   !! @{
   integer, parameter ::  &
-       DCTL_method               =  2, & !< Schwarz method: additive, multiplicative
+       DCTL_method               =  2, & !< Schwarz method: additive (1), multiplicative (not implemented)
        DCTL_overlap              =  4, & !< Schwarz method overlap
        DCTL_num_subdomains       = 48, & !< number of subdomains on each process for Schwarz preconditioner
        DCTL_num_iters            = 50 !< number of Gauss-Seidel iterations

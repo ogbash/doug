@@ -96,8 +96,8 @@ module Mesh_class
      ! NB! change to(?) nlell - number of local elements :
      !! Number of elements in each partition: partnelems[nparts]
      integer, dimension(:), pointer :: partnelems
-     !! Partition map (elements to partition; partitions
-     !! numbring starts from 1): eptnmap[nell]
+     !> Partition map: elements (actually nodes) to partitions (process numbers)
+     !! \ingroup p_dd
      integer, dimension(:), pointer :: eptnmap
      !! Inner/interface mask for (local) freedoms :
      !! inner_interf_fmask[nlf] - '0' - inner, '1' - interf.
@@ -147,9 +147,9 @@ module Mesh_class
      !> \addtogroup p_dd 
      !! @{
      type(indlist),dimension(:),pointer :: ax_recvidx,ax_sendidx
-     type(indlist),dimension(:),pointer :: ol_outer !< overlap with each neighbour in his partition
-     type(indlist),dimension(:),pointer :: ol_inner !< overlap with each neighbour in my partition
-     type(indlist),dimension(:),pointer :: ol_solve !< overlap with each neighbour in his,my or third process partitions
+     type(indlist),dimension(:),pointer :: ol_outer !< overlap with each neighbour process in its region
+     type(indlist),dimension(:),pointer :: ol_inner !< overlap with each neighbour process in my region
+     type(indlist),dimension(:),pointer :: ol_solve !< overlap with each neighbour process in all regions (its,my,or third)
      !> @}
 
      !! Graph

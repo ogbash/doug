@@ -3,12 +3,63 @@
 !! This is documentation for DOUG input and file formats.
 !!
 !! \section conf Control file
-!! DOUG uses configuration file to determine other input files and configuration values.
-!! The example control file:
+!! DOUG uses configuration file to determine other input files and configuration values. Control parameters specify
+!! preconditioners to use and their behavior.
+!! 
+!! For control parameter names and parameter meanings see \ref controls module,
+!! for some parameter values see \ref parameters module.
+!! Not all parameters are used, this depends on executable (\c doug_geom, \c doug_aggr) and preconditioners used.
+!!
+!! The example control file for \c doug_geom:
+!! \verbatim
+!!solver 2
+!!solve_maxiters 300
+!!method 1
+!!levels 2
+!!fine_method 2
+!!num_iters 2
+!!num_subdomains 1
+!!overlap 2
+!!smoothers 0
+!!input_type 2
+!!symmstruct T
+!!symmnumeric T
+!!# ###################
+!!# aggregate level 1:
+!!radius1 2
+!!strong1 0.67e0
+!!minasize1 2
+!!#maxasize1 19
+!!# aggregate level 2:
+!!radius2 1
+!!strong2 0.67e0
+!!minasize2 2
+!!#maxasize2 96
+!!# ###################
+!!matrix_type 1
+!!number_of_blocks 1
+!!initial_guess 2
+!!start_vec_file ./NOT.DEFINED.start_vec_file
+!!start_vec_type 2
+!!solve_tolerance 1.0e-12
+!!solution_format 2
+!!solution_file solution.xdr
+!!#debug -5
+!!debug 3
+!!verbose 3
+!!plotting 3
+!!assembled_mtx_file Lap16x16.txt
+!!assembled_mtx_format 0
+!!assembled_rhs_format 2
+!!assembled_rhs_file rhs.xdr
+!! \endverbatim
+!!
+!! The example control file for \c doug_geom:
 !! \verbatim
 !!solver 2
 !!method 1
 !!input_type 1
+!!levels 2
 !!matrix_type 1
 !!info_file doug_info.dat
 !!freedom_lists_file doug_element.dat
@@ -22,14 +73,14 @@
 !!start_vec_type 2
 !!solve_tolerance 1.0e-12
 !!solution_format 2
-!!solution_file ./solution.file
+!!solution_file solution.xdr
 !!debug 0
 !!verbose 10
 !!plotting 1
+!!maxcie 4
+!!cutbal 3
 !! \endverbatim
-!! See DOUG_utils::CtrlData_initFromFile() for source reference. For control parameter 
-!! names parameter meanings see controls.F90 file and its \ref ctl_words array,
-!! for parameter values see \ref parameters module (currently only partially filled).
+!! See DOUG_utils::CtrlData_initFromFile() for source reference.
 !!
 !! \section data Data files
 !!
