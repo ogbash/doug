@@ -1,5 +1,5 @@
 
-AC_INIT(DOUG, 0.2, [olegus@ut.ee])
+AC_INIT(DOUG, 0.2.1, [olegus@ut.ee])
 [pvmaj=`expr "$PACKAGE_VERSION" : '\([0-9]*\)\.[0-9]*'`]
 [pvmin=`expr "$PACKAGE_VERSION" : '[0-9]*\.\([0-9]*\)'`]
 [pvtiny=`expr "$PACKAGE_VERSION" : '[0-9]*\.[0-9]*\.\([0-9]*\)'`]
@@ -165,7 +165,6 @@ AC_CONFIG_HEADERS([src/doug_config.h])
 AC_CONFIG_FILES([Makefile
         src/Makefile
         src/main/Makefile
-	src/ext/C/Makefile
         doc/Doxyfile
         doc/Makefile
         doc/pictures/Makefile
